@@ -1,7 +1,7 @@
 "use client";
 
 import { clsx } from "clsx";
-import { CalendarDays, HandCoins, LayoutDashboard, Receipt, Settings } from "lucide-react";
+import { CalendarDays, HandCoins, Landmark, LayoutDashboard, Receipt, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
@@ -11,6 +11,7 @@ const NAV = [
   { href: "/calendar", label: "Calendar", icon: CalendarDays, testId: "nav-calendar" },
   { href: "/bills", label: "Bills", icon: Receipt, testId: "nav-bills" },
   { href: "/income", label: "Income", icon: HandCoins, testId: "nav-income" },
+  { href: "/institutions", label: "Institutions", icon: Landmark, testId: "nav-institutions" },
   { href: "/settings", label: "Settings", icon: Settings, testId: "nav-settings" },
 ] as const;
 
@@ -82,7 +83,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </ul>
         </nav>
         <p className="mx-5 border-t border-slate-200 py-4 text-xs leading-relaxed text-slate-600">
-          Your data stays on this computer. No bank connection.
+          Your data stays on this computer. Bank connections are read-only, through Teller.
         </p>
       </aside>
 
@@ -100,7 +101,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         aria-label="Main"
         className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-sheet/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
       >
-        <ul className="grid grid-cols-5">
+        <ul className="grid grid-cols-6">
           {NAV.map(({ href, label, icon: Icon, testId }) => {
             const active = isActive(pathname, href);
             return (

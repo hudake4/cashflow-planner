@@ -69,7 +69,7 @@ export function SettingsView({ appVersion }: { appVersion: string }) {
             <CardBody className="space-y-4">
               <p className="flex items-start gap-2 rounded-control bg-slate-100 px-3 py-2 text-sm text-slate-700">
                 <HardDrive className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
-                All data stays on this computer. Nothing is sent anywhere, and there is no bank connection.
+                All data stays on this computer. The only thing that goes online is the read-only bank connection to Teller, if you set one up.
               </p>
               <div className="space-y-2">
                 <Button className="w-full" onClick={() => setConfirm("demo")} data-testid="load-demo-button">
@@ -127,8 +127,8 @@ export function SettingsView({ appVersion }: { appVersion: string }) {
           <p className="flex items-start gap-2">
             <Database className="mt-0.5 h-4 w-4 shrink-0 text-rose-700" aria-hidden="true" />
             <span>
-              This permanently deletes all income, bills and paid/skipped marks, and resets settings to their defaults. This can&apos;t be
-              undone.
+              This permanently deletes all income, bills and paid/skipped marks, disconnects every bank institution (access is revoked at
+              Teller), and resets settings to their defaults. This can&apos;t be undone.
             </span>
           </p>
         }

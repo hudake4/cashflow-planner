@@ -6,7 +6,7 @@ A local, single-user personal cash-flow planner. It answers one question:
 
 You enter a starting balance, your paychecks (weekly, biweekly or one-time) and your bills (one-time, weekly, biweekly, monthly, quarterly, yearly). CashFlow Planner projects your running balance day by day and week by week on a calendar, and explains every number with an event ledger.
 
-- Runs entirely on your machine at **http://localhost:3000**. There are no accounts, no bank connections and no external services.
+- Runs entirely on your machine at **http://localhost:3000**. There are no accounts and no analytics. The only external service is the optional, read-only [Teller](https://teller.io) bank connection (see below).
 - Projections are estimates. They assume every scheduled paycheck arrives and every listed bill is paid on time.
 
 ## Features
@@ -14,6 +14,7 @@ You enter a starting balance, your paychecks (weekly, biweekly or one-time) and 
 - **Calendar (main screen):** month and week views. Every week shows the opening balance, income, bills, net change and **projected closing balance**. Every day shows its paychecks and bills, and the end-of-day balance. Select a week to see the ordered breakdown with the running balance after each event. Select an event to mark a bill occurrence paid or skipped, override this occurrence's amount, or edit the underlying bill or income.
 - **Dashboard:** starting balance, next paycheck, projected end of this week and next week, lowest projected balance, totals, a negative-balance warning, upcoming bills and a balance trend chart.
 - **Income & Bills:** create, edit, delete and deactivate, with optional end dates, categories and notes.
+- **Institutions:** optionally connect a bank read-only through Teller, see each connected institution's accounts and browse its transaction history (fetched live, never stored), and remove it again.
 - **Settings:** starting balance, projection start date, currency, forecast length (7–366 days), week start day and default calendar view. Also load demo data or clear everything.
 
 ## Prerequisites
@@ -62,6 +63,17 @@ On pushes to `main`, the workflow publishes the Windows NSIS installer as a GitH
 
 > If `ELECTRON_RUN_AS_NODE=1` is set in your shell (some IDE terminals set it), the exe silently runs as plain Node. Run `Remove-Item Env:ELECTRON_RUN_AS_NODE` first.
 
+## Bank connections (optional, Teller)
+
+The **Institutions** page connects your bank read-only through [Teller](https://teller.io). It stays disabled until you configure it:
+
+1. Create a free developer account at teller.io and copy your **Application ID**.
+2. Download the **certificate** and **private key**. Keep them outside the repo and never commit them. (Sandbox doesn't need them.)
+3. Set `TELLER_APPLICATION_ID`, `TELLER_ENVIRONMENT` (`sandbox`, `development` or `production`), `TELLER_CERT_PATH` and `TELLER_KEY_PATH` in `.env` (see `.env.example`). For the desktop app, put the same values in `teller.json` in `%APPDATA%\CashFlow Planner\` (`{ "applicationId", "environment", "certPath", "keyPath" }`).
+4. Restart the app. Try `sandbox` (fake banks) first, then `development` (free, real banks).
+
+Only the server talks to Teller. Access tokens are stored in the local database (unencrypted, like the rest of your data) and never reach the browser. Transactions are not stored.
+
 ## Test & quality checks
 
 ```bash
@@ -101,7 +113,7 @@ src/
   domain/               Pure, deterministic engine (no I/O): money, dates, recurrence, projection, dashboard
   server/               Prisma client, repositories (scoped by householdId), error helpers, demo data
   app/api/              Next.js route handlers (REST API, see docs/API.md)
-  app/                  Pages: / (dashboard), /calendar, /bills, /income, /settings
+  app/                  Pages: / (dashboard), /calendar, /bills, /income, /institutions, /settings
   components/, lib/     UI components and typed API client
 prisma/                 schema.prisma, migrations, seed.ts
 tests/                  unit, integration, component, e2e
@@ -112,7 +124,7 @@ The UI never calculates balances itself. It renders what the projection engine r
 
 ## Privacy
 
-All data lives in `prisma/dev.db` on this computer. The app makes no external network calls, and Next.js telemetry is disabled through `NEXT_TELEMETRY_DISABLED=1` in `.env`.
+All data lives in `prisma/dev.db` on this computer. The app makes no external network calls except the optional Teller bank connection (only when you set it up and use the Institutions page), and Next.js telemetry is disabled through `NEXT_TELEMETRY_DISABLED=1` in `.env`.
 
 ## Known dependency advisories
 
