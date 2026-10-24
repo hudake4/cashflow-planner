@@ -90,7 +90,7 @@ The ledger is sorted by:
 - Errors use the `ApiErrorBody` shape: `{ error: { code, message, fieldErrors? } }`.
 - The data access layer is scoped by `householdId` (always `"local"` in the MVP).
 - There are no analytics and no external services except the optional **SimpleFIN Bridge** bank connection (see *SimpleFIN (bank connections)* below). Any other provider must be documented here first; credentials stay server-side and are never exposed to the browser.
-- **Only src/server/simplefin.ts touches setup tokens and Access URLs.** It never logs them, never puts them (or the Authorization header) in an error message, and no DTO or API response ever contains an Access URL. Pure parsing lives in src/server/simplefin-mapping.ts (no I/O). Tests mock etch or the module and never call the network.
+- **Only src/server/simplefin.ts touches setup tokens and Access URLs.** It never logs them, never puts them (or the Authorization header) in an error message, and no DTO or API response ever contains an Access URL. Pure parsing lives in src/server/simplefin-mapping.ts (no I/O). Tests mock fetch or the module and never call the network.
 - The app runs on port **3000** only. `scripts/check-port.mjs` fails loudly if the port is taken.
 
 ### SimpleFIN (bank connections)

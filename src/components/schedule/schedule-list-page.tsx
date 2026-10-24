@@ -101,6 +101,8 @@ export function ScheduleListPage({ kind }: { kind: ScheduleKind }) {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Item | null>(null);
   const [deleting, setDeleting] = useState<Item | null>(null);
+  const addFocusTarget = useRef<HTMLButtonElement | null>(null);
+  const editFocusTarget = useRef<HTMLButtonElement | null>(null);
   const deleteFocusTarget = useRef<HTMLButtonElement | null>(null);
   const [pendingToggle, setPendingToggle] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -109,7 +111,8 @@ export function ScheduleListPage({ kind }: { kind: ScheduleKind }) {
     setEditing(null);
     setFormOpen(true);
   };
-  const openEdit = (item: Item) => {
+  const openEdit = (item: Item, trigger: HTMLButtonElement | null) => {
+    editFocusTarget.current = trigger;
     setEditing(item);
     setFormOpen(true);
   };
@@ -119,7 +122,7 @@ export function ScheduleListPage({ kind }: { kind: ScheduleKind }) {
   };
 
   const addButton = (
-    <Button variant="primary" className="w-full sm:w-auto" onClick={openAdd} data-testid={`add-${kind}-button`}>
+    <Button ref={addFocusTarget} variant="primary" className="w-full sm:w-auto" onClick={openAdd} data-testid={`add-${kind}-button`}>
       <Plus aria-hidden="true" data-icon="inline-start" /> {copy.add}
     </Button>
   );
@@ -341,6 +344,8 @@ export function ScheduleListPage({ kind }: { kind: ScheduleKind }) {
 
       <ScheduleFormDialog
         kind={kind}
+        restoreFocusTarget={() => editing ? editFocusTarget.current : addFocusTarget.current}
+        fallbackFocusTarget={() => addFocusTarget.current}
         open={formOpen}
         item={editing}
         onClose={() => setFormOpen(false)}
@@ -350,7 +355,8 @@ export function ScheduleListPage({ kind }: { kind: ScheduleKind }) {
       <ConfirmDialog
         open={deleting !== null}
         onClose={() => setDeleting(null)}
-        restoreFocusTarget={deleteFocusTarget.current}
+        restoreFocusTarget={() => deleteFocusTarget.current}
+        fallbackFocusTarget={() => addFocusTarget.current}
         title={`Delete ${kind === "bill" ? "bill" : "income source"}?`}
         description={
           <span className="block">
@@ -460,7 +466,7 @@ function RowActions({
   suffix?: string;
   item: Item;
   kind: ScheduleKind;
-  onEdit: (item: Item) => void;
+  onEdit: (item: Item, trigger: HTMLButtonElement | null) => void;
   onDelete: (item: Item, trigger: HTMLButtonElement | null) => void;
 }) {
   const triggerRef = useRef<HTMLButtonElement | null>(null);
@@ -484,7 +490,7 @@ function RowActions({
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="min-h-9"
-          onSelect={() => onEdit(item)}
+          onSelect={() => onEdit(item, triggerRef.current)}
           data-testid={`edit-${kind}-${item.id}${suffix}`}
         >
           <Pencil aria-hidden="true" />

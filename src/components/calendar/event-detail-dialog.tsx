@@ -9,7 +9,7 @@ import { fmtDayShort } from "@/lib/dates";
 import { FREQUENCY_LABELS } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog } from "@/components/ui/dialog";
+import { Dialog, type DialogFocusTarget } from "@/components/ui/dialog";
 import { Field, MoneyInput } from "@/components/ui/field";
 import { Balance, EventAmount } from "@/components/ui/money";
 import { InlineStatus } from "@/components/ui/states";
@@ -19,18 +19,24 @@ export function EventDetailDialog({
   event,
   currency,
   onClose,
+  restoreFocusOnClose,
+  restoreFocusTarget,
   onChanged,
   onEditSource,
 }: {
   event: LedgerEvent | null;
   currency: string;
   onClose: () => void;
+  restoreFocusOnClose?: boolean;
+  restoreFocusTarget?: DialogFocusTarget;
   /** Called after any successful mutation; should refetch the projection. */
   onChanged: () => Promise<void> | void;
   onEditSource: (event: LedgerEvent) => void;
 }) {
   return (
     <Dialog
+      restoreFocusOnClose={restoreFocusOnClose}
+      restoreFocusTarget={restoreFocusTarget}
       open={event !== null}
       onClose={onClose}
       title={event?.name ?? ""}

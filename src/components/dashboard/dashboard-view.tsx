@@ -22,9 +22,6 @@ import { TrendChart } from "./trend-chart";
 
 const DISCLAIMER = "Projected balance assumes all scheduled income arrives and all listed bills are paid on time.";
 
-const linkButton =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded-control px-4 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600";
-
 export function DashboardView() {
   const dash = useApi<DashboardResponse>("dashboard", api.getDashboard);
 
@@ -45,9 +42,17 @@ export function DashboardView() {
             >
               <RefreshCw className="h-4 w-4" aria-hidden="true" /> Refresh
             </Button>
-            <Link href="/calendar" className={clsx(linkButton, "flex-1 bg-brand-600 text-on-accent hover:bg-brand-700 sm:flex-none")} data-testid="dashboard-open-calendar">
-              <CalendarDays className="h-4 w-4" aria-hidden="true" /> Open calendar
-            </Link>
+            <Button
+              asChild
+              variant={dash.data && !dash.data.hasData ? "outline" : "default"}
+              size="lg"
+              className="min-h-11 flex-1 rounded-control font-semibold sm:flex-none"
+              data-testid="dashboard-open-calendar"
+            >
+              <Link href="/calendar">
+                <CalendarDays className="h-4 w-4" aria-hidden="true" /> Open calendar
+              </Link>
+            </Button>
           </div>
         }
       />
@@ -84,13 +89,19 @@ function DashboardSkeleton() {
               <Skeleton className="h-5 w-56" />
               <Skeleton className="h-16 w-80 max-w-full" />
               <Skeleton className="h-4 w-72 max-w-full" />
+              <div className="grid divide-y divide-border border-t border-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="flex justify-between gap-3 py-3 sm:min-h-24 sm:flex-col sm:justify-between sm:px-3">
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-28" />
+                      <Skeleton className="h-3 w-24" />
+                    </div>
+                    <Skeleton className="h-5 w-28 self-end" />
+                  </div>
+                ))}
+              </div>
             </CardBody>
           </Card>
-          <div className="grid gap-3 sm:grid-cols-3">
-            {[0, 1, 2].map((i) => (
-              <Card key={i}><CardBody className="space-y-2"><Skeleton className="h-4 w-28" /><Skeleton className="h-7 w-32" /><Skeleton className="h-3 w-24" /></CardBody></Card>
-            ))}
-          </div>
         </div>
         <Card><CardBody className="space-y-4">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-8 w-full" />)}</CardBody></Card>
       </div>
@@ -101,18 +112,16 @@ function DashboardSkeleton() {
   );
 }
 
-/** A secondary figure under the hero: label, value, one line of context. */
-function Figure({ id, label, children, sub }: { id: string; label: string; children: ReactNode; sub: ReactNode }) {
+/** One compact ledger figure under the current-week balance. */
+function SummaryMetric({ id, label, children, sub }: { id: string; label: string; children: ReactNode; sub: ReactNode }) {
   return (
-    <Card data-testid={`summary-card-${id}`} className="min-w-0">
-      <CardBody className="flex h-full min-h-28 flex-col justify-between gap-2 p-4">
-        <h2 className="text-sm font-semibold text-muted-foreground">{label}</h2>
-        <div className="font-semiwide text-xl font-bold tracking-tight text-foreground" data-testid={`summary-value-${id}`}>
-          {children}
-        </div>
-        <div className="text-xs text-muted-foreground">{sub}</div>
-      </CardBody>
-    </Card>
+    <div data-testid={`summary-card-${id}`} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] gap-x-3 py-3 sm:min-h-24 sm:grid-cols-1 sm:grid-rows-[auto_auto_1fr] sm:px-3">
+      <dt className="text-sm font-semibold text-muted-foreground">{label}</dt>
+      <dd className="mt-0.5 text-xs leading-snug text-muted-foreground">{sub}</dd>
+      <dd className="col-start-2 row-span-2 row-start-1 self-center whitespace-nowrap font-semiwide text-right text-base font-bold tabular-nums text-foreground sm:col-start-1 sm:row-span-1 sm:row-start-3 sm:self-end" data-testid={`summary-value-${id}`}>
+        {children}
+      </dd>
+    </div>
   );
 }
 
@@ -170,15 +179,19 @@ function DashboardContent({ d }: { d: DashboardResponse }) {
           testId="dashboard-empty"
           action={
             <div className="flex flex-wrap justify-center gap-2">
-              <Link href="/income" className={clsx(linkButton, "bg-brand-600 text-on-accent hover:bg-brand-700")}>
-                <HandCoins className="h-4 w-4" aria-hidden="true" /> Add your first paycheck
-              </Link>
-              <Link href="/bills" className={clsx(linkButton, "border border-slate-300 bg-sheet text-slate-800 hover:border-slate-400")}>
-                <Receipt className="h-4 w-4" aria-hidden="true" /> Add a bill
-              </Link>
-              <Link href="/settings" className={clsx(linkButton, "text-slate-700 hover:bg-slate-200/60")}>
-                Set starting balance or load demo data
-              </Link>
+              <Button asChild variant="default" size="lg" className="min-h-11 rounded-control font-semibold">
+                <Link href="/income">
+                  <HandCoins className="h-4 w-4" aria-hidden="true" /> Add your first paycheck
+                </Link>
+              </Button>
+              <Button asChild variant="outline" size="lg" className="min-h-11 rounded-control font-semibold">
+                <Link href="/bills">
+                  <Receipt className="h-4 w-4" aria-hidden="true" /> Add a bill
+                </Link>
+              </Button>
+              <Button asChild variant="ghost" size="lg" className="min-h-11 rounded-control font-semibold">
+                <Link href="/settings">Set starting balance or load demo data</Link>
+              </Button>
             </div>
           }
         />
@@ -217,44 +230,43 @@ function DashboardContent({ d }: { d: DashboardResponse }) {
               </h2>
               <div
                 className={clsx(
-                  "font-wide mt-3 min-w-0 text-[clamp(2.25rem,10vw,4.75rem)] leading-[1.05] font-extrabold tracking-[-0.03em] tabular-nums",
+                  "font-semiwide mt-3 min-w-0 text-4xl leading-tight font-bold tracking-tight tabular-nums sm:text-[2.5rem]",
                   weekNegative ? "text-rose-700" : "text-foreground",
                 )}
                 data-testid="summary-value-end-of-this-week"
               >
-                {week ? <AnimatedBalance cents={week.closingBalanceCents} currency={currency} iconClassName="h-[0.7em] w-[0.7em]" /> : "—"}
+                {week ? <AnimatedBalance cents={week.closingBalanceCents} currency={currency} className="font-semiwide font-bold" iconClassName="h-7 w-7 sm:h-8 sm:w-8" /> : "—"}
               </div>
               <p className="mt-3 text-sm text-muted-foreground">
                 {week
                   ? `Closing balance for ${fmtRange(week.rangeStart, week.rangeEnd)}, after every bill due this week.`
                   : "Today is outside the forecast window."}
               </p>
+              <dl className="mt-5 grid divide-y divide-border border-t border-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+                <SummaryMetric
+                  id="end-of-next-week"
+                  label="End of next week"
+                  sub={d.nextWeek ? fmtRange(d.nextWeek.rangeStart, d.nextWeek.rangeEnd) : "Beyond the forecast window."}
+                >
+                  {d.nextWeek ? <Balance cents={d.nextWeek.closingBalanceCents} currency={currency} iconClassName="h-4 w-4" /> : "—"}
+                </SummaryMetric>
+                <SummaryMetric id="lowest-balance" label="Lowest point" sub={`End of ${fmtDayShort(t.lowestBalanceDate)}`}>
+                  <Balance cents={t.lowestBalanceCents} currency={currency} iconClassName="h-4 w-4" />
+                </SummaryMetric>
+                <SummaryMetric
+                  id="next-paycheck"
+                  label="Next paycheck"
+                  sub={d.nextPaycheck ? `${d.nextPaycheck.name}, ${fmtDayShort(d.nextPaycheck.date)}` : "No upcoming income in the forecast."}
+                >
+                  {d.nextPaycheck ? (
+                    <span className="tabular-nums text-emerald-700">+{money(d.nextPaycheck.amountCents, currency)}</span>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </SummaryMetric>
+              </dl>
             </CardBody>
           </Card>
-
-          <div className="grid gap-3 pt-3 sm:grid-cols-3">
-            <Figure
-              id="end-of-next-week"
-              label="End of next week"
-              sub={d.nextWeek ? fmtRange(d.nextWeek.rangeStart, d.nextWeek.rangeEnd) : "Beyond the forecast window."}
-            >
-              {d.nextWeek ? <Balance cents={d.nextWeek.closingBalanceCents} currency={currency} iconClassName="h-4 w-4" /> : "—"}
-            </Figure>
-            <Figure id="lowest-balance" label="Lowest point" sub={`End of ${fmtDayShort(t.lowestBalanceDate)}`}>
-              <Balance cents={t.lowestBalanceCents} currency={currency} iconClassName="h-4 w-4" />
-            </Figure>
-            <Figure
-              id="next-paycheck"
-              label="Next paycheck"
-              sub={d.nextPaycheck ? `${d.nextPaycheck.name}, ${fmtDayShort(d.nextPaycheck.date)}` : "No upcoming income in the forecast."}
-            >
-              {d.nextPaycheck ? (
-                <span className="tabular-nums text-emerald-700">+{money(d.nextPaycheck.amountCents, currency)}</span>
-              ) : (
-                <span className="text-slate-500">—</span>
-              )}
-            </Figure>
-          </div>
         </section>
 
         {/* The forecast as a sum, the way a register reconciles. */}

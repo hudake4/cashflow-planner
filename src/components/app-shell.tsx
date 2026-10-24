@@ -7,13 +7,13 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 const NAV = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard, testId: "nav-dashboard" },
-  { href: "/calendar", label: "Calendar", icon: CalendarDays, testId: "nav-calendar" },
-  { href: "/spending", label: "Spend Analyzer", icon: ChartPie, testId: "nav-spending" },
-  { href: "/bills", label: "Bills", icon: Receipt, testId: "nav-bills" },
-  { href: "/income", label: "Income", icon: HandCoins, testId: "nav-income" },
-  { href: "/institutions", label: "Institutions", icon: Landmark, testId: "nav-institutions" },
-  { href: "/settings", label: "Settings", icon: Settings, testId: "nav-settings" },
+  { href: "/", label: "Dashboard", mobileLabel: "Home", icon: LayoutDashboard, testId: "nav-dashboard" },
+  { href: "/calendar", label: "Calendar", mobileLabel: "Calendar", icon: CalendarDays, testId: "nav-calendar" },
+  { href: "/spending", label: "Spend Analyzer", mobileLabel: "Spend", icon: ChartPie, testId: "nav-spending" },
+  { href: "/bills", label: "Bills", mobileLabel: "Bills", icon: Receipt, testId: "nav-bills" },
+  { href: "/income", label: "Income", mobileLabel: "Income", icon: HandCoins, testId: "nav-income" },
+  { href: "/institutions", label: "Institutions", mobileLabel: "Banks", icon: Landmark, testId: "nav-institutions" },
+  { href: "/settings", label: "Settings", mobileLabel: "Settings", icon: Settings, testId: "nav-settings" },
 ] as const;
 
 function isActive(pathname: string, href: string) {
@@ -33,7 +33,11 @@ function RegisterMark({ className }: { className?: string }) {
 
 function Logo() {
   return (
-    <Link href="/" className="flex items-center gap-2.5 rounded-control" aria-label="CashFlow Planner home">
+    <Link
+      href="/"
+      className="flex min-h-11 items-center gap-2.5 rounded-control lg:min-h-0"
+      aria-label="CashFlow Planner home"
+    >
       <RegisterMark className="h-7 w-7" />
       <span className="font-semiwide text-[15px] font-bold tracking-tight text-slate-900">CashFlow Planner</span>
     </Link>
@@ -89,7 +93,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       {/* Mobile top bar */}
-      <header className="sticky top-0 z-30 flex h-14 items-center border-b border-slate-200 bg-slate-100/95 px-4 backdrop-blur lg:hidden">
+      <header className="sticky top-0 z-30 flex h-14 items-center border-b border-border bg-background px-4 lg:hidden">
         <Logo />
       </header>
 
@@ -100,25 +104,26 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Mobile bottom nav */}
       <nav
         aria-label="Main"
-        className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-sheet/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-sheet pb-[env(safe-area-inset-bottom)] lg:hidden"
       >
         <ul className="grid grid-cols-7">
-          {NAV.map(({ href, label, icon: Icon, testId }) => {
+          {NAV.map(({ href, label, mobileLabel, icon: Icon, testId }) => {
             const active = isActive(pathname, href);
             return (
-              <li key={href}>
+              <li key={href} className="min-w-0">
                 <Link
                   href={href}
                   data-testid={`${testId}-mobile`}
+                  aria-label={label}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "relative flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 px-0.5 py-1 text-[10px] leading-3 font-medium",
+                    "relative flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 px-0 py-1 text-xs leading-3 font-medium tracking-tight",
                     active ? "text-brand-700" : "text-slate-600 hover:text-slate-900",
                   )}
                 >
                   {active && <span className="absolute inset-x-5 top-0 h-0.5 rounded-b bg-brand-600" aria-hidden="true" />}
                   <Icon className="size-5 shrink-0" aria-hidden="true" />
-                  <span className="max-w-full truncate">{label}</span>
+                  <span className="whitespace-nowrap">{mobileLabel}</span>
                 </Link>
               </li>
             );
