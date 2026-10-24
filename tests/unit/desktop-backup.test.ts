@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { PrismaClient } from "@prisma/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   backupDatabase,
@@ -31,6 +32,12 @@ describe("backupFileName", () => {
 
   it("replaces characters that don't belong in a file name", () => {
     expect(backupFileName(AT, "2026 odd/name.v2")).toBe("cashflow-20261024-090503-pre-2026_odd_name_v2.db");
+  });
+
+  it("adds -2, -3… before .db from the second attempt on", () => {
+    expect(backupFileName(AT, "m1", 1)).toBe("cashflow-20261024-090503-pre-m1.db");
+    expect(backupFileName(AT, "m1", 2)).toBe("cashflow-20261024-090503-pre-m1-2.db");
+    expect(backupFileName(AT, "m1", 3)).toBe("cashflow-20261024-090503-pre-m1-3.db");
   });
 });
 
@@ -109,7 +116,51 @@ describe("selectBackupsToPrune", () => {
       { name: backup(2), mtimeMs: 200 },
       { name: backup(3), mtimeMs: 100 },
     ];
-    expect(selectBackupsToPrune(files, 2, backup(3)).map((b) => b.name)).toEqual([backup(2)]);
+    expect(selectBackupsToPrune(files, 2, { alwaysKeep: backup(3) }).map((b) => b.name)).toEqual([backup(2)]);
+  });
+
+  it("groups -2, -3… backups and their sidecars like any other backup", () => {
+    const first = "cashflow-20261024-090503-pre-m1.db";
+    const second = "cashflow-20261024-090503-pre-m1-2.db";
+    const files = [
+      { name: first, mtimeMs: 1 },
+      { name: second, mtimeMs: 2 },
+      { name: `${second}-wal`, mtimeMs: 2 },
+    ];
+    expect(selectBackupsToPrune(files, 0)).toEqual([
+      { name: second, files: [second, `${second}-wal`] },
+      { name: first, files: [first] },
+    ]);
+  });
+
+  it("never prunes the oldest backup taken before a migration that is still pending", () => {
+    // A applied, then B failed on every launch: one pre-A backup, then a pre-B backup per launch.
+    const preA = "cashflow-20261024-090000-pre-20261024000000_a.db";
+    const preB = (i: number) => `cashflow-20261024-0901${String(i).padStart(2, "0")}-pre-20261025000000_b.db`;
+    const preBRetry = "cashflow-20261024-090100-pre-20261025000000_b-2.db";
+    const files = [
+      { name: preA, mtimeMs: 0 },
+      { name: preBRetry, mtimeMs: 1 },
+      ...Array.from({ length: 5 }, (_, i) => ({ name: preB(i + 1), mtimeMs: 10 + i })),
+    ];
+    const pruned = selectBackupsToPrune(files, 2, { pending: ["20261025000000_b"] }).map((b) => b.name);
+    // The newest two stay, the oldest pre-B (a -2 retry here) is protected, and pre-A isn't pending.
+    expect(pruned).toEqual([preB(3), preB(2), preB(1), preA]);
+    expect(selectBackupsToPrune(files, 2, { pending: ["20261024000000_a", "20261025000000_b"] })).not.toContainEqual(
+      expect.objectContaining({ name: preA })
+    );
+  });
+
+  it("does not treat a migration that merely shares a prefix as pending", () => {
+    const files = [
+      { name: "cashflow-20261024-090000-pre-m1_extra.db", mtimeMs: 0 },
+      { name: "cashflow-20261024-090001-pre-m1-x.db", mtimeMs: 1 },
+      { name: "cashflow-20261024-090002-pre-m2.db", mtimeMs: 2 },
+    ];
+    expect(selectBackupsToPrune(files, 1, { pending: ["m1"] }).map((b) => b.name)).toEqual([
+      "cashflow-20261024-090001-pre-m1-x.db",
+      "cashflow-20261024-090000-pre-m1_extra.db",
+    ]);
   });
 });
 
@@ -158,18 +209,74 @@ describe("backupDatabase and pruneBackups (temp folder)", () => {
     expect(lines[0]).toContain(`[backup] Created ${target}`);
   });
 
-  it("throws DatabaseBackupError, overwrites nothing and leaves no partial copy on failure", () => {
+  it("picks the next free name when a backup from the same second exists", () => {
     fs.writeFileSync(dbFile, "main");
     fs.writeFileSync(`${dbFile}-wal`, "wal");
     fs.mkdirSync(backupDir);
-    const existingWal = path.join(backupDir, "cashflow-20261024-090503-pre-m1.db-wal");
-    fs.writeFileSync(existingWal, "someone else's");
+    // A full earlier backup, and a stray sidecar that also claims the -2 name.
+    fs.writeFileSync(path.join(backupDir, "cashflow-20261024-090503-pre-m1.db"), "earlier");
+    fs.writeFileSync(path.join(backupDir, "cashflow-20261024-090503-pre-m1-2.db-wal"), "someone else's");
+
+    const target = backupDatabase({ dbFile, backupDir, firstPendingMigration: "m1", now: AT, log });
+
+    expect(target).toBe(path.join(backupDir, "cashflow-20261024-090503-pre-m1-3.db"));
+    expect(fs.readFileSync(target!, "utf8")).toBe("main");
+    expect(fs.readFileSync(`${target}-wal`, "utf8")).toBe("wal");
+    expect(fs.readFileSync(path.join(backupDir, "cashflow-20261024-090503-pre-m1.db"), "utf8")).toBe("earlier");
+    expect(fs.readFileSync(path.join(backupDir, "cashflow-20261024-090503-pre-m1-2.db-wal"), "utf8")).toBe(
+      "someone else's"
+    );
+  });
+
+  it("throws DatabaseBackupError and leaves no partial copy on failure", () => {
+    fs.writeFileSync(dbFile, "main");
+    // A sidecar that can't be copied, so the failure comes after the .db was copied.
+    fs.mkdirSync(`${dbFile}-wal`);
 
     expect(() => backupDatabase({ dbFile, backupDir, firstPendingMigration: "m1", now: AT, log })).toThrow(
       DatabaseBackupError
     );
-    expect(fs.readdirSync(backupDir)).toEqual(["cashflow-20261024-090503-pre-m1.db-wal"]);
-    expect(fs.readFileSync(existingWal, "utf8")).toBe("someone else's");
+    expect(fs.readdirSync(backupDir)).toEqual([]);
+    expect(lines).toEqual([]);
+  });
+
+  it("captures a SQLite database mid-transaction so that it opens without the uncommitted change", async () => {
+    const url = (file: string) => `file:${file}`;
+    const live = new PrismaClient({ datasourceUrl: url(dbFile) });
+    let target: string | null = null;
+    try {
+      await live.$executeRawUnsafe(`CREATE TABLE "t" ("id" INTEGER PRIMARY KEY, "v" TEXT NOT NULL)`);
+      await live.$executeRawUnsafe(
+        `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 2000)
+         INSERT INTO "t" ("v") SELECT 'committed' FROM n`
+      );
+      await live
+        .$transaction(async (tx) => {
+          // A tiny page cache makes SQLite overwrite pages of cashflow.db before the commit,
+          // so the copied .db alone is corrupt and only its -journal makes it consistent.
+          await tx.$queryRawUnsafe(`PRAGMA cache_size = 1`);
+          await tx.$executeRawUnsafe(`UPDATE "t" SET "v" = 'uncommitted'`);
+          target = backupDatabase({ dbFile, backupDir, firstPendingMigration: "m1", now: AT, log });
+          throw new Error("roll back");
+        })
+        .catch((err: unknown) => {
+          if (!(err instanceof Error && err.message === "roll back")) throw err;
+        });
+    } finally {
+      await live.$disconnect();
+    }
+
+    expect(target).not.toBeNull();
+    expect(fs.existsSync(`${target}-journal`)).toBe(true);
+    const restored = new PrismaClient({ datasourceUrl: url(target!) });
+    try {
+      expect(await restored.$queryRawUnsafe(`PRAGMA integrity_check`)).toEqual([{ integrity_check: "ok" }]);
+      expect(await restored.$queryRawUnsafe(`SELECT "v", count(*) AS "n" FROM "t" GROUP BY "v"`)).toEqual([
+        { v: "committed", n: 2000n },
+      ]);
+    } finally {
+      await restored.$disconnect();
+    }
   });
 
   it("prunes down to the newest backups, one log line per backup, and leaves other files alone", () => {
