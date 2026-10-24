@@ -91,14 +91,14 @@ npm run test:unit          # projection engine, recurrence, dates, money
 npm run test:integration   # API route handlers against a separate test SQLite DB
 npm test                   # all Vitest suites (unit + integration + component)
 npx playwright install chromium   # once, to download the E2E browser
-E2E_ALLOW_DATA_RESET=1 npm run test:e2e   # Playwright end-to-end (bash/zsh; starts a fresh server on :3000, resets app data)
+E2E_ALLOW_DATA_RESET=1 npm run test:e2e   # Playwright end-to-end (bash/zsh; starts its own server on :3000 with a throwaway database)
 ```
 
-PowerShell: `$env:E2E_ALLOW_DATA_RESET = "1"; npm run test:e2e`. Without `E2E_ALLOW_DATA_RESET=1` the suite refuses to run. To deliberately reuse a server already running on port 3000 (for example your own dev server), also set `E2E_REUSE_SERVER=1`.
+PowerShell: `$env:E2E_ALLOW_DATA_RESET = "1"; npm run test:e2e`. Without `E2E_ALLOW_DATA_RESET=1` the suite refuses to run. Port 3000 must be free: the suite starts its own server through `scripts/e2e-server.mjs`, which recreates `prisma/test-e2e.db` from the migrations on every run and points the server at it, so `prisma/dev.db` is never touched. To reuse a server already running on port 3000 instead, also set `E2E_REUSE_SERVER=1` (exactly `1`).
 
-> **Warning:** the E2E suite deletes all data in the database behind port 3000, so never run it against an app that holds real data.
+> **Warning:** with `E2E_REUSE_SERVER=1` the suite deletes all data in the database behind that server, so never use it against an app that holds real data.
 
-Integration tests use their own database file and never touch `prisma/dev.db`. E2E tests drive the real app and **reset the data in `prisma/dev.db`**, so run them against a dev database you don't mind losing.
+Integration tests (`prisma/test-integration.db`) and E2E tests (`prisma/test-e2e.db`) each use their own throwaway database file and never touch `prisma/dev.db`.
 
 ## How projections work (key assumptions)
 
