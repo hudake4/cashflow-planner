@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ScheduleFormDialog } from "@/components/forms/schedule-form-dialog";
+import { Dialog } from "@/components/ui/dialog";
 import { ToastProvider } from "@/components/ui/toast";
 
 const fetchMock = vi.fn();
@@ -129,5 +131,79 @@ describe("ScheduleFormDialog (bill)", () => {
     await fill(user, "bill-amount", "12.99");
     await user.click(screen.getByTestId("bill-form-submit"));
     expect(await screen.findByTestId("toast-error")).toHaveTextContent("The bill service is unavailable.");
+  });
+
+  it.each([
+    ["bill", "bill-opener"],
+    ["income", "income-opener"],
+  ] as const)("restores focus to the %s opener after Escape", async (kind, openerTestId) => {
+    function ControlledScheduleDialog() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button type="button" data-testid={openerTestId} onClick={() => setOpen(true)}>
+            Open
+          </button>
+          <ScheduleFormDialog kind={kind} open={open} onClose={() => setOpen(false)} />
+        </>
+      );
+    }
+
+    const user = userEvent.setup();
+    render(
+      <ToastProvider>
+        <ControlledScheduleDialog />
+      </ToastProvider>,
+    );
+
+    const opener = screen.getByTestId(openerTestId);
+    await user.click(opener);
+    await screen.findByTestId(`${kind}-form-dialog`);
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => expect(screen.queryByTestId(`${kind}-form-dialog`)).not.toBeInTheDocument());
+    expect(document.activeElement).toBe(opener);
+  });
+
+  it("keeps the original opener when a controlled dialog is replaced while open", async () => {
+    function ChainedDialog() {
+      const [open, setOpen] = useState(false);
+      const [step, setStep] = useState<"loading" | "form">("loading");
+
+      return (
+        <>
+          <button type="button" data-testid="chained-opener" onClick={() => setOpen(true)}>
+            Open
+          </button>
+          {open && (
+            step === "loading" ? (
+              <Dialog open onClose={() => setOpen(false)} title="Loading">
+                <button type="button" data-testid="chained-next" onClick={() => setStep("form")}>
+                  Continue
+                </button>
+              </Dialog>
+            ) : (
+              <ScheduleFormDialog kind="bill" open onClose={() => setOpen(false)} />
+            )
+          )}
+        </>
+      );
+    }
+
+    const user = userEvent.setup();
+    render(
+      <ToastProvider>
+        <ChainedDialog />
+      </ToastProvider>,
+    );
+
+    const opener = screen.getByTestId("chained-opener");
+    await user.click(opener);
+    await user.click(screen.getByTestId("chained-next"));
+    await screen.findByTestId("bill-form-dialog");
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => expect(screen.queryByTestId("bill-form-dialog")).not.toBeInTheDocument());
+    expect(document.activeElement).toBe(opener);
   });
 });

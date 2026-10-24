@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "./button";
@@ -31,6 +31,50 @@ export const DialogContent = ShadcnDialogContent;
 export const DialogHeader = ShadcnDialogHeader;
 export const DialogFooter = ShadcnDialogFooter;
 
+let lastDialogOpener: HTMLElement | null = null;
+
+function findByTestId(testId: string): HTMLElement | null {
+  if (typeof document === "undefined") return null;
+  return Array.from(document.querySelectorAll<HTMLElement>("[data-testid]")).find(
+    (element) => element.getAttribute("data-testid") === testId,
+  ) ?? null;
+}
+
+function focusFallback(opener: HTMLElement | null): HTMLElement | null {
+  if (opener?.isConnected) return opener;
+
+  const openerTestId = opener?.getAttribute("data-testid");
+  if (!openerTestId) return null;
+
+  if (openerTestId.startsWith("edit-")) {
+    const actionTestId = openerTestId.replace(/^edit-/, "actions-");
+    const actionCandidates = openerTestId.endsWith("-mobile")
+      ? [actionTestId, actionTestId.slice(0, -"-mobile".length)]
+      : [actionTestId, `${actionTestId}-mobile`];
+    return actionCandidates.map(findByTestId).find((element): element is HTMLElement => !!element && element.isConnected) ?? null;
+  }
+
+  if (openerTestId.startsWith("event-edit-")) {
+    return Array.from(document.querySelectorAll<HTMLElement>('button[data-testid^="event-"]')).find(
+      (element) => !element.getAttribute("data-testid")?.startsWith("event-edit-"),
+    ) ?? null;
+  }
+
+  if (openerTestId.startsWith("actions-")) {
+    const kind = openerTestId.includes("-income-") ? "income" : "bill";
+    return findByTestId(`add-${kind}-button`);
+  }
+
+  return null;
+}
+
+function activeDialogOpener(): HTMLElement | null {
+  if (typeof document === "undefined" || !(document.activeElement instanceof HTMLElement) || document.activeElement === document.body) {
+    return null;
+  }
+  return document.activeElement.closest("[data-slot='dialog-content']") ? null : document.activeElement;
+}
+
 export function Dialog({
   open,
   onClose,
@@ -41,6 +85,7 @@ export function Dialog({
   variant = "modal",
   size = "md",
   testId,
+  restoreFocusTarget,
 }: {
   open: boolean;
   onClose: () => void;
@@ -52,7 +97,23 @@ export function Dialog({
   variant?: "modal" | "drawer";
   size?: "sm" | "md" | "lg";
   testId?: string;
+  /** Optional explicit target for focus restoration when the opener is not the active element. */
+  restoreFocusTarget?: HTMLElement | null;
 }) {
+  const wasOpen = useRef(false);
+  const openerRef = useRef<HTMLElement | null>(null);
+
+  // Capture before Radix mounts and autofocuses the content. Controlled dialogs
+  // have no DialogTrigger, so Radix otherwise falls back to <body>.
+  if (open && !wasOpen.current) {
+    const explicitTarget = restoreFocusTarget?.isConnected ? restoreFocusTarget : null;
+    const activeTarget = activeDialogOpener();
+    const previousTarget = lastDialogOpener?.isConnected ? lastDialogOpener : null;
+    openerRef.current = explicitTarget ?? activeTarget ?? previousTarget;
+    if (openerRef.current) lastDialogOpener = openerRef.current;
+  }
+  wasOpen.current = open;
+
   const width = size === "sm" ? "sm:max-w-md" : size === "lg" ? "sm:max-w-2xl" : "sm:max-w-lg";
   const panelPlacement =
     variant === "drawer"
@@ -64,6 +125,12 @@ export function Dialog({
       <ShadcnDialogContent
         data-testid={testId}
         showCloseButton={false}
+        onCloseAutoFocus={(event) => {
+          const target = focusFallback(openerRef.current);
+          if (!target) return;
+          event.preventDefault();
+          target.focus();
+        }}
         className={cn(
           "grid grid-rows-[auto_minmax(0,1fr)_auto] w-full gap-0 overflow-hidden border border-border bg-popover p-0 text-popover-foreground shadow-xl",
           panelPlacement,
