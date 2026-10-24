@@ -18,7 +18,7 @@ import {
   type connectInstitutionSchema,
 } from "../../contracts/api";
 import { todayLocal } from "../../domain/dates";
-import { db, HOUSEHOLD_ID } from "../db";
+import { db, HOUSEHOLD_ID, type DbClient } from "../db";
 import { ApiError, notFound } from "../http";
 import * as simplefin from "../simplefin";
 import { historyCutoff, planSyncWindow } from "../simplefin-mapping";
@@ -71,8 +71,8 @@ async function getConnection(id: string): Promise<ConnectionWithAccounts> {
   return row;
 }
 
-export async function listConnections(): Promise<InstitutionDTO[]> {
-  const rows = await db.bankConnection.findMany({
+export async function listConnections(client: DbClient = db): Promise<InstitutionDTO[]> {
+  const rows = await client.bankConnection.findMany({
     where: { householdId: HOUSEHOLD_ID },
     include: { accounts: true },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
@@ -234,8 +234,8 @@ export async function listTransactions(
  * (date, then id). Unlike listTransactions this applies no history cutoff: it is for the
  * backup file, which keeps whatever is in the database.
  */
-export async function listAllTransactionsByConnection(): Promise<Map<string, BankTransactionDTO[]>> {
-  const rows = await db.bankTransaction.findMany({
+export async function listAllTransactionsByConnection(client: DbClient = db): Promise<Map<string, BankTransactionDTO[]>> {
+  const rows = await client.bankTransaction.findMany({
     where: { account: { connection: { householdId: HOUSEHOLD_ID } } },
     include: { account: { select: { connectionId: true } } },
     orderBy: [{ date: "desc" }, { id: "desc" }],

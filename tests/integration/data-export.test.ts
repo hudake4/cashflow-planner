@@ -7,6 +7,7 @@ import * as incomeList from "@/app/api/income/route";
 import * as settingsRoute from "@/app/api/settings/route";
 import { dataExportSchema, type BillDTO, type DataExportDTO, type IncomeDTO } from "@/contracts/api";
 import { todayLocal } from "@/domain/dates";
+import * as institutions from "@/server/repositories/institutions";
 import { connect } from "@/server/repositories/institutions";
 import * as simplefin from "@/server/simplefin";
 import { normalizeAccountSet } from "@/server/simplefin-mapping";
@@ -18,6 +19,16 @@ vi.mock("@/server/simplefin", () => ({
   fetchAccountSet: vi.fn(),
 }));
 const mocked = vi.mocked(simplefin);
+
+// Wraps the export's two institution reads in spies that calls through, so one test can make it return a stray field.
+vi.mock("@/server/repositories/institutions", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/repositories/institutions")>();
+  return {
+    ...actual,
+    listConnections: vi.fn(actual.listConnections),
+    listAllTransactionsByConnection: vi.fn(actual.listAllTransactionsByConnection),
+  };
+});
 
 const SECRET_USER = "exportuser";
 const SECRET_PASSWORD = "exp0rts3cretpw";
@@ -166,5 +177,45 @@ describe("GET /api/data/export", () => {
       expect(text).not.toContain(secret);
     }
     expect(Object.keys(body.institutions[0]).sort()).toEqual(["accounts", "connectedAt", "id", "lastSyncedAt", "name", "transactions"]);
+  });
+
+  // getDataExport copies only id, name and the timestamps from each connection, so a stray field
+  // can only reach the file through the parts it passes along whole: accounts and transactions.
+  it("fails with INTERNAL_ERROR instead of leaking an account field the strict schema forbids", async () => {
+    await connect({ setupToken: SETUP_TOKEN }, NOW);
+    const real = await vi.importActual<typeof import("@/server/repositories/institutions")>("@/server/repositories/institutions");
+    const rows = await real.listConnections();
+    vi.mocked(institutions.listConnections).mockResolvedValueOnce(
+      rows.map((r) => ({ ...r, accounts: r.accounts.map((a) => ({ ...a, accessUrl: ACCESS_URL })) })),
+    );
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await exportRoute.GET();
+    const text = await res.text();
+    expect(res.status).toBe(500);
+    expect(JSON.parse(text)).toEqual({
+      error: { code: "INTERNAL_ERROR", message: "Something went wrong. Please try again." },
+    });
+    for (const secret of [ACCESS_URL, SECRET_PASSWORD, SECRET_USER, "accessUrl"]) {
+      expect(text).not.toContain(secret);
+    }
+  });
+
+  it("fails with INTERNAL_ERROR instead of leaking a transaction field the strict schema forbids", async () => {
+    const institution = await connect({ setupToken: SETUP_TOKEN }, NOW);
+    const real = await vi.importActual<typeof import("@/server/repositories/institutions")>("@/server/repositories/institutions");
+    const stored = await real.listAllTransactionsByConnection();
+    vi.mocked(institutions.listAllTransactionsByConnection).mockResolvedValueOnce(
+      new Map([[institution.id, (stored.get(institution.id) ?? []).map((t) => ({ ...t, accessUrl: ACCESS_URL }))]]),
+    );
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await exportRoute.GET();
+    const text = await res.text();
+    expect(res.status).toBe(500);
+    expect(JSON.parse(text).error.code).toBe("INTERNAL_ERROR");
+    for (const secret of [ACCESS_URL, SECRET_PASSWORD, SECRET_USER, "accessUrl"]) {
+      expect(text).not.toContain(secret);
+    }
   });
 });
