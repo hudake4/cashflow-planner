@@ -146,7 +146,8 @@ export function Switch({
         <span
           aria-hidden="true"
           className={clsx(
-            "flex h-6 w-11 items-center rounded-full p-0.5 transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-brand-600",
+            // pointer-events-none: the translated knob would otherwise sit above the checkbox and eat clicks.
+            "pointer-events-none flex h-6 w-11 items-center rounded-full p-0.5 transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-brand-600",
             checked ? "bg-brand-600" : "bg-slate-300",
           )}
         >
