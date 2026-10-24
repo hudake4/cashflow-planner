@@ -4,6 +4,12 @@ Instructions for AI coding agents working in this repository.
 
 CashFlow Planner is a local, private Next.js app that projects a running cash balance week by week. Read [docs/CONVENTIONS.md](docs/CONVENTIONS.md) before changing anything: it defines the money, date, recurrence and projection rules, and the team workflow (portable Node on `PATH`, one shared dev server on port 3000, no package installs without asking the lead).
 
+## Rule: use Conventional Commits
+
+All commit messages must follow Conventional Commits: `<type>[optional scope]: <description>`. Use a type such as `feat`, `fix`, or `docs`, followed by a short description.
+
+Example: `docs(agents): require conventional commit messages`.
+
 ## Rule: bump the version with every commit
 
 Every commit must include a version bump. The version lives in `package.json` (and is mirrored in `package-lock.json`). It is shown to users at the bottom of the Settings page, so it's how anyone can tell which build they're running.
