@@ -1,10 +1,12 @@
 name: Checks
 
+# Runs on pull requests, and is called by windows-release.yml on pushes to
+# main, so the release can't publish unless these jobs pass. It has no push
+# trigger of its own, otherwise every push to main would run it twice.
 on:
   pull_request:
-  push:
-    branches:
-      - main
+    types: [opened, synchronize, reopened, edited]
+  workflow_call:
 
 permissions:
   contents: read
@@ -73,10 +75,84 @@ jobs:
             exit 1
           fi
 
-          if [[ "$pkg_version" == "$base_version" ]]; then
-            echo "::error::Version is still $pkg_version, the same as $BASE_REF. Every PR needs a version bump."
-            echo "Fix: run 'npm version patch --no-git-tag-version' (or 'minor') once for this PR, then commit package.json and package-lock.json."
-            exit 1
-          fi
+          BASE_VERSION="$base_version" PKG_VERSION="$pkg_version" node -e '
+            const parse = (v) => {
+              const m = /^(\d+)\.(\d+)\.(\d+)/.exec(v);
+              if (!m) {
+                console.error(`::error::Cannot parse "${v}" as major.minor.patch.`);
+                process.exit(1);
+              }
+              return m.slice(1).map(Number);
+            };
+            const base = parse(process.env.BASE_VERSION);
+            const pkg = parse(process.env.PKG_VERSION);
+            let cmp = 0;
+            for (let i = 0; i < 3 && cmp === 0; i++) cmp = Math.sign(pkg[i] - base[i]);
+            if (cmp <= 0) {
+              const how = cmp === 0 ? "the same as" : "lower than";
+              console.error(`::error::Version is ${process.env.PKG_VERSION}, ${how} ${process.env.BASE_VERSION} on ${process.env.BASE_REF}. Every PR needs a version bump above the base branch.`);
+              console.error("Fix: run \x27npm version patch --no-git-tag-version\x27 (or \x27minor\x27) once for this PR, then commit package.json and package-lock.json.");
+              process.exit(1);
+            }
+          '
 
           echo "Version bumped: $base_version -> $pkg_version"
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Fails on any high or critical advisory except the ones accepted in
+      # .github/scripts/audit.mjs (see README, "Known dependency advisories").
+      - name: Audit dependencies
+        run: node .github/scripts/audit.mjs
+
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@v5.0.0
+        with:
+          fail-on-severity: high
+
+  pr-title:
+    name: PR title
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the title follows Conventional Commits
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          node -e '
+            const title = process.env.PR_TITLE;
+            const re = /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9._/-]+\))?!?: .+/;
+            if (!re.test(title)) {
+              console.error(`::error::PR title "${title}" is not a Conventional Commit.`);
+              console.error("Expected: type(scope): description, for example fix(calendar): keep week totals aligned.");
+              process.exit(1);
+            }
+          '
