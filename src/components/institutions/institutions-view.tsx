@@ -47,7 +47,7 @@ export function InstitutionsView() {
       <PageHeader
         title="Institutions"
         description="Connect your bank read-only through SimpleFIN Bridge to see balances and transactions. Label each account: only bank accounts add up to your starting balance when Settings uses the sum of your accounts."
-        actions={addButton}
+        actions={list.loading || list.data?.length === 0 ? undefined : addButton}
       />
 
       {notice && (

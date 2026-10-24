@@ -113,8 +113,8 @@ export function RecurringScanButton({ onAdded, className }: { onAdded?: () => vo
           <div className="flex flex-col gap-3" data-testid="recurring-suggestion">
             {error && <InlineStatus tone="error">{error}</InlineStatus>}
             <div>
-              <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                {isBill ? "Looks like a bill" : "Looks like income"}
+              <p className="text-xs font-medium text-muted-foreground">
+                {isBill ? "Suggested bill" : "Suggested income"}
               </p>
               <p className="mt-1 truncate text-lg font-bold text-foreground" title={current.name}>
                 {current.name}
