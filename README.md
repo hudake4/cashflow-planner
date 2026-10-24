@@ -11,7 +11,7 @@ You enter a starting balance, your paychecks (weekly, biweekly, monthly or one-t
 
 ## Features
 
-- **Calendar (main screen):** month and week views. Every week shows the opening balance, income, bills, net change and **projected closing balance**. Every day shows its paychecks and bills, and the end-of-day balance. Select a week to see the ordered breakdown with the running balance after each event. Select an event to mark a bill occurrence paid or skipped, override this occurrence's amount, or edit the underlying bill or income.
+- **Calendar (main screen):** a compact **balance heatmap** (each day tinted by its projected end-of-day balance, with its balance and income/bill dots) beside a **running register** grouped by week. Every week header shows the opening balance, income, bills, net change and **projected closing balance**; under it, every income and bill in date order with the running balance after each. Select a day for its ledger, a week header for the whole week, or an event to mark a bill occurrence paid or skipped, override this occurrence's amount, or edit the underlying bill or income. Month and week views; on phones the heatmap stacks above the register.
 - **Dashboard:** starting balance, next paycheck, projected end of this week and next week, lowest projected balance, totals, a negative-balance warning, upcoming bills and a balance trend chart.
 - **Income & Bills:** create, edit, delete and deactivate, with optional end dates, categories and notes.
 - **Institutions:** optionally connect a bank read-only through SimpleFIN Bridge, see its accounts and balances, browse the transactions saved from your last sync, refresh on demand, and remove it again.

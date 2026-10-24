@@ -92,6 +92,15 @@ Pass integer cents, as with `Balance`. The formatter comes from the existing `mo
 
 The trigger exposes `aria-expanded` and supports Enter/Space. Keep it keyboard reachable, use short content transitions, and do not rely on hover to make information available.
 
+## Calendar
+
+The Calendar page pairs a compact **balance heatmap** (left from `lg`, above the register on phones) with a **running register** grouped by week.
+
+- Each heatmap day is a button showing its day number and projected end-of-day balance in a short form (`$1,330`, `$12.5k`; `$1.3k` in narrow cells). The full amount is in the button's accessible label. The tint is the emerald (`--color-emerald-700`) palette color at a low alpha that scales with the balance relative to the highest positive balance in view, and a stronger rose (`--color-rose-600`) alpha below zero. Tints are built with `color-mix` from palette variables, so they follow light and dark.
+- Never color alone: a negative day also shows the alert icon and a leading minus sign; income and bills are a round and a square dot (up to three). Today uses the `highlight` treatment plus a ring. Days before the projection start or past the 12-month limit are hatched, disabled and show no balance.
+- Selecting a day opens the day ledger drawer; selecting a week header or an event opens the week ledger or the event dialog, as before. Register rows keep a 44px minimum height.
+- On phones the toolbar is two rows (previous/next and title; Today, the Month/Week toggle and a jump-to-date button that reveals the date field). From `lg` the date field is always inline.
+
 ## Responsive layout and accessibility
 
 - Breakpoints follow Tailwind defaults: mobile below `lg` (1024px), desktop sidebar at `lg` and above. The bottom navigation has six labelled links and safe-area padding; keep each target at least 44px high and wide.
