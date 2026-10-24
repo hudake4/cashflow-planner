@@ -80,12 +80,12 @@ describe("/api/settings", () => {
   });
 
   describe("starting balance source", () => {
-    const addAccount = async (id: string, balanceCents: number) => {
+    const addAccount = async (id: string, balanceCents: number, kind = "BANK") => {
       const conn = await testPrisma.bankConnection.create({ data: { accessUrl: "https://u:p@bridge.simplefin.org/simplefin" } });
       await testPrisma.bankAccount.create({
         data: {
           id: `${conn.id}:${id}`, connectionId: conn.id, providerAccountId: id, institutionName: "Bank", name: id,
-          currency: "USD", balanceCents, balanceDate: "2026-10-24",
+          kind, currency: "USD", balanceCents, balanceDate: "2026-10-24",
         },
       });
     };
@@ -98,7 +98,7 @@ describe("/api/settings", () => {
       expect(await startingBalance()).toBe(100000);
     });
 
-    it("ACCOUNTS projects from the sum of all accounts and keeps the typed balance", async () => {
+    it("ACCOUNTS projects from the sum of the bank accounts and keeps the typed balance", async () => {
       await addAccount("checking", 500000);
       await addAccount("card", -120050);
       const put = await call(PUT, "PUT", "/api/settings", { body: { ...valid, startingBalanceSource: "ACCOUNTS" } });
@@ -111,6 +111,27 @@ describe("/api/settings", () => {
       expect(await startingBalance()).toBe(379950);
       // Switching back uses the typed balance again.
       await call(PUT, "PUT", "/api/settings", { body: valid });
+      expect(await startingBalance()).toBe(100000);
+    });
+
+    it("only BANK accounts are counted: credit, loan and other accounts are left out", async () => {
+      await addAccount("checking", 500000);
+      await addAccount("savings", 25000);
+      await addAccount("creditline", -120050, "CREDIT");
+      await addAccount("mortgage", -30000000, "LOAN");
+      await addAccount("misc", 99900, "OTHER");
+      const put = await call(PUT, "PUT", "/api/settings", { body: { ...valid, startingBalanceSource: "ACCOUNTS" } });
+      expect(put.body).toMatchObject({ accountsBalanceCents: 525000, accountCount: 2 });
+      expect((await call(GET, "GET", "/api/settings")).body).toMatchObject({ accountsBalanceCents: 525000, accountCount: 2 });
+      // A negative credit-line balance does not reduce the effective starting balance.
+      expect(await startingBalance()).toBe(525000);
+    });
+
+    it("ACCOUNTS falls back to the typed balance when no account is labelled as a bank account", async () => {
+      await addAccount("creditline", -120050, "CREDIT");
+      await addAccount("auto", -800000, "LOAN");
+      const put = await call(PUT, "PUT", "/api/settings", { body: { ...valid, startingBalanceSource: "ACCOUNTS" } });
+      expect(put.body).toMatchObject({ startingBalanceSource: "ACCOUNTS", accountsBalanceCents: null, accountCount: 0 });
       expect(await startingBalance()).toBe(100000);
     });
 

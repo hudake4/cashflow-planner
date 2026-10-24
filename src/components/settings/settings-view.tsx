@@ -315,10 +315,10 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsDTO; onSaved: () 
                   <span className="text-sm font-medium text-foreground">Starting balance</span>
                   {initial.accountsBalanceCents === null ? (
                     <p className="text-sm text-muted-foreground">
-                      No bank accounts are connected yet, so your typed balance of{" "}
+                      No account is labelled as a bank account yet, so your typed balance of{" "}
                       <span className="tabular-nums">{formatCents(manualCents ?? initial.startingBalanceCents, { currency })}</span> is used.{" "}
                       <Link href="/institutions" className="font-semibold text-brand-700 underline">
-                        Connect a bank
+                        Connect or label accounts
                       </Link>
                     </p>
                   ) : (
@@ -327,10 +327,10 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsDTO; onSaved: () 
                         {formatCents(initial.accountsBalanceCents, { currency })}
                       </p>
                       <p className="text-xs leading-relaxed text-muted-foreground">
-                        Total of {initial.accountCount} connected {initial.accountCount === 1 ? "account" : "accounts"} as of the last
-                        refresh. Refresh your banks on the{" "}
+                        Total of {initial.accountCount} {initial.accountCount === 1 ? "account" : "accounts"} labelled as bank accounts, as of the
+                        last refresh. Credit cards, loans and other accounts are not included. Refresh or relabel them on the{" "}
                         <Link href="/institutions" className="font-semibold text-brand-700 underline">
-                          Banks page
+                          Institutions page
                         </Link>{" "}
                         to update it, and set the start date to today.
                       </p>

@@ -133,8 +133,9 @@ export interface SettingsDTO {
   /** The balance the user typed. Used when `startingBalanceSource` is MANUAL (or no accounts are connected). */
   startingBalanceCents: number;
   startingBalanceSource: StartingBalanceSource;
-  /** Sum of the connected bank accounts' balances; null when none are connected. */
+  /** Sum of the accounts labelled BANK; null when there are none. */
   accountsBalanceCents: number | null;
+  /** How many accounts are labelled BANK (the ones in `accountsBalanceCents`). */
   accountCount: number;
   projectionStartDate: string;
   currency: string;
@@ -382,10 +383,25 @@ export const bankTransactionsQuerySchema = z.object({
 });
 export type BankTransactionsQuery = z.output<typeof bankTransactionsQuerySchema>;
 
+/**
+ * How the user labels a connected account. Only BANK accounts count toward the starting balance
+ * (CONVENTIONS section 3); the other kinds are shown but never summed.
+ */
+export const ACCOUNT_KINDS = ["BANK", "CREDIT", "LOAN", "OTHER"] as const;
+export const accountKindSchema = z.enum(ACCOUNT_KINDS, {
+  errorMap: () => ({ message: "Account type must be bank, credit, loan or other" }),
+});
+export type AccountKind = z.infer<typeof accountKindSchema>;
+
+export const accountKindInputSchema = z.object({ kind: accountKindSchema });
+export type AccountKindInput = z.input<typeof accountKindInputSchema>;
+
 export interface BankAccountDTO {
   id: string;
   name: string;
   institutionName: string;
+  /** The user's label. Only BANK accounts are summed into the starting balance. */
+  kind: AccountKind;
   /** 3-letter currency code. */
   currency: string;
   balanceCents: number;
@@ -531,6 +547,7 @@ const bankAccountDTOSchema = z
     id: z.string().min(1),
     name: z.string(),
     institutionName: z.string(),
+    kind: accountKindSchema,
     currency: z.string(),
     balanceCents: signedCentsSchema,
     availableBalanceCents: signedCentsSchema.nullable(),

@@ -6,10 +6,10 @@ import { toSettingsDTO } from "../mappers";
 
 export type SettingsData = z.output<typeof settingsInputSchema>;
 
-/** Sum of every connected bank account's balance (no currency conversion, CONVENTIONS section 1). */
+/** Sum of the accounts labelled BANK (no currency conversion, CONVENTIONS section 1). Credit, loan and other accounts are left out. */
 async function accountsTotal(client: DbClient = db) {
   const total = await client.bankAccount.aggregate({
-    where: { connection: { householdId: HOUSEHOLD_ID } },
+    where: { kind: "BANK", connection: { householdId: HOUSEHOLD_ID } },
     _sum: { balanceCents: true },
     _count: true,
   });
