@@ -55,6 +55,7 @@ const RULES: Rule[] = [
     keywords: [
       "transfer*", "xfer*", "zelle", "venmo", "cash app", "cashapp", "apple cash", "paypal transfer", "atm",
       "payment thank you", "credit card payment", "card payment", "credit crd", "autopay to card",
+      "epayment", "e payment", "credit card bill payment", "card bill payment", "citi autopay",
     ],
   },
   {
@@ -98,7 +99,7 @@ const RULES: Rule[] = [
     keywords: [
       "rent", "mortgage*", "insurance", "loan*", "hoa", "tuition", "subscription", "geico", "state farm", "progressive",
       "allstate", "liberty mutual", "usaa", "student loan", "sallie mae", "navient", "nelnet", "lease", "apartment*",
-      "property management", "landlord",
+      "property management", "landlord", "pennymac", "rocket mortgage", "mr cooper", "loandepot",
     ],
     unless: ["rent a car", "rent car"],
   },

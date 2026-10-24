@@ -49,6 +49,9 @@ describe("categorize", () => {
     ["ATM WITHDRAWAL 1234", "TRANSFERS"],
     ["CHASE CREDIT CARD PAYMENT", "TRANSFERS"],
     ["PAYMENT THANK YOU", "TRANSFERS"],
+    ["AMEX EPAYMENT ACH PMT", "TRANSFERS"],
+    ["BANK OF AMERICA CREDIT CARD BILL PAYMENT", "TRANSFERS"],
+    ["PENNYMAC CASH 1234", "BILLS"],
     ["CASH APP*SOMEONE", "TRANSFERS"],
     // Overlaps
     ["WALMART SUPERCENTER #1234", "SHOPPING"],
@@ -209,6 +212,18 @@ describe("buildSpending top merchants", () => {
     const names = ["ALPHA", "BRAVO", "CHARLIE", "DELTA FOO", "ECHO", "FOXTROT", "GOLF"];
     const out = run(names.map((n, i) => tx("2026-10-02", `${n} LLC`, -(i === 2 ? 5000 : 1000))));
     expect(out.thisMonth.topMerchants.map((m) => m.name)).toEqual(["Charlie Llc", "Alpha Llc", "Bravo Llc", "Delta Foo Llc", "Echo Llc"]);
+  });
+
+  it("keeps different merchants apart behind a shared 'DDA PUR AP' debit prefix", () => {
+    const out = run([
+      tx("2026-10-02", "DDA PUR AP ANTHROPIC 1234", -2000),
+      tx("2026-10-03", "DDA PUR AP EUROPEAN WAX 5678", -1000),
+      tx("2026-10-04", "DDA PUR AP ANTHROPIC 9999", -2000),
+    ]);
+    expect(out.thisMonth.topMerchants.map((m) => [m.name, m.totalCents, m.transactionCount])).toEqual([
+      ["Anthropic", 4000, 2],
+      ["European Wax", 1000, 1],
+    ]);
   });
 
   it("is computed per period", () => {
