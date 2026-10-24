@@ -13,10 +13,19 @@
  *   - Secrets (setup token, access URL, password) never appear in error messages.
  */
 import { z } from "zod";
+import { addDays } from "../domain/dates";
 import { ApiError, badRequest } from "./http";
 
 const DAY_SECONDS = 86_400;
 const MAX_SPAN_DAYS = 89;
+
+/** Transactions older than this many days (counting today) are neither shown nor kept. */
+export const HISTORY_DAYS = 89;
+
+/** The oldest `YYYY-MM-DD` that is still within the history window, given today's date. */
+export function historyCutoff(today: string): string {
+  return addDays(today, -(HISTORY_DAYS - 1));
+}
 /** Largest magnitude we store: Prisma `Int` is a signed 32-bit integer. */
 export const MAX_STORED_CENTS = 2_147_483_647;
 const MAX_WARNINGS = 10;

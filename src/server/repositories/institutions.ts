@@ -20,7 +20,7 @@ import { todayLocal } from "../../domain/dates";
 import { db, HOUSEHOLD_ID } from "../db";
 import { ApiError, notFound } from "../http";
 import * as simplefin from "../simplefin";
-import { planSyncWindow } from "../simplefin-mapping";
+import { historyCutoff, planSyncWindow } from "../simplefin-mapping";
 
 export type ConnectData = z.output<typeof connectInstitutionSchema>;
 
@@ -76,7 +76,7 @@ const syncing = new Set<string>();
 /**
  * Fetches the planned window from SimpleFIN and, in one transaction, upserts the accounts
  * and replaces their transactions: every pending row, plus non-pending rows dated inside
- * the window. Older history is kept. Accounts that SimpleFIN flagged with an error keep their
+ * the window. Rows older than HISTORY_DAYS are then pruned. Accounts that SimpleFIN flagged with an error keep their
  * stored transactions (an empty list from a failing bank must not wipe history).
  * `lastSyncedAt` moves only after a successful fetch, so a failed sync can be retried.
  */
@@ -129,6 +129,10 @@ async function runSync(row: BankConnection, now: Date): Promise<string[]> {
         });
       }
     }
+    // Only the last HISTORY_DAYS days are kept, whatever the bank returned.
+    await tx.bankTransaction.deleteMany({
+      where: { account: { connectionId: row.id }, date: { lt: historyCutoff(todayLocal(now)) } },
+    });
     await tx.bankConnection.update({ where: { id: row.id }, data: { lastSyncedAt: now } });
   });
   return set.warnings;
@@ -190,11 +194,12 @@ export async function removeConnection(id: string): Promise<void> {
   await db.bankConnection.delete({ where: { id } });
 }
 
-/** Stored transactions of one account, newest first. 404 when the account isn't part of the connection. */
+/** Stored transactions of one account from the last HISTORY_DAYS days, newest first. 404 when the account isn't part of the connection. */
 export async function listTransactions(
   connectionId: string,
   accountId: string,
   { offset, limit }: { offset: number; limit: number },
+  now: Date = new Date(),
 ): Promise<BankTransactionsResponse> {
   const account = await db.bankAccount.findFirst({
     where: { id: accountId, connectionId, connection: { householdId: HOUSEHOLD_ID } },
@@ -203,7 +208,7 @@ export async function listTransactions(
   if (!account) throw notFound("Account");
 
   const rows = await db.bankTransaction.findMany({
-    where: { accountId },
+    where: { accountId, date: { gte: historyCutoff(todayLocal(now)) } },
     orderBy: [{ date: "desc" }, { id: "desc" }],
     skip: offset,
     take: limit + 1,

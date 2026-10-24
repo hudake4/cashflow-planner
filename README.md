@@ -71,10 +71,10 @@ The **Institutions** page connects your bank read-only through [SimpleFIN Bridge
 2. Create a **Setup Token** at <https://bridge.simplefin.org/simplefin/create>. It is shown once and can be claimed only once.
 3. In the app, open **Institutions**, choose **Connect a bank**, and paste the token.
 
-The app claims the token on the server, saves the connection and loads your accounts, balances and recent transactions (up to the last 90 days on the first sync).
+The app claims the token on the server, saves the connection and loads your accounts, balances and recent transactions (the last 89 days on the first sync).
 
 - **Sync is explicit.** SimpleFIN allows about 24 requests per day and refreshes bank data roughly once a day, and a token that goes over the limit can be disabled. So the app never fetches while you browse: it fetches when you connect and when you press **Refresh**, and refuses a second refresh within 15 minutes.
-- **Transactions are stored locally this time.** Because live fetching isn't practical, the accounts, balances and transactions from the last sync are saved in the local database (`prisma/dev.db`) so the pages work offline and don't spend your daily requests. Each refresh re-reads the last week or so and replaces what it covers; older history stays.
+- **Transactions are stored locally this time.** Because live fetching isn't practical, the accounts, balances and transactions from the last sync are saved in the local database (`prisma/dev.db`) so the pages work offline and don't spend your daily requests. Each refresh re-reads the last week or so and replaces what it covers. Only the last 89 days are ever shown or kept: older transactions are deleted on each refresh.
 - **The Access URL is a secret.** SimpleFIN's Access URL contains the credentials for your connection. It is stored unencrypted in the local database, like the rest of your data, is used only by the server, and is never sent to the browser or included in any API response or log.
 - **Removing a connection** deletes it, its accounts and its stored transactions from this app only. SimpleFIN has no revoke call, so to fully revoke access also disable the token in your SimpleFIN Bridge account.
 - Bank data never changes your projection.

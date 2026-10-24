@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as resetRoute from "@/app/api/data/reset/route";
 import * as listRoute from "@/app/api/institutions/route";
 import * as itemRoute from "@/app/api/institutions/[id]/route";
@@ -82,9 +82,16 @@ const getTx = (id: string, query: string) =>
   call<BankTransactionsResponse>(txRoute.GET, "GET", `/api/institutions/${id}/transactions?${query}`, { params: { id } });
 
 beforeEach(() => {
+  // Freeze "today": the history window is relative to it, and the fixtures use fixed dates.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(NOW);
   vi.resetAllMocks();
   mocked.claimSetupToken.mockResolvedValue(ACCESS_URL);
   mocked.fetchAccountSet.mockResolvedValue(accountSet(FIRST));
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("connecting", () => {
@@ -228,6 +235,22 @@ describe("syncing", () => {
     expect(await testPrisma.bankTransaction.count({ where: { accountId: acc } })).toBe(4);
   });
 
+  it("prunes stored transactions older than 89 days, whatever the bank returns", async () => {
+    // 2026-07-28 is the oldest day inside the window on 2026-10-24 (89 days, counting today).
+    mocked.fetchAccountSet.mockResolvedValue(
+      accountSet([tx("old", "2026-07-27", "-1.00"), tx("edge", "2026-07-28", "-2.00"), tx("new", "2026-10-20", "-3.00")]),
+    );
+    const first = await connect({ setupToken: SETUP_TOKEN }, NOW);
+    const acc = `${first.id}:a1`;
+    let ids = (await testPrisma.bankTransaction.findMany({ where: { accountId: acc } })).map((r) => r.id.slice(acc.length + 1)).sort();
+    expect(ids).toEqual(["edge", "new"]);
+
+    // Rows that age out between syncs are removed on the next sync, even outside the fetched window.
+    mocked.fetchAccountSet.mockResolvedValue(accountSet([tx("new", "2026-10-20", "-3.00")]));
+    await syncConnection(first.id, new Date(NOW.getTime() + 2 * 86_400_000));
+    ids = (await testPrisma.bankTransaction.findMany({ where: { accountId: acc } })).map((r) => r.id.slice(acc.length + 1)).sort();
+    expect(ids).toEqual(["new"]);
+  });
   it("updates the balance of an existing account", async () => {
     const first = await connect({ setupToken: SETUP_TOKEN }, NOW);
     mocked.fetchAccountSet.mockResolvedValueOnce(
@@ -349,6 +372,20 @@ describe("transactions", () => {
     expect(res.body.hasMore).toBe(false);
   });
 
+  it("only lists the last 89 days, even for rows already stored", async () => {
+    const created = await postConnect();
+    const acc = created.body.accounts[0].id;
+    await testPrisma.bankTransaction.createMany({
+      data: [
+        { id: `${acc}:old`, accountId: acc, date: "2026-07-27", amountCents: -100, description: "Too old", pending: false },
+        { id: `${acc}:edge`, accountId: acc, date: "2026-07-28", amountCents: -200, description: "Oldest shown", pending: false },
+      ],
+    });
+    const res = await getTx(created.body.id, `accountId=${encodeURIComponent(acc)}`);
+    const descriptions = res.body.transactions.map((t) => t.description);
+    expect(descriptions).toContain("Oldest shown");
+    expect(descriptions).not.toContain("Too old");
+  });
   it("validates the query and 404s for foreign or unknown accounts and connections", async () => {
     const created = await postConnect();
     const acc = created.body.accounts[0].id;

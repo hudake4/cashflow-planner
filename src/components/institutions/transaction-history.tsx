@@ -55,8 +55,8 @@ export function TransactionHistory({ institutionId, initialAccountId }: { instit
         title={institution?.name ?? "Institution"}
         description={
           account
-            ? `Transactions saved on this computer from your last sync. Balance ${money(account.balanceCents, account.currency)} as of ${fmtShort(account.balanceDate)}.`
-            : "Transactions saved on this computer from your last sync."
+            ? `The last 89 days, saved on this computer from your last sync. Balance ${money(account.balanceCents, account.currency)} as of ${fmtShort(account.balanceDate)}.`
+            : "The last 89 days, saved on this computer from your last sync."
         }
         actions={
           accounts.length > 1 ? (
