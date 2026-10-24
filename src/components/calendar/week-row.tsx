@@ -78,14 +78,14 @@ export function EventChip({
       aria-label={eventAriaLabel(event, currency)}
       onClick={() => onSelect(event)}
       className={clsx(
-        "font-narrow group flex min-h-11 w-full min-w-0 gap-1 rounded-chip border border-l-[3px] px-2 py-1 text-left text-xs transition-colors xl:min-h-0 xl:px-1.5",
+        "font-narrow group flex min-h-11 w-full min-w-0 gap-1 rounded-chip border px-2 py-1 text-left text-xs transition-colors xl:min-h-0 xl:px-1.5",
         wrap ? "flex-wrap items-center" : "items-center",
         "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-600",
         skipped
-          ? "border-dashed border-slate-300 border-l-slate-300 bg-slate-50 text-slate-500 hover:bg-slate-100"
+          ? "border-dashed border-slate-300 bg-slate-50 text-slate-500 hover:bg-slate-100"
           : event.kind === "INCOME"
-            ? "border-slate-200 border-l-emerald-700 bg-field hover:bg-emerald-50"
-            : "border-slate-200 border-l-rose-700 bg-field hover:bg-rose-50",
+            ? "border-emerald-200 bg-emerald-50 hover:bg-emerald-100"
+            : "border-rose-200 bg-rose-50 hover:bg-rose-100",
       )}
     >
       <Icon
