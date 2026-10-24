@@ -14,7 +14,7 @@ import {
 } from "react";
 
 const controlBase =
-  "block w-full rounded-lg border bg-white px-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 " +
+  "block w-full rounded-control border bg-white px-3 text-sm text-slate-900 placeholder:text-slate-400 " +
   "focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/30 " +
   "disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500";
 
@@ -96,7 +96,7 @@ export function Field({
 
   return (
     <div className={clsx("space-y-1.5", className)}>
-      <label htmlFor={id} className="block text-sm font-medium text-slate-800">
+      <label htmlFor={id} className="block text-sm font-semibold text-slate-800">
         {label}
         {optional && <span className="ml-1 font-normal text-slate-500">(optional)</span>}
       </label>

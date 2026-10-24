@@ -350,7 +350,7 @@ function FrequencyHelp({ kind, frequency }: { kind: ScheduleKind; frequency: str
   else if (frequency === "ONE_TIME") text = "Happens once, on the date below.";
   if (!text) return null;
   return (
-    <p className="-mt-1 flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-700" data-testid="frequency-help">
+    <p className="-mt-1 flex items-start gap-2 rounded-control bg-slate-100 px-3 py-2 text-xs text-slate-700" data-testid="frequency-help">
       <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden="true" />
       {text}
     </p>

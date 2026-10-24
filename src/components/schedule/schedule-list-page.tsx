@@ -97,7 +97,7 @@ export function ScheduleListPage({ kind }: { kind: ScheduleKind }) {
           <Card className="hidden overflow-x-auto lg:block">
             <table className="w-full text-sm" data-testid={`${kind}-table`}>
               <caption className="sr-only">{copy.title}</caption>
-              <thead className="bg-slate-50 text-left text-xs font-semibold tracking-wide text-slate-600 uppercase">
+              <thead className="border-b border-slate-300 bg-slate-50 text-left text-xs font-semibold text-slate-600">
                 <tr>
                   <th scope="col" className="px-4 py-3">Name</th>
                   <th scope="col" className="px-4 py-3 text-right">Amount</th>
@@ -113,10 +113,10 @@ export function ScheduleListPage({ kind }: { kind: ScheduleKind }) {
                 {items.map((item) => (
                   <tr key={item.id} data-testid={`${kind}-row-${item.id}`} className={item.active ? "" : "bg-slate-50/60 text-slate-500"}>
                     <td className="px-4 py-3">
-                      <div className="font-medium text-slate-900">{item.name}</div>
+                      <div className="font-semibold text-slate-900">{item.name}</div>
                       {item.notes && <div className="max-w-[16rem] truncate text-xs text-slate-600" title={item.notes}>{item.notes}</div>}
                     </td>
-                    <td className="px-4 py-3 text-right font-medium tabular-nums">{money(item.amountCents, currency)}</td>
+                    <td className="font-semiwide px-4 py-3 text-right font-semibold tabular-nums">{money(item.amountCents, currency)}</td>
                     <td className="px-4 py-3">{FREQUENCY_LABELS[item.frequency]}</td>
                     <td className="px-4 py-3 whitespace-nowrap">{fmtShort(item.anchorDate)}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
@@ -142,13 +142,13 @@ export function ScheduleListPage({ kind }: { kind: ScheduleKind }) {
                 <Card className="p-4" data-testid={`${kind}-card-${item.id}`}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="truncate font-medium text-slate-900">{item.name}</p>
+                      <p className="truncate font-semibold text-slate-900">{item.name}</p>
                       <p className="text-sm text-slate-600">
                         {FREQUENCY_LABELS[item.frequency]}
-                        {kind === "bill" && (item as BillDTO).category ? ` · ${(item as BillDTO).category}` : ""}
+                        {kind === "bill" && (item as BillDTO).category ? `, ${(item as BillDTO).category}` : ""}
                       </p>
                     </div>
-                    <p className="shrink-0 text-right font-semibold whitespace-nowrap tabular-nums">{money(item.amountCents, currency)}</p>
+                    <p className="font-semiwide shrink-0 text-right font-bold whitespace-nowrap tabular-nums">{money(item.amountCents, currency)}</p>
                   </div>
                   <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
                     <div>

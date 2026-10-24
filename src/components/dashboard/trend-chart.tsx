@@ -36,22 +36,22 @@ export function TrendChart({ dashboard }: { dashboard: DashboardResponse }) {
           <AreaChart data={trend} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
             <defs>
               <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#2f6fed" stopOpacity={0.22} />
-                <stop offset="100%" stopColor="#2f6fed" stopOpacity={0.02} />
+                <stop offset="0%" stopColor="#2c49a6" stopOpacity={0.16} />
+                <stop offset="100%" stopColor="#2c49a6" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} />
+            <CartesianGrid stroke="#d8e1dc" vertical={false} />
             <XAxis
               dataKey="date"
               tickFormatter={(d: string) => fmtDate(d, "MMM d")}
-              tick={{ fontSize: 11, fill: "#64748b" }}
+              tick={{ fontSize: 11, fill: "#4b5d58" }}
               tickLine={false}
-              axisLine={{ stroke: "#cbd5e1" }}
+              axisLine={{ stroke: "#bfcdc6" }}
               minTickGap={32}
             />
             <YAxis
               tickFormatter={tick}
-              tick={{ fontSize: 11, fill: "#64748b" }}
+              tick={{ fontSize: 11, fill: "#4b5d58" }}
               tickLine={false}
               axisLine={false}
               width={56}
@@ -62,18 +62,18 @@ export function TrendChart({ dashboard }: { dashboard: DashboardResponse }) {
             <ReferenceLine
               y={0}
               ifOverflow="extendDomain"
-              stroke="#be123c"
+              stroke="#a82a20"
               strokeDasharray="4 3"
               strokeWidth={1.5}
-              label={{ value: "Zero", position: "insideBottomRight", fill: "#be123c", fontSize: 11 }}
+              label={{ value: "Zero", position: "insideBottomRight", fill: "#a82a20", fontSize: 11 }}
             />
             <Tooltip
-              cursor={{ stroke: "#94a3b8", strokeWidth: 1 }}
+              cursor={{ stroke: "#93a49d", strokeWidth: 1 }}
               content={({ active, payload }) => {
                 const p = active && payload?.[0]?.payload as Point | undefined;
                 if (!p) return null;
                 return (
-                  <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-md">
+                  <div className="rounded-control border border-slate-200 bg-sheet px-3 py-2 text-xs shadow-[0_8px_24px_-10px_rgb(23_42_51/0.35)]">
                     <p className="text-slate-500">{fmtDate(p.date, "EEE, MMM d, yyyy")}</p>
                     <p className="font-semibold text-slate-900">
                       <Balance cents={p.balanceCents} currency={currency} />
@@ -85,10 +85,10 @@ export function TrendChart({ dashboard }: { dashboard: DashboardResponse }) {
             <Area
               type="stepAfter"
               dataKey="balanceCents"
-              stroke="#1f5ad6"
+              stroke="#2c49a6"
               strokeWidth={2}
               fill="url(#trendFill)"
-              activeDot={{ r: 4, strokeWidth: 2, stroke: "#fff" }}
+              activeDot={{ r: 4, strokeWidth: 2, stroke: "#fbfcfa" }}
               isAnimationActive={false}
             />
           </AreaChart>
@@ -101,12 +101,12 @@ export function TrendChart({ dashboard }: { dashboard: DashboardResponse }) {
         type="button"
         onClick={() => setShowTable((s) => !s)}
         aria-expanded={showTable}
-        className="text-xs font-medium text-brand-700 hover:underline focus-visible:outline-2 focus-visible:outline-brand-600"
+        className="text-xs font-semibold text-brand-700 hover:underline focus-visible:outline-2 focus-visible:outline-brand-600"
       >
         {showTable ? "Hide" : "Show"} balances as a table
       </button>
       {showTable && (
-        <div className="max-h-64 overflow-y-auto rounded-lg border border-slate-200">
+        <div className="max-h-64 overflow-y-auto rounded-control border border-slate-200">
           <table className="w-full text-sm">
             <caption className="sr-only">Projected end-of-day balance by date</caption>
             <thead className="sticky top-0 bg-slate-50 text-left text-xs text-slate-600">

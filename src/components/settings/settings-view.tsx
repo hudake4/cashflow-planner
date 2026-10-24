@@ -24,7 +24,7 @@ import { useToast } from "@/components/ui/toast";
 
 const PRESETS = [30, 60, 90, 180, 365];
 
-export function SettingsView() {
+export function SettingsView({ appVersion }: { appVersion: string }) {
   const settings = useApi<SettingsDTO>("settings", api.getSettings);
   const [confirm, setConfirm] = useState<"demo" | "reset" | null>(null);
   const [formVersion, setFormVersion] = useState(0);
@@ -65,7 +65,7 @@ export function SettingsView() {
           <Card>
             <CardHeader title="Data" description="Manage what's stored in this app." />
             <CardBody className="space-y-4">
-              <p className="flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              <p className="flex items-start gap-2 rounded-control bg-slate-100 px-3 py-2 text-sm text-slate-700">
                 <HardDrive className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
                 All data stays on this computer. Nothing is sent anywhere, and there is no bank connection.
               </p>
@@ -89,6 +89,10 @@ export function SettingsView() {
           </Card>
         </div>
       </div>
+
+      <p className="mt-10 border-t border-slate-200 pt-4 text-xs text-slate-600" data-testid="app-version">
+        CashFlow Planner version <span className="tabular-nums">{appVersion}</span>
+      </p>
 
       <ConfirmDialog
         open={confirm === "demo"}
@@ -296,7 +300,7 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsDTO; onSaved: () 
             </Field>
           </div>
         </CardBody>
-        <div className="flex flex-col-reverse gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between rounded-b-xl">
+        <div className="flex flex-col-reverse gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between rounded-b-sheet">
           <div className="min-h-[1.5rem]" aria-live="polite">
             {status && <InlineStatus tone={status.tone}>{status.text}</InlineStatus>}
           </div>

@@ -43,8 +43,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             role={t.tone === "error" ? "alert" : "status"}
             data-testid={`toast-${t.tone}`}
             className={clsx(
-              "pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-xl border bg-white px-4 py-3 text-sm shadow-lg",
-              t.tone === "success" ? "border-emerald-200" : "border-rose-200",
+              "pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-sheet border border-slate-200 border-l-4 bg-sheet px-4 py-3 text-sm shadow-[0_12px_32px_-12px_rgb(23_42_51/0.35)]",
+              t.tone === "success" ? "border-l-emerald-700" : "border-l-rose-700",
             )}
           >
             {t.tone === "success" ? (

@@ -1,13 +1,76 @@
 @import "tailwindcss";
 
+/*
+ * "Check register" palette. The stock Tailwind scales the components already use
+ * are remapped here, so `slate` is the paper-and-ink ramp, `brand` is the blue pen,
+ * `emerald` is ledger green (income) and `rose` is red ink (bills, negatives).
+ */
 @theme {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans",
-    sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
-  --color-brand-50: #eef6ff;
-  --color-brand-100: #d9eaff;
-  --color-brand-500: #2f6fed;
-  --color-brand-600: #1f5ad6;
-  --color-brand-700: #1a48ad;
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* Paper → ink */
+  --color-slate-50: #f4f7f5;
+  --color-slate-100: #e9eeea;
+  --color-slate-200: #d8e1dc;
+  --color-slate-300: #bfcdc6;
+  --color-slate-400: #93a49d;
+  --color-slate-500: #5f726c;
+  --color-slate-600: #4b5d58;
+  --color-slate-700: #364846;
+  --color-slate-800: #243538;
+  --color-slate-900: #172a33;
+  --color-slate-950: #0e1e26;
+
+  /* Blue ballpoint */
+  --color-brand-50: #eef1fa;
+  --color-brand-100: #dbe2f5;
+  --color-brand-500: #3a5bc0;
+  --color-brand-600: #2c49a6;
+  --color-brand-700: #223a88;
+
+  /* Ledger green */
+  --color-emerald-50: #ebf5ee;
+  --color-emerald-100: #d3eadb;
+  --color-emerald-200: #a8d4b8;
+  --color-emerald-700: #1c6b43;
+  --color-emerald-800: #155637;
+
+  /* Red ink */
+  --color-rose-50: #fbefed;
+  --color-rose-100: #f6dad6;
+  --color-rose-200: #edb9b2;
+  --color-rose-300: #e1958b;
+  --color-rose-600: #bf372b;
+  --color-rose-700: #a82a20;
+  --color-rose-800: #8c2219;
+  --color-rose-900: #6c1a13;
+
+  --color-sheet: #fbfcfa;
+  --color-highlight: #f3df6e;
+
+  --radius-chip: 4px;
+  --radius-control: 6px;
+  --radius-sheet: 8px;
+  --radius-dialog: 12px;
+}
+
+/* Archivo's width axis carries the hierarchy: wider = more important figure. */
+@utility font-wide {
+  font-variation-settings: "wdth" 125;
+}
+@utility font-semiwide {
+  font-variation-settings: "wdth" 112;
+}
+@utility font-narrow {
+  font-variation-settings: "wdth" 88;
+}
+
+/* A highlighter swipe, used only to mark today. */
+@utility highlight {
+  background-image: linear-gradient(104deg, transparent 2%, var(--color-highlight) 6%, var(--color-highlight) 94%, transparent 98%);
+  background-size: 100% 78%;
+  background-position: 0 60%;
+  background-repeat: no-repeat;
 }
 
 @layer base {
@@ -17,13 +80,20 @@
   body {
     @apply bg-slate-100 text-slate-900 antialiased;
   }
+  h1 {
+    font-variation-settings: "wdth" 112;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
   :focus-visible {
     outline: 2px solid var(--color-brand-600);
     outline-offset: 2px;
   }
   dialog::backdrop {
-    background: rgb(15 23 42 / 0.5);
-    backdrop-filter: blur(2px);
+    background: rgb(23 42 51 / 0.45);
   }
 }
 

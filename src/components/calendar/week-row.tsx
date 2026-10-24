@@ -78,14 +78,14 @@ export function EventChip({
       aria-label={eventAriaLabel(event, currency)}
       onClick={() => onSelect(event)}
       className={clsx(
-        "group flex w-full min-w-0 gap-1 rounded-md border px-1.5 py-1 text-left text-xs transition-colors",
+        "font-narrow group flex w-full min-w-0 gap-1 rounded-chip border border-l-[3px] px-1.5 py-1 text-left text-xs transition-colors",
         wrap ? "flex-wrap items-center" : "items-center",
         "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-600",
         skipped
-          ? "border-dashed border-slate-300 bg-slate-50 text-slate-500 hover:bg-slate-100"
+          ? "border-dashed border-slate-300 border-l-slate-300 bg-slate-50 text-slate-500 hover:bg-slate-100"
           : event.kind === "INCOME"
-            ? "border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100"
-            : "border-rose-200 bg-rose-50/70 hover:bg-rose-100",
+            ? "border-slate-200 border-l-emerald-700 bg-white hover:bg-emerald-50"
+            : "border-slate-200 border-l-rose-700 bg-white hover:bg-rose-50",
       )}
     >
       <Icon
@@ -96,12 +96,12 @@ export function EventChip({
         {event.name}
       </span>
       {event.status === "PAID" && (
-        <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-emerald-100 px-1 text-[10px] font-semibold text-emerald-800">
+        <span className="inline-flex shrink-0 items-center gap-0.5 rounded-chip bg-emerald-100 px-1 text-[10px] font-semibold text-emerald-800">
           <CircleCheck className="h-2.5 w-2.5" aria-hidden="true" />
           Paid
         </span>
       )}
-      {skipped && <span className="shrink-0 rounded bg-slate-200 px-1 text-[10px] font-semibold text-slate-700">Skipped</span>}
+      {skipped && <span className="shrink-0 rounded-chip bg-slate-200 px-1 text-[10px] font-semibold text-slate-700">Skipped</span>}
       <span
         className={clsx(
           "shrink-0 font-semibold tabular-nums",
@@ -142,8 +142,7 @@ function DayCell({
         "relative flex min-w-0 gap-2 border-slate-200 p-2 md:flex-col md:gap-1 md:p-1.5",
         "border-b md:border-r md:border-b-0 md:last:border-r-0",
         day.state !== "projected" ? "md:min-h-[4.5rem]" : expanded ? "md:min-h-[14rem]" : "md:min-h-[8.75rem]",
-        muted ? "bg-slate-50 text-slate-500" : day.inMonth ? "bg-white" : "bg-slate-50/60",
-        negative && !muted && "bg-rose-50/40",
+        muted ? "bg-slate-100/70 text-slate-500" : negative ? "bg-rose-50/60" : day.inMonth ? "bg-sheet" : "bg-slate-50",
         // On phones, hide event-less days in month view to keep the list scannable.
         !expanded && day.events.length === 0 && !day.isToday && "hidden md:flex",
       )}
@@ -156,9 +155,8 @@ function DayCell({
           aria-label={dayAriaLabel(day, currency)}
           data-testid={`day-button-${day.date}`}
           className={clsx(
-            "flex items-center gap-1 rounded-md px-1 text-left text-sm font-semibold focus-visible:outline-2 focus-visible:outline-brand-600",
+            "flex items-center gap-1 rounded-chip px-1 text-left text-sm font-bold focus-visible:outline-2 focus-visible:outline-brand-600",
             !muted && "hover:bg-slate-100",
-            day.isToday && "text-brand-700",
             !day.inMonth && !day.isToday && "text-slate-500",
             muted && "cursor-default",
           )}
@@ -166,15 +164,15 @@ function DayCell({
           <span className="text-xs font-medium text-slate-500 md:hidden">{fmtDate(day.date, "EEE")}</span>
           <span
             className={clsx(
-              "inline-flex h-6 min-w-6 items-center justify-center rounded-full tabular-nums",
-              day.isToday && "bg-brand-600 px-1.5 text-white",
+              "inline-flex h-6 min-w-6 items-center justify-center tabular-nums",
+              day.isToday && "highlight px-1.5 text-slate-900",
             )}
           >
             {dayNumber}
           </span>
           {day.inMonth || expanded ? null : <span className="text-xs font-normal">{fmtDate(day.date, "MMM")}</span>}
         </button>
-        {day.isToday && <span className="px-1 text-[10px] font-semibold tracking-wide text-brand-700 uppercase">Today</span>}
+        {day.isToday && <span className="px-1 text-[11px] font-semibold text-slate-700">Today</span>}
       </div>
 
       {day.state === "before-start" ? (
@@ -196,7 +194,7 @@ function DayCell({
                   onClick={() => onSelectDay(day)}
                   data-testid={`day-more-${day.date}`}
                   aria-label={`Show all ${day.events.length} events on ${fmtDayLong(day.date)}`}
-                  className="rounded px-1.5 text-xs font-medium text-brand-700 hover:underline focus-visible:outline-2 focus-visible:outline-brand-600"
+                  className="rounded-chip px-1.5 text-xs font-semibold text-brand-700 hover:underline focus-visible:outline-2 focus-visible:outline-brand-600"
                 >
                   +{hidden} more
                 </button>
@@ -205,7 +203,7 @@ function DayCell({
           </ul>
           {day.summary && (
             <div className="flex shrink-0 flex-col items-end justify-end text-right md:mt-auto md:flex-row md:items-baseline md:justify-between md:px-1">
-              <span className="text-[10px] tracking-wide text-slate-500 uppercase">End</span>
+              <span className="text-[11px] text-slate-500">End</span>
               <Balance
                 cents={day.summary.closingBalanceCents}
                 currency={currency}
@@ -232,7 +230,7 @@ export function WeekSummaryStrip({
 }) {
   const content = (
     <>
-      <span className="text-xs font-semibold text-slate-700">
+      <span className="font-semiwide text-xs font-bold text-slate-800">
         Week of {fmtDate(week.weekStart, "MMM d")}
         {week.partial && <span className="ml-1 font-normal text-slate-500">(partial)</span>}
       </span>
@@ -256,7 +254,7 @@ export function WeekSummaryStrip({
             {signedMoney(week.netCents, currency)}
           </span>
         </span>
-        <span className="flex items-baseline gap-1.5 rounded-md bg-white px-2 py-0.5 ring-1 ring-slate-200">
+        <span className="flex items-baseline gap-1.5 rounded-chip border-b-[3px] border-double border-slate-400 bg-sheet px-2 py-0.5">
           <span className="font-semibold text-slate-700">Closing</span>
           <Balance
             cents={week.closingBalanceCents}
@@ -323,7 +321,7 @@ export function WeekRow({
       data-testid={`week-row-${weekStart}`}
       aria-label={`Week of ${fmtRange(days[0].date, days[6].date)}`}
       className={clsx(
-        "overflow-hidden rounded-xl border bg-white shadow-sm md:rounded-none md:border-0 md:border-b md:shadow-none md:last:border-b-0",
+        "overflow-hidden rounded-sheet border bg-sheet md:rounded-none md:border-0 md:border-b md:last:border-b-0",
         week?.hasNegative ? "border-rose-300" : "border-slate-200",
       )}
     >
