@@ -1,0 +1,82 @@
+name: Checks
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Typecheck, lint and test
+    runs-on: ubuntu-latest
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      DATABASE_URL: file:./ci.db
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+  version:
+    name: Version bump
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check the version was bumped and is consistent
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git fetch origin "$BASE_REF" --depth=1
+          base_version="$(git show "origin/$BASE_REF:package.json" | node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).version")"
+          pkg_version="$(node -p "require('./package.json').version")"
+          lock_version="$(node -p "require('./package-lock.json').version")"
+          lock_root_version="$(node -p "require('./package-lock.json').packages[''].version")"
+
+          if [[ "$pkg_version" != "$lock_version" || "$pkg_version" != "$lock_root_version" ]]; then
+            echo "::error::package.json ($pkg_version) and package-lock.json ($lock_version, packages[\"\"] $lock_root_version) versions differ."
+            echo "Fix: run 'npm version patch --no-git-tag-version' (or minor) once, which updates both files together."
+            exit 1
+          fi
+
+          if [[ "$pkg_version" == "$base_version" ]]; then
+            echo "::error::Version is still $pkg_version, the same as $BASE_REF. Every PR needs a version bump."
+            echo "Fix: run 'npm version patch --no-git-tag-version' (or 'minor') once for this PR, then commit package.json and package-lock.json."
+            exit 1
+          fi
+
+          echo "Version bumped: $base_version -> $pkg_version"
