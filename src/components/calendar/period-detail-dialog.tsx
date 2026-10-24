@@ -32,12 +32,14 @@ export function PeriodDetailDialog({
   eventsById,
   currency,
   onClose,
+  restoreFocusOnClose,
   onSelectEvent,
 }: {
   detail: PeriodDetail | null;
   eventsById: Map<string, LedgerEvent>;
   currency: string;
   onClose: () => void;
+  restoreFocusOnClose?: boolean;
   onSelectEvent: (event: LedgerEvent) => void;
 }) {
   const events = detail ? detail.eventIds.map((id) => eventsById.get(id)).filter((e): e is LedgerEvent => !!e) : [];
@@ -45,6 +47,7 @@ export function PeriodDetailDialog({
 
   return (
     <Dialog
+      restoreFocusOnClose={restoreFocusOnClose}
       open={detail !== null}
       onClose={onClose}
       variant="drawer"

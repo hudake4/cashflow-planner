@@ -18,7 +18,7 @@ import { todayLocal } from "@/lib/dates";
 import { FREQUENCY_LABELS } from "@/lib/format";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Dialog } from "@/components/ui/dialog";
+import { Dialog, type DialogFocusTarget } from "@/components/ui/dialog";
 import { Field, FieldGroup, Input, MoneyInput, Select, Switch, Textarea } from "@/components/ui/field";
 import { InlineStatus } from "@/components/ui/states";
 import { useToast } from "@/components/ui/toast";
@@ -80,7 +80,11 @@ export function ScheduleFormDialog({
   item,
   onClose,
   onSaved,
+  restoreFocusTarget,
+  fallbackFocusTarget,
 }: {
+  restoreFocusTarget?: DialogFocusTarget;
+  fallbackFocusTarget?: DialogFocusTarget;
   kind: ScheduleKind;
   open: boolean;
   /** When set, the dialog edits this item; otherwise it creates a new one. */
@@ -92,6 +96,8 @@ export function ScheduleFormDialog({
   return (
     <Dialog
       open={open}
+      restoreFocusTarget={restoreFocusTarget}
+      fallbackFocusTarget={fallbackFocusTarget}
       onClose={onClose}
       title={item ? (kind === "bill" ? "Edit bill" : "Edit income") : kind === "bill" ? "Add a bill" : "Add income"}
       description={
@@ -108,7 +114,7 @@ export function ScheduleFormDialog({
   );
 }
 
-function ScheduleForm({
+export function ScheduleForm({
   kind,
   item,
   onClose,
@@ -350,7 +356,7 @@ function ScheduleForm({
       />
       </FieldGroup>
 
-      <div className="sticky bottom-0 -mx-5 -mb-4 flex flex-col-reverse gap-2 border-t border-border bg-muted px-5 py-3 sm:flex-row sm:justify-end">
+      <div className="-mx-5 -mb-4 flex flex-col-reverse gap-2 border-t border-border bg-muted px-5 py-3 sm:flex-row sm:justify-end">
         <Button className="w-full sm:w-auto" onClick={onClose} disabled={saving} data-testid={`${testPrefix}-form-cancel`}>
           Cancel
         </Button>

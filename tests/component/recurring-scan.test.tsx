@@ -256,3 +256,18 @@ describe("RecurringScanButton", () => {
     expect(createIncome).not.toHaveBeenCalled();
   });
 });
+
+it.each(["Escape", "footer"])("restores the async scan opener after %s even when focus was lost while disabled", async (close) => {
+  let resolve!: (value: RecurringScanResponse) => void;
+  scanRecurring.mockImplementation(() => new Promise<RecurringScanResponse>((done) => { resolve = done; }));
+  const { user } = renderButton();
+  const opener = screen.getByTestId("scan-recurring-button");
+  await user.click(opener);
+  expect(opener).toBeDisabled();
+  opener.blur();
+  resolve(scanResponse([], { connectionCount: 0 }));
+  await screen.findByTestId("recurring-dialog");
+  if (close === "Escape") await user.keyboard("{Escape}");
+  else await user.click(screen.getByTestId("recurring-close"));
+  await waitFor(() => expect(opener).toHaveFocus());
+});

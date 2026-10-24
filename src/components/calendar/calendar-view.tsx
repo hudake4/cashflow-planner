@@ -79,6 +79,8 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [period, setPeriod] = useState<PeriodDetail | null>(null);
   const [editTarget, setEditTarget] = useState<{ kind: ScheduleKind; id: string } | null>(null);
+  const periodTrigger = useRef<HTMLElement | null>(null);
+  const editFocusTarget = useRef<HTMLElement | null>(null);
   const lastEventTrigger = useRef<HTMLElement | null>(null);
 
   const selectEvent = (event: LedgerEvent) => {
@@ -89,12 +91,6 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
 
   const closeEvent = () => {
     setSelectedEventId(null);
-    const target = lastEventTrigger.current;
-    if (target) {
-      requestAnimationFrame(() => {
-        if (target.isConnected) target.focus();
-      });
-    }
   };
 
   // Visible grid (always whole weeks so the API returns full week summaries).
@@ -157,7 +153,8 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
   const title = view === "month" ? fmtDate(`${grid.month}-01`, "MMMM yyyy") : fmtRange(grid.from, grid.to);
   const headerDays = Array.from({ length: 7 }, (_, i) => WEEKDAY_NAMES[(weekStartsOn + i) % 7]);
 
-  const openWeek = (w: WeekSummary) =>
+  const openWeek = (w: WeekSummary) => {
+    periodTrigger.current = document.activeElement as HTMLElement;
     setPeriod({
       kind: "week",
       key: w.weekStart,
@@ -173,9 +170,11 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
       hasNegative: w.hasNegative,
       eventIds: w.eventIds,
     });
+  };
 
   const openDay = (d: DayView) => {
     if (!d.summary) return;
+    periodTrigger.current = document.activeElement as HTMLElement;
     const s = d.summary;
     setPeriod({
       kind: "day",
@@ -356,6 +355,7 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
       <Legend />
 
       <PeriodDetailDialog
+        restoreFocusOnClose={editTarget === null}
         detail={livePeriod}
         eventsById={eventsById}
         currency={currency}
@@ -363,17 +363,20 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
         onSelectEvent={selectEvent}
       />
       <EventDetailDialog
+        restoreFocusOnClose={editTarget === null}
+        restoreFocusTarget={() => lastEventTrigger.current}
         event={selectedEvent}
         currency={currency}
         onClose={closeEvent}
         onChanged={projection.reload}
         onEditSource={(e) => {
+          editFocusTarget.current = period ? periodTrigger.current : lastEventTrigger.current;
           setSelectedEventId(null);
           setPeriod(null);
           setEditTarget({ kind: e.kind === "BILL" ? "bill" : "income", id: e.sourceId });
         }}
       />
-      <EditSourceDialog target={editTarget} onClose={() => setEditTarget(null)} onSaved={() => void projection.reload()} />
+      <EditSourceDialog restoreFocusTarget={() => editFocusTarget.current} target={editTarget} onClose={() => setEditTarget(null)} onSaved={() => void projection.reload()} />
     </div>
   );
 }

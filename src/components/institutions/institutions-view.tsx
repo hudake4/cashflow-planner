@@ -3,7 +3,7 @@
 import { formatDistanceToNow } from "date-fns";
 import { ExternalLink, Landmark, Plus, RefreshCw, Trash } from "lucide-react";
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { ACCOUNT_KINDS, connectInstitutionSchema, type AccountKind, type BankAccountDTO, type InstitutionDTO } from "@/contracts/api";
 import { api, errorMessage } from "@/lib/api-client";
 import { fmtShort } from "@/lib/dates";
@@ -28,6 +28,7 @@ interface Notice {
 }
 
 export function InstitutionsView() {
+  const addFocusTarget = useRef<HTMLButtonElement | null>(null);
   const toast = useToast();
   const list = useApi<InstitutionDTO[]>("institutions", api.listInstitutions);
   const [removing, setRemoving] = useState<InstitutionDTO | null>(null);
@@ -37,7 +38,7 @@ export function InstitutionsView() {
   const items = list.data ?? [];
 
   const addButton = (
-    <Button variant="primary" className="w-full sm:w-auto" onClick={() => setConnectOpen(true)} data-testid="add-institution-button">
+    <Button ref={addFocusTarget} variant="primary" className="w-full sm:w-auto" onClick={() => setConnectOpen(true)} data-testid="add-institution-button">
       <Plus aria-hidden="true" data-icon="inline-start" /> Connect a bank
     </Button>
   );
@@ -116,6 +117,7 @@ export function InstitutionsView() {
       />
 
       <ConfirmDialog
+        fallbackFocusTarget={() => addFocusTarget.current}
         open={removing !== null}
         onClose={() => setRemoving(null)}
         title="Remove this connection?"

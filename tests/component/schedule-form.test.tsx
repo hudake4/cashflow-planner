@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -165,25 +165,26 @@ describe("ScheduleFormDialog (bill)", () => {
     expect(document.activeElement).toBe(opener);
   });
 
-  it("keeps the original opener when a controlled dialog is replaced while open", async () => {
+  it("keeps an explicit original opener when a controlled dialog is replaced while open", async () => {
     function ChainedDialog() {
       const [open, setOpen] = useState(false);
+      const opener = useRef<HTMLButtonElement>(null);
       const [step, setStep] = useState<"loading" | "form">("loading");
 
       return (
         <>
-          <button type="button" data-testid="chained-opener" onClick={() => setOpen(true)}>
+          <button ref={opener} type="button" data-testid="chained-opener" onClick={() => setOpen(true)}>
             Open
           </button>
           {open && (
             step === "loading" ? (
-              <Dialog open onClose={() => setOpen(false)} title="Loading">
+              <Dialog restoreFocusTarget={() => opener.current} open onClose={() => setOpen(false)} title="Loading">
                 <button type="button" data-testid="chained-next" onClick={() => setStep("form")}>
                   Continue
                 </button>
               </Dialog>
             ) : (
-              <ScheduleFormDialog kind="bill" open onClose={() => setOpen(false)} />
+              <ScheduleFormDialog restoreFocusTarget={() => opener.current} kind="bill" open onClose={() => setOpen(false)} />
             )
           )}
         </>

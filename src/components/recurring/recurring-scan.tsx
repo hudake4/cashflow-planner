@@ -2,7 +2,7 @@
 
 import { CircleCheck, Landmark, ScanSearch } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { BillInput, IncomeInput, RecurringScanResponse, RecurringSuggestionDTO } from "@/contracts/api";
 import { ApiError, api, errorMessage } from "@/lib/api-client";
 import { fmtDate, fmtShort } from "@/lib/dates";
@@ -28,6 +28,7 @@ function toInput(s: RecurringSuggestionDTO): BillInput | IncomeInput {
  */
 export function RecurringScanButton({ onAdded, className }: { onAdded?: () => void; className?: string }) {
   const toast = useToast();
+  const opener = useRef<HTMLButtonElement | null>(null);
   const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState<RecurringScanResponse | null>(null);
   const [open, setOpen] = useState(false);
@@ -96,11 +97,12 @@ export function RecurringScanButton({ onAdded, className }: { onAdded?: () => vo
 
   return (
     <>
-      <Button loading={scanning} onClick={() => void scan()} className={cn("min-h-11", className)} data-testid="scan-recurring-button">
+      <Button ref={opener} loading={scanning} onClick={() => void scan()} className={cn("min-h-11", className)} data-testid="scan-recurring-button">
         {!scanning && <ScanSearch className="h-4 w-4" aria-hidden="true" />} Find recurring
       </Button>
 
       <Dialog
+        restoreFocusTarget={() => opener.current}
         open={open}
         onClose={close}
         size="sm"
