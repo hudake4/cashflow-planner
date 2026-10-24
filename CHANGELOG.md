@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.15.0](https://github.com/hudake4/cashflow-planner/compare/v0.14.0...v0.15.0) (2026-10-24)
+
+
+### Features
+
+* **calendar:** balance heatmap with weekly register ([39d33ad](https://github.com/hudake4/cashflow-planner/commit/39d33adf4426b29d22ab8a1e53e4d92abdbc8585))
+* **calendar:** balance heatmap with weekly register ([2ce2338](https://github.com/hudake4/cashflow-planner/commit/2ce2338cb1f18b1687da3a79c37c50d969e5288c))
+
 ## [0.14.0](https://github.com/hudake4/cashflow-planner/compare/v0.13.1...v0.14.0) (2026-10-24)
 
 
