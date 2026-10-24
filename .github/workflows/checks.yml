@@ -133,8 +133,13 @@ jobs:
         with:
           persist-credentials: false
 
+      # The action needs the repository's Dependency graph, which only an admin can
+      # turn on (Settings > Security > Dependency graph). Until that is done the step
+      # reports "not supported" and is allowed to fail. Remove continue-on-error once
+      # the graph is enabled so the review becomes blocking.
       - name: Review dependency changes
         uses: actions/dependency-review-action@v5.0.0
+        continue-on-error: true
         with:
           fail-on-severity: high
 
