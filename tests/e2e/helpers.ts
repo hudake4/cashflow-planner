@@ -56,12 +56,24 @@ export const E2E_SETTINGS = {
   defaultCalendarView: "month",
 };
 
+/** Second guard (the first is in playwright.config.ts) in case a spec runs with a different config. */
+function assertDataResetAllowed() {
+  if (process.env.E2E_ALLOW_DATA_RESET !== "1") {
+    throw new Error(
+      "Refusing to reset app data: E2E_ALLOW_DATA_RESET=1 is not set. " +
+        "The E2E suite deletes all data in the database behind http://localhost:3000.",
+    );
+  }
+}
+
 export async function resetData(request: APIRequestContext) {
+  assertDataResetAllowed();
   const res = await api(request, "post", "/api/data/reset");
   expect(res.status()).toBe(200);
 }
 
 export async function loadDemo(request: APIRequestContext) {
+  assertDataResetAllowed();
   await resetData(request);
   const res = await api(request, "post", "/api/data/demo");
   expect(res.status()).toBe(200);
