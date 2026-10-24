@@ -1,0 +1,135 @@
+# CashFlow Planner — Financial & Engineering Conventions
+
+These rules are the team agreement. The projection engine (`src/domain/`) implements them, the API exposes them, the UI only *displays* their results, and the tests verify them. If you need to change a rule, update this file and tell the other team members.
+
+## 1. Money
+
+- All amounts are **integer cents** (`amountCents`, `balanceCents`). Floats are never used for money arithmetic anywhere: not in the engine, the API, the DB, or the UI.
+- The UI converts user input to cents with string parsing (`"12.99"` → `1299`), not `parseFloat(x) * 100`. Formatting uses `Intl.NumberFormat` with the settings currency.
+- Bill and income amounts are **positive magnitudes**. The sign comes from the event kind (income `+`, bill `−`).
+- Amount limits: `1 ≤ amountCents ≤ 1,000,000,000` ($10M). The starting balance may be zero or negative.
+- Currency is display-only (default `USD`). There is no FX conversion. Because amounts are stored in hundredths, the UI offers only currencies with 2 minor-unit digits (zero-decimal currencies such as JPY are not offered).
+
+## 2. Dates
+
+- Calendar dates are **`YYYY-MM-DD` strings** with no time and no timezone. Date math uses UTC-based helpers (`src/domain/dates.ts`) so DST and local timezones can never shift a date.
+- "Today" is the server machine's local date (`YYYY-MM-DD`).
+- Date ranges are **inclusive** at both ends (`endDate`, `from`/`to`, week ranges).
+
+## 3. Projection window & opening balance
+
+- `startingBalanceCents` is the balance at the **start of `projectionStartDate`, before any event on that date**. Events dated on the start date **are** applied.
+- Window = `[projectionStartDate, projectionStartDate + forecastDays − 1]`. `forecastDays` defaults to 90, ranges 7–366, and the UI offers presets up to 12 months.
+- `maxEndDate = projectionStartDate + 365 days`. Requests for `to` beyond the window are honored up to `maxEndDate` so a calendar can browse up to 12 months ahead. Requests before `projectionStartDate` are clamped to it, because no balance is known before the start date.
+- Events before `projectionStartDate` or after the computed end are **ignored**. They never affect any balance.
+- The engine always computes **from `projectionStartDate` forward** and then slices the requested range. Every view therefore sees identical balances, and changing the range or view can never duplicate or drop events.
+
+## 4. Recurrence (anchored, no drift)
+
+The anchor is the configured first/next date (`anchorDate`). Occurrence *k* (k = 0, 1, 2, …) is always computed **from the anchor**, never from the previous occurrence.
+
+| Frequency | Occurrence k |
+|---|---|
+| `ONE_TIME` | anchor only (k = 0). `endDate` ignored. Never recurs. |
+| `WEEKLY` | anchor + 7k days |
+| `BIWEEKLY` | anchor + 14k days |
+| `MONTHLY` | (anchor month + k) on day `min(anchorDay, daysInMonth)` |
+| `QUARTERLY` | (anchor month + 3k) on day `min(anchorDay, daysInMonth)` |
+| `YEARLY` | (anchor month + 12k) on day `min(anchorDay, daysInMonth)` |
+
+- **Month-end policy:** if the anchor day doesn't exist in a month, use the **last day of that month**. The anchor day is preserved for later months: Jan 31 → Feb 28 (Feb 29 in leap years) → Mar 31 → Apr 30. This avoids drift. Yearly Feb 29 → Feb 28 in non-leap years, Feb 29 in leap years.
+- No occurrences before the anchor. `endDate` is inclusive. Occurrences after `endDate` are not generated.
+- **Inactive** income or bills generate nothing.
+- Income uses the actual payday. Biweekly pay is **never** split into weekly amounts.
+
+## 5. Occurrence status (bills)
+
+A `BillOccurrence` row, keyed by `(billId, dueDate)`, records the user's status for one scheduled occurrence. No row means `UPCOMING` at the bill's default amount.
+
+| Status | Effect on projection |
+|---|---|
+| `UPCOMING` | Counted once on its due date. |
+| `PAID` | **Counted once on its due date, exactly like UPCOMING.** The status is tracking only. Marking a bill paid never creates a second expense and never removes the original one. (The projection models money leaving the account on the scheduled date. To reflect a real bank balance, update the starting balance and start date.) |
+| `SKIPPED` | **Not counted.** It appears in the ledger with `included: false` and `signedAmountCents: 0` for transparency. Future occurrences are unaffected. |
+
+- `amountOverrideCents` (variable bills) replaces the default amount for that one occurrence only.
+- Status is tracking data, separate from the bill definition. Editing a bill (amount, date, frequency) **never rewrites or deletes** occurrence rows. If the schedule moves, old rows simply stop matching a generated date and are kept as history. Deleting a bill cascades and deletes its occurrence rows.
+- The API rejects a status update for a date that isn't a scheduled occurrence of that bill (`400 BAD_REQUEST`).
+
+## 6. Ordering within a day
+
+The ledger is sorted by:
+1. `date` ascending
+2. kind: **income before bills** (paychecks are assumed to land before bills are drafted that day)
+3. `name` ascending (case-insensitive, then exact)
+4. `sourceId` ascending (a deterministic tiebreak)
+
+`sequence` is the 0-based position in that global order. `balanceAfterCents` is the running balance after each event. Skipped events carry the unchanged balance.
+
+## 7. Days, weeks, totals
+
+- **Day:** `opening` = previous day's closing (or the starting balance on the start date). `closing = opening + income − bills`.
+- **Week:** starts on `weekStartsOn` (0 = Sunday, the default; 1 = Monday). The first week is the one containing `projectionStartDate` and may be **partial** (`rangeStart > weekStart`). Its opening is the starting balance. Each subsequent week's opening **equals** the previous week's closing. `closing = opening + income − bills`.
+- **Lowest balance** = minimum **end-of-day** balance (including the opening balance) over the period. Using end-of-day balances makes it independent of intra-day ordering.
+- **Reconciliation invariants** (tested):
+  - `week.closing = week.opening + week.income − week.bills`
+  - `weeks[i+1].opening = weeks[i].closing`
+  - `opening + Σ(signedAmountCents of events in range) = closing` for every day, week and the whole range
+  - the event ids in weeks and days partition the event list exactly (no duplicates, no omissions)
+
+## 8. Dashboard reference date
+
+`referenceDate = max(today, projectionStartDate)`, clamped to the window end. "Current week" is the week containing the reference date, and "next week" is the one after it. The next paycheck is the first income event on or after the reference date. Upcoming bills are non-skipped bill events in `[referenceDate, referenceDate + 13]`, up to 8 of them.
+
+## 9. Engineering rules
+
+- One calculation engine: `src/domain/projection.ts`. The UI **never** recomputes balances. It renders `ProjectionResponse` and `DashboardResponse`.
+- The domain modules (`src/domain/*`) are pure functions. They have no Prisma, no `Date.now()` (today is passed in) and no I/O.
+- All input is validated with the Zod schemas in `src/contracts/api.ts`, shared by server and client.
+- Errors use the `ApiErrorBody` shape: `{ error: { code, message, fieldErrors? } }`.
+- The data access layer is scoped by `householdId` (always `"local"` in the MVP).
+- Nothing is sent to external services. There are no analytics and no remote APIs.
+- The app runs on port **3000** only. `scripts/check-port.mjs` fails loudly if the port is taken.
+
+## 10. Domain module API (pure, unit-testable)
+
+Tests are written against these exact signatures. If one changes, update this section and notify QA and frontend.
+
+```ts
+// src/domain/money.ts (exists): parseMoneyToCents, centsToDecimalString, centsToInputValue, formatCents, sumCents
+
+// src/domain/dates.ts
+addDays(date: string, days: number): string
+addMonthsClamped(anchor: string, months: number): string   // day = min(anchorDay, daysInMonth)
+daysInMonth(year: number, month1to12: number): number
+diffDays(from: string, to: string): number                   // to - from, in days
+startOfWeek(date: string, weekStartsOn: number): string
+eachDay(from: string, to: string): string[]                  // inclusive
+todayLocal(now?: Date): string                               // machine-local YYYY-MM-DD
+minDate(a: string, b: string): string; maxDate(a: string, b: string): string
+
+// src/domain/recurrence.ts
+interface Schedule { frequency: IncomeFrequency | BillFrequency; anchorDate: string; endDate: string | null }
+generateOccurrences(schedule: Schedule, from: string, to: string): string[]   // ascending, inclusive window
+isScheduledOn(schedule: Schedule, date: string): boolean
+
+// src/domain/projection.ts
+interface ProjectionInput {
+  settings: Pick<SettingsDTO, "startingBalanceCents" | "projectionStartDate" | "forecastDays" | "weekStartsOn" | "currency">;
+  incomes: Pick<IncomeDTO, "id" | "name" | "amountCents" | "frequency" | "anchorDate" | "endDate" | "active">[];
+  bills: Pick<BillDTO, "id" | "name" | "amountCents" | "frequency" | "anchorDate" | "endDate" | "active" | "category">[];
+  occurrences: Pick<BillOccurrenceDTO, "billId" | "dueDate" | "status" | "amountOverrideCents">[];
+  from?: string; to?: string;
+}
+computeProjection(input: ProjectionInput): ProjectionResponse
+
+// src/domain/dashboard.ts
+buildDashboard(input: Omit<ProjectionInput, "from" | "to" | "settings"> & { settings: SettingsDTO; today: string }): DashboardResponse
+```
+
+## 11. Team workflow rules
+
+- Every shell command must put the portable Node first on PATH: `$env:Path = "F:\Claude App Projects\cashflow-planner\.tools\node;$env:Path"`. The system Node (v12) is too old.
+- **One shared dev server** runs at http://localhost:3000 (started by the lead; it hot-reloads). Do not start another `next dev` or `next build`, because they share `.next/` and corrupt each other. Only the lead runs `next build`.
+- Do not edit `package.json` or install packages. Ask the lead.
+- Prisma schema changes require stopping the dev server on Windows (the engine DLL is locked). Ask the lead.

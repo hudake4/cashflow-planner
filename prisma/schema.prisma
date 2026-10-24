@@ -1,0 +1,78 @@
+// CashFlow Planner data model.
+// Conventions (see docs/CONVENTIONS.md):
+//   - Money is stored as integer cents (Int). Never floats.
+//   - Calendar dates are stored as "YYYY-MM-DD" strings (no time, no timezone).
+//   - Enum-like fields are Strings validated by Zod in src/contracts/api.ts.
+//   - householdId scopes every row so multi-user support can be added later.
+//     The single-user MVP always uses "local".
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Settings {
+  householdId          String   @id @default("local")
+  startingBalanceCents Int      @default(0)
+  projectionStartDate  String // YYYY-MM-DD; balance is BEFORE any events on this date
+  currency             String   @default("USD")
+  forecastDays         Int      @default(90)
+  weekStartsOn         Int      @default(0) // 0 = Sunday ... 6 = Saturday
+  defaultCalendarView  String   @default("month") // "month" | "week"
+  updatedAt            DateTime @updatedAt
+}
+
+model IncomeSource {
+  id          String   @id @default(cuid())
+  householdId String   @default("local")
+  name        String
+  amountCents Int
+  frequency   String // WEEKLY | BIWEEKLY | ONE_TIME
+  anchorDate  String // first/next expected payday, YYYY-MM-DD
+  endDate     String? // inclusive, YYYY-MM-DD
+  active      Boolean  @default(true)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([householdId])
+}
+
+model Bill {
+  id          String           @id @default(cuid())
+  householdId String           @default("local")
+  name        String
+  amountCents Int
+  frequency   String // ONE_TIME | WEEKLY | BIWEEKLY | MONTHLY | QUARTERLY | YEARLY
+  anchorDate  String // first/next due date, YYYY-MM-DD
+  endDate     String? // inclusive, YYYY-MM-DD
+  category    String?
+  notes       String?
+  active      Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  occurrences BillOccurrence[]
+
+  @@index([householdId])
+}
+
+// Per-occurrence status / amount override for a bill. Rows exist only when the user
+// has recorded something for a specific due date; absence means UPCOMING with the
+// bill's default amount. Keyed by the occurrence's scheduled due date.
+model BillOccurrence {
+  id                  String   @id @default(cuid())
+  billId              String
+  dueDate             String // YYYY-MM-DD scheduled date of this occurrence
+  status              String   @default("UPCOMING") // UPCOMING | PAID | SKIPPED
+  amountOverrideCents Int?
+  note                String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  bill                Bill     @relation(fields: [billId], references: [id], onDelete: Cascade)
+
+  @@unique([billId, dueDate])
+}

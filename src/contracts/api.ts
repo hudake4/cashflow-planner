@@ -1,0 +1,358 @@
+/**
+ * CashFlow Planner — shared API contract.
+ *
+ * This file is the single source of truth for request validation and response
+ * shapes. It is imported by the API routes (server), the UI (client forms reuse
+ * the same Zod schemas), and the tests. It must stay free of server-only imports.
+ *
+ * Conventions (full detail in docs/CONVENTIONS.md):
+ *   - Money: integer cents everywhere (`...Cents` fields). Never floats.
+ *   - Dates: calendar dates as "YYYY-MM-DD" strings. No times, no timezones.
+ *   - Bill/income amounts are positive magnitudes; direction comes from `kind`.
+ */
+import { z } from "zod";
+
+// ---------------------------------------------------------------------------
+// Primitives
+// ---------------------------------------------------------------------------
+
+export const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/** True when `value` is a real calendar date in YYYY-MM-DD form (e.g. rejects 2025-02-30). */
+export function isValidIsoDate(value: string): boolean {
+  if (!ISO_DATE_PATTERN.test(value)) return false;
+  const [y, m, d] = value.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
+
+export const isoDateSchema = z
+  .string({ required_error: "Date is required", invalid_type_error: "Date is required" })
+  .regex(ISO_DATE_PATTERN, "Use the format YYYY-MM-DD")
+  .refine(isValidIsoDate, "Not a valid calendar date");
+
+/** Largest single amount accepted: $10,000,000.00 */
+export const MAX_AMOUNT_CENTS = 1_000_000_000;
+
+export const amountCentsSchema = z
+  .number({ required_error: "Amount is required", invalid_type_error: "Amount must be a number" })
+  .int("Amount must be in whole cents")
+  .positive("Amount must be greater than zero")
+  .max(MAX_AMOUNT_CENTS, "Amount is too large");
+
+/** Balances may be zero or negative (e.g. an overdrawn account). */
+export const balanceCentsSchema = z
+  .number({ required_error: "Balance is required", invalid_type_error: "Balance must be a number" })
+  .int("Balance must be in whole cents")
+  .min(-MAX_AMOUNT_CENTS, "Balance is too small")
+  .max(MAX_AMOUNT_CENTS, "Balance is too large");
+
+const nameSchema = z
+  .string({ required_error: "Name is required", invalid_type_error: "Name is required" })
+  .trim()
+  .min(1, "Name is required")
+  .max(80, "Name must be 80 characters or fewer");
+
+const optionalText = (max: number, label: string) =>
+  z
+    .string()
+    .trim()
+    .max(max, `${label} must be ${max} characters or fewer`)
+    .nullish()
+    .transform((v) => (v ? v : null));
+
+const optionalDate = z
+  .union([isoDateSchema, z.literal(""), z.null()])
+  .optional()
+  .transform((v) => (v ? v : null));
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+export const INCOME_FREQUENCIES = ["WEEKLY", "BIWEEKLY", "ONE_TIME"] as const;
+export const incomeFrequencySchema = z.enum(INCOME_FREQUENCIES, {
+  errorMap: () => ({ message: "Frequency must be weekly, biweekly, or one-time" }),
+});
+export type IncomeFrequency = z.infer<typeof incomeFrequencySchema>;
+
+export const BILL_FREQUENCIES = ["ONE_TIME", "WEEKLY", "BIWEEKLY", "MONTHLY", "QUARTERLY", "YEARLY"] as const;
+export const billFrequencySchema = z.enum(BILL_FREQUENCIES, {
+  errorMap: () => ({ message: "Frequency must be one-time, weekly, biweekly, monthly, quarterly, or yearly" }),
+});
+export type BillFrequency = z.infer<typeof billFrequencySchema>;
+
+export const OCCURRENCE_STATUSES = ["UPCOMING", "PAID", "SKIPPED"] as const;
+export const occurrenceStatusSchema = z.enum(OCCURRENCE_STATUSES, {
+  errorMap: () => ({ message: "Status must be upcoming, paid, or skipped" }),
+});
+export type OccurrenceStatus = z.infer<typeof occurrenceStatusSchema>;
+
+export const CALENDAR_VIEWS = ["month", "week"] as const;
+export const calendarViewSchema = z.enum(CALENDAR_VIEWS);
+export type CalendarView = z.infer<typeof calendarViewSchema>;
+
+// ---------------------------------------------------------------------------
+// Settings
+// ---------------------------------------------------------------------------
+
+export const MIN_FORECAST_DAYS = 7;
+export const MAX_FORECAST_DAYS = 366;
+export const DEFAULT_FORECAST_DAYS = 90;
+
+export const settingsInputSchema = z.object({
+  startingBalanceCents: balanceCentsSchema,
+  projectionStartDate: isoDateSchema,
+  currency: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[A-Z]{3}$/, "Currency must be a 3-letter ISO code such as USD"),
+  forecastDays: z
+    .number({ invalid_type_error: "Forecast length must be a number" })
+    .int("Forecast length must be a whole number of days")
+    .min(MIN_FORECAST_DAYS, `Forecast must be at least ${MIN_FORECAST_DAYS} days`)
+    .max(MAX_FORECAST_DAYS, `Forecast can be at most ${MAX_FORECAST_DAYS} days (12 months)`),
+  weekStartsOn: z
+    .number()
+    .int()
+    .min(0, "Week start must be a day from 0 (Sunday) to 6 (Saturday)")
+    .max(6, "Week start must be a day from 0 (Sunday) to 6 (Saturday)"),
+  defaultCalendarView: calendarViewSchema.default("month"),
+});
+export type SettingsInput = z.input<typeof settingsInputSchema>;
+
+export interface SettingsDTO {
+  startingBalanceCents: number;
+  projectionStartDate: string;
+  currency: string;
+  forecastDays: number;
+  weekStartsOn: number;
+  defaultCalendarView: CalendarView;
+  updatedAt: string | null; // null when defaults have never been saved
+}
+
+// ---------------------------------------------------------------------------
+// Income
+// ---------------------------------------------------------------------------
+
+export const incomeInputSchema = z
+  .object({
+    name: nameSchema,
+    amountCents: amountCentsSchema,
+    frequency: incomeFrequencySchema,
+    anchorDate: isoDateSchema, // first or next expected payday
+    endDate: optionalDate, // inclusive; ignored for ONE_TIME
+    active: z.boolean().default(true),
+    notes: optionalText(500, "Notes"),
+  })
+  .refine((v) => !v.endDate || v.endDate >= v.anchorDate, {
+    path: ["endDate"],
+    message: "End date must be on or after the first payday",
+  });
+export type IncomeInput = z.input<typeof incomeInputSchema>;
+
+export interface IncomeDTO {
+  id: string;
+  name: string;
+  amountCents: number;
+  frequency: IncomeFrequency;
+  anchorDate: string;
+  endDate: string | null;
+  active: boolean;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Bills
+// ---------------------------------------------------------------------------
+
+export const billInputSchema = z
+  .object({
+    name: nameSchema,
+    amountCents: amountCentsSchema, // default amount per occurrence
+    frequency: billFrequencySchema,
+    anchorDate: isoDateSchema, // first or next due date
+    endDate: optionalDate, // inclusive; ignored for ONE_TIME
+    category: optionalText(40, "Category"),
+    notes: optionalText(500, "Notes"),
+    active: z.boolean().default(true),
+  })
+  .refine((v) => !v.endDate || v.endDate >= v.anchorDate, {
+    path: ["endDate"],
+    message: "End date must be on or after the first due date",
+  });
+export type BillInput = z.input<typeof billInputSchema>;
+
+export interface BillDTO {
+  id: string;
+  name: string;
+  amountCents: number;
+  frequency: BillFrequency;
+  anchorDate: string;
+  endDate: string | null;
+  category: string | null;
+  notes: string | null;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Bill occurrences (per-date status / amount override)
+// ---------------------------------------------------------------------------
+
+export const occurrenceUpdateSchema = z.object({
+  status: occurrenceStatusSchema,
+  /** Optional per-occurrence amount for variable bills; null clears the override. */
+  amountOverrideCents: amountCentsSchema.nullish().transform((v) => v ?? null),
+  note: optionalText(200, "Note"),
+});
+export type OccurrenceUpdateInput = z.input<typeof occurrenceUpdateSchema>;
+
+export interface BillOccurrenceDTO {
+  billId: string;
+  dueDate: string;
+  status: OccurrenceStatus;
+  amountOverrideCents: number | null;
+  note: string | null;
+  updatedAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Projection
+// ---------------------------------------------------------------------------
+
+export const projectionQuerySchema = z
+  .object({
+    from: isoDateSchema.optional(),
+    to: isoDateSchema.optional(),
+  })
+  .refine((v) => !v.from || !v.to || v.from <= v.to, {
+    path: ["to"],
+    message: "'to' must be on or after 'from'",
+  });
+export type ProjectionQuery = z.infer<typeof projectionQuerySchema>;
+
+export type LedgerEventKind = "INCOME" | "BILL";
+
+export interface LedgerEvent {
+  /** Stable, unique id: `${kind}:${sourceId}:${date}`. Never duplicated. */
+  id: string;
+  date: string;
+  kind: LedgerEventKind;
+  sourceId: string; // IncomeSource.id or Bill.id
+  name: string;
+  category: string | null;
+  frequency: IncomeFrequency | BillFrequency;
+  /** Positive magnitude actually used (override applied for bills). */
+  amountCents: number;
+  /** +amount for income, -amount for bills, 0 when not included (skipped). */
+  signedAmountCents: number;
+  /** Bills: UPCOMING | PAID | SKIPPED. Income: always "SCHEDULED". */
+  status: OccurrenceStatus | "SCHEDULED";
+  /** False only for SKIPPED bill occurrences; they appear for transparency but do not change the balance. */
+  included: boolean;
+  /** True when amountCents comes from a per-occurrence override. */
+  amountOverridden: boolean;
+  /** Global chronological position (0-based) in the projection ledger. */
+  sequence: number;
+  /** Running balance immediately after this event. */
+  balanceAfterCents: number;
+}
+
+export interface DaySummary {
+  date: string;
+  openingBalanceCents: number; // before any events on this date
+  incomeCents: number; // included income only
+  billsCents: number; // included bills only (positive magnitude)
+  netCents: number; // incomeCents - billsCents
+  closingBalanceCents: number; // openingBalanceCents + netCents
+  eventIds: string[]; // in ledger order, including skipped events
+}
+
+export interface WeekSummary {
+  weekStart: string; // calendar start of the week (per weekStartsOn)
+  weekEnd: string; // weekStart + 6 days
+  /** First/last date of this week that lies inside the returned range (see docs/API.md). */
+  rangeStart: string;
+  rangeEnd: string;
+  partial: boolean; // true when the week is clipped by the returned range (either side)
+  openingBalanceCents: number;
+  incomeCents: number;
+  billsCents: number;
+  netCents: number;
+  closingBalanceCents: number; // openingBalanceCents + netCents
+  lowestBalanceCents: number; // min end-of-day balance in the week (incl. opening)
+  hasNegative: boolean; // lowestBalanceCents < 0
+  eventIds: string[];
+}
+
+export interface ProjectionTotals {
+  incomeCents: number;
+  billsCents: number;
+  netCents: number;
+  openingBalanceCents: number;
+  endingBalanceCents: number;
+  lowestBalanceCents: number;
+  lowestBalanceDate: string;
+  firstNegativeDate: string | null;
+  negativeDayCount: number;
+}
+
+export interface ProjectionResponse {
+  /** Full projection window from settings: [projectionStartDate, projectionStartDate + forecastDays - 1]. */
+  window: { startDate: string; endDate: string; maxEndDate: string };
+  /** The slice actually returned, after clamping the requested from/to into the computable range. */
+  range: { from: string; to: string };
+  currency: string;
+  weekStartsOn: number;
+  startingBalanceCents: number;
+  /** Events whose date lies in `range`, in ledger order. */
+  events: LedgerEvent[];
+  /** One entry per date in `range`. */
+  days: DaySummary[];
+  /** Weeks overlapping `range`, each clipped to `range` (they partition `events` exactly). */
+  weeks: WeekSummary[];
+  /** Totals over `range`. */
+  totals: ProjectionTotals;
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard
+// ---------------------------------------------------------------------------
+
+export interface DashboardResponse {
+  /** Server's local "today". */
+  today: string;
+  settings: SettingsDTO;
+  window: { startDate: string; endDate: string };
+  /** True when there is at least one active income source or bill. */
+  hasData: boolean;
+  nextPaycheck: { date: string; name: string; amountCents: number; sourceId: string } | null;
+  /** Next up to 8 non-skipped bill events within 14 days of the reference date. */
+  upcomingBills: LedgerEvent[];
+  /** Week containing the reference date (today, or the projection start if today is before it). */
+  currentWeek: WeekSummary | null;
+  nextWeek: WeekSummary | null;
+  totals: ProjectionTotals; // over the full forecast window
+  /** End-of-day balance for every date in the window (for the trend chart). */
+  trend: { date: string; balanceCents: number }[];
+}
+
+// ---------------------------------------------------------------------------
+// Errors
+// ---------------------------------------------------------------------------
+
+export type ApiErrorCode = "VALIDATION_ERROR" | "NOT_FOUND" | "BAD_REQUEST" | "CONFLICT" | "INTERNAL_ERROR";
+
+export interface ApiErrorBody {
+  error: {
+    code: ApiErrorCode;
+    message: string;
+    /** Field path (dot-joined) -> messages. Present for VALIDATION_ERROR. */
+    fieldErrors?: Record<string, string[]>;
+  };
+}
