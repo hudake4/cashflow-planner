@@ -10,6 +10,7 @@ import { fmtDate, fmtDayShort, fmtRange, fmtShort } from "@/lib/dates";
 import { money } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
 import { PageHeader } from "@/components/app-shell";
+import { RecurringScanButton } from "@/components/recurring/recurring-scan";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ export function DashboardView() {
         description="How much you'll have left each week after income and upcoming bills."
         actions={
           <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+            <RecurringScanButton onAdded={() => void dash.reload()} className="flex-1 sm:flex-none" />
             <Button
               size="sm"
               loading={dash.refreshing}

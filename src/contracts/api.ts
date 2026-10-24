@@ -70,9 +70,9 @@ const optionalDate = z
 // Enums
 // ---------------------------------------------------------------------------
 
-export const INCOME_FREQUENCIES = ["WEEKLY", "BIWEEKLY", "ONE_TIME"] as const;
+export const INCOME_FREQUENCIES = ["WEEKLY", "BIWEEKLY", "MONTHLY", "ONE_TIME"] as const;
 export const incomeFrequencySchema = z.enum(INCOME_FREQUENCIES, {
-  errorMap: () => ({ message: "Frequency must be weekly, biweekly, or one-time" }),
+  errorMap: () => ({ message: "Frequency must be weekly, biweekly, monthly, or one-time" }),
 });
 export type IncomeFrequency = z.infer<typeof incomeFrequencySchema>;
 
@@ -411,6 +411,47 @@ export interface BankTransactionsResponse {
   transactions: BankTransactionDTO[];
   hasMore: boolean;
 }
+
+// ---------------------------------------------------------------------------
+// Recurring-payment scan (reads the stored bank transactions; never calls SimpleFIN)
+// ---------------------------------------------------------------------------
+
+/** Frequencies the scan can recognise in the 89-day history window (quarterly/yearly can't repeat within it). */
+export const RECURRING_FREQUENCIES = ["WEEKLY", "BIWEEKLY", "MONTHLY"] as const;
+export type RecurringFrequency = (typeof RECURRING_FREQUENCIES)[number];
+
+/** One repeating payment or deposit found in the bank history, ready to become a bill or income source. */
+export interface RecurringSuggestionDTO {
+  /** Stable across scans (`INCOME:netflix`), so the UI can track which ones the user already handled. */
+  key: string;
+  kind: LedgerEventKind;
+  /** Cleaned-up merchant or payer name, at most 80 characters. */
+  name: string;
+  /** Positive magnitude of the most recent occurrence. */
+  amountCents: number;
+  frequency: RecurringFrequency;
+  /** The next expected date on or after today: used as the bill's due date or the income's payday. */
+  nextDate: string;
+  /** How many times it appeared in the history window. */
+  occurrences: number;
+  /** Dates it was seen on, ascending. */
+  seenDates: string[];
+  /** True when the amounts differ noticeably between occurrences (the amount shown is the latest). */
+  amountVaries: boolean;
+}
+
+export interface RecurringScanResponse {
+  suggestions: RecurringSuggestionDTO[];
+  /** Currency for display (the app's currency setting). */
+  currency: string;
+  /** Bank connections stored locally; 0 means there is nothing to scan yet. */
+  connectionCount: number;
+  /** Settled transactions examined (pending ones are ignored). */
+  transactionCount: number;
+  /** ISO timestamp of the most recent successful sync across connections; null if none has succeeded. */
+  lastSyncedAt: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------

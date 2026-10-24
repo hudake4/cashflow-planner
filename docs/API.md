@@ -66,6 +66,15 @@ Only the server talks to SimpleFIN (`src/server/simplefin.ts`). The setup token 
 | DELETE | `/api/institutions/:id` | — | `204` / 404. Deletes the connection, its accounts and its stored transactions locally. SimpleFIN has no revoke API, so the token must be disabled in the user's SimpleFIN account. |
 | GET | `/api/institutions/:id/transactions` | `accountId` (required), `offset?` (default 0) | `BankTransactionsResponse` `{ transactions, hasMore }` from the local snapshot, limited to the last 89 days (counting today), newest first (date, then id), 50 per page. `amountCents` is signed. 400 `VALIDATION_ERROR` without `accountId`; 404 for an unknown connection or an account that isn't part of it. |
 
+## Recurring-payment scan (from bank history)
+Finds repeating payments and deposits in the stored bank transactions and suggests them as bills or income. Rules are in [`CONVENTIONS.md`](CONVENTIONS.md) section 12. The scan reads the local snapshot only and never calls SimpleFIN.
+
+| Method | Path | Body / query | Response |
+|---|---|---|---|
+| GET | `/api/recurring` | — | `RecurringScanResponse` `{ suggestions, currency, connectionCount, transactionCount, lastSyncedAt }`. Each suggestion is a `RecurringSuggestionDTO`: `key`, `kind` (`INCOME` or `BILL`), `name`, `amountCents` (positive, latest occurrence), `frequency` (`WEEKLY`, `BIWEEKLY` or `MONTHLY`), `nextDate` (YYYY-MM-DD, first expected date on or after today), `occurrences`, `seenDates` and `amountVaries`. Suggestions already tracked as bills or income are left out. |
+
+Adding a suggestion uses the existing `POST /api/bills` or `POST /api/income`, with the notes "Found in your bank history."
+
 ## Data management (local only)
 | Method | Path | Body | Response |
 |---|---|---|---|
