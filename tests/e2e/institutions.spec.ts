@@ -1,24 +1,22 @@
 import { expect, test } from "@playwright/test";
-import { gotoHydrated } from "./helpers";
+import { gotoHydrated, resetData } from "./helpers";
 
-// Depending on the server's environment and data, the page shows setup instructions (Teller
-// not configured), the empty state, or the list of connected institutions. All are valid.
-test("Institutions sits above Settings in the menu and renders one of its states", async ({ page }) => {
+// With no bank connected the page shows the empty state, and "Connect a bank" opens the
+// setup-token dialog. Nothing here talks to SimpleFIN (the token is never submitted).
+test("Institutions shows the empty state and the connect dialog", async ({ page, request }) => {
+  await resetData(request);
   await gotoHydrated(page, "/institutions");
-
-  const labels = await page.locator("aside nav a").allTextContents();
-  expect(labels.map((l) => l.trim())).toEqual(["Dashboard", "Calendar", "Bills", "Income", "Institutions", "Settings"]);
 
   await expect(page.getByRole("heading", { level: 1, name: "Institutions" })).toBeVisible();
   await expect(page.getByTestId("loading")).toHaveCount(0, { timeout: 15_000 });
-  const states = [
-    page.getByTestId("institutions-not-configured"),
-    page.getByTestId("institutions-empty"),
-    page.getByTestId("institutions-list"),
-  ];
-  await expect(states[0].or(states[1]).or(states[2]).first()).toBeVisible();
+  await expect(page.getByTestId("institutions-empty")).toBeVisible();
 
-  if (await states[1].isVisible()) {
-    await expect(page.getByTestId("add-institution-button").first()).toBeVisible();
-  }
+  await page.getByTestId("add-institution-button").first().click();
+  const dialog = page.getByTestId("connect-dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByTestId("simplefin-link")).toHaveAttribute("href", "https://bridge.simplefin.org/simplefin/create");
+
+  // An empty token is rejected in the browser, before any request.
+  await dialog.getByTestId("connect-submit").click();
+  await expect(dialog.getByTestId("setup-token-error")).toBeVisible();
 });

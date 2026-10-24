@@ -2,13 +2,11 @@
  * CashFlow Planner desktop entry point.
  *  - One instance only; a second launch focuses the existing window.
  *  - Closing the window quits the app, which stops the in-process server (see server.ts).
- *  - The window can only show the local app: external navigation and new windows are blocked,
- *    except teller.io (Teller Connect for bank logins).
- *  - Optional Teller settings come from teller.json in the data folder.
+ *  - The window can only show the local app: external navigation and new windows are blocked.
+ *    The one exception: links to SimpleFIN Bridge (to create a setup token) open in the user's browser.
  */
-import fs from "node:fs";
 import path from "node:path";
-import { app, BrowserWindow, dialog, Menu, session } from "electron";
+import { app, BrowserWindow, dialog, Menu, session, shell } from "electron";
 import { startServer, type RunningServer } from "./server";
 
 const APP_NAME = "CashFlow Planner";
@@ -61,45 +59,19 @@ if (!app.requestSingleInstanceLock()) {
   });
 }
 
-/** True for https://teller.io and its subdomains (e.g. connect.teller.io). */
-function isTellerUrl(url: string): boolean {
+/** True only for https://bridge.simplefin.org and https://beta-bridge.simplefin.org. */
+function isSimplefinBridgeUrl(url: string): boolean {
   try {
     const u = new URL(url);
-    return u.protocol === "https:" && (u.hostname === "teller.io" || u.hostname.endsWith(".teller.io"));
+    return u.protocol === "https:" && (u.hostname === "bridge.simplefin.org" || u.hostname === "beta-bridge.simplefin.org");
   } catch {
     return false;
-  }
-}
-
-/**
- * The desktop app doesn't load .env. An optional teller.json in the app's data folder
- * ({ applicationId, environment, certPath, keyPath }) is mapped onto the same environment
- * variables the server reads. Variables that are already set win.
- */
-function loadTellerSettings(file: string): void {
-  if (!fs.existsSync(file)) return;
-  try {
-    const cfg = JSON.parse(fs.readFileSync(file, "utf8")) as Record<string, unknown>;
-    const map: Record<string, string> = {
-      applicationId: "TELLER_APPLICATION_ID",
-      environment: "TELLER_ENVIRONMENT",
-      certPath: "TELLER_CERT_PATH",
-      keyPath: "TELLER_KEY_PATH",
-    };
-    for (const [key, envName] of Object.entries(map)) {
-      const value = cfg[key];
-      if (typeof value === "string" && value.trim() && !process.env[envName]) process.env[envName] = value.trim();
-    }
-  } catch (err) {
-    dialog.showErrorBox(`${APP_NAME}: invalid teller.json`, `${file}\n\n${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
 async function launch(): Promise<void> {
   Menu.setApplicationMenu(null);
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
-
-  loadTellerSettings(path.join(app.getPath("userData"), "teller.json"));
 
   server = await startServer({
     ...paths,
@@ -118,10 +90,14 @@ async function launch(): Promise<void> {
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
 
-  // Teller Connect (bank login) may open a pop-up or navigate; allow teller.io only.
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => ({ action: isTellerUrl(url) ? "allow" : "deny" }));
+  // Only the local app may be shown: block pop-ups and navigation to other origins.
+  // SimpleFIN Bridge links open in the user's own browser, never in this window.
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (isSimplefinBridgeUrl(url)) void shell.openExternal(url);
+    return { action: "deny" };
+  });
   mainWindow.webContents.on("will-navigate", (event, url) => {
-    if (new URL(url).origin !== origin && !isTellerUrl(url)) event.preventDefault();
+    if (new URL(url).origin !== origin) event.preventDefault();
   });
   mainWindow.once("ready-to-show", () => mainWindow?.show());
   mainWindow.on("closed", () => {

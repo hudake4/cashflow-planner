@@ -13,10 +13,10 @@ if (url !== "file:./test-integration.db") {
 export const testPrisma = new PrismaClient({ datasources: { db: { url } } });
 
 export async function resetTables() {
+  await testPrisma.bankConnection.deleteMany(); // accounts and transactions cascade
   await testPrisma.billOccurrence.deleteMany();
   await testPrisma.bill.deleteMany();
   await testPrisma.incomeSource.deleteMany();
-  await testPrisma.bankEnrollment.deleteMany();
   await testPrisma.settings.deleteMany();
 }
 

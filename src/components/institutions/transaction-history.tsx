@@ -1,34 +1,46 @@
 "use client";
 
-import { ArrowLeft } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { BankTransactionDTO, InstitutionDTO } from "@/contracts/api";
 import { api, errorMessage } from "@/lib/api-client";
 import { fmtShort } from "@/lib/dates";
+import { money, signedMoney } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { useApi } from "@/lib/use-api";
 import { PageHeader } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select } from "@/components/ui/field";
-import { EventAmount } from "@/components/ui/money";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/ui/states";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-function Amount({ tx, currency }: { tx: BankTransactionDTO; currency: string }) {
-  // Money in is green, money out is red (see EventAmount); the sign is already normalized by the server.
-  return <EventAmount kind={tx.amountCents >= 0 ? "INCOME" : "BILL"} amountCents={Math.abs(tx.amountCents)} currency={currency} />;
+/**
+ * Bank amounts are signed (money in positive, out negative), so the sign is shown in text
+ * and as an arrow; green marks money in, but color is never the only signal.
+ */
+function Amount({ cents, currency }: { cents: number; currency: string }) {
+  const incoming = cents > 0;
+  const Icon = incoming ? ArrowUp : cents < 0 ? ArrowDown : null;
+  return (
+    <span className={cn("inline-flex items-center gap-0.5 font-medium whitespace-nowrap tabular-nums", incoming ? "text-emerald-700" : "text-foreground")}>
+      {Icon && <Icon className="h-3 w-3 shrink-0" aria-hidden="true" />}
+      <span className="sr-only">{incoming ? "Money in " : cents < 0 ? "Money out " : ""}</span>
+      {signedMoney(cents, currency)}
+    </span>
+  );
 }
 
-export function TransactionHistory({ institutionId }: { institutionId: string }) {
-  const institution = useApi<InstitutionDTO>(`institution:${institutionId}`, () => api.getInstitution(institutionId));
-  const [accountId, setAccountId] = useState<string | null>(null);
+export function TransactionHistory({ institutionId, initialAccountId }: { institutionId: string; initialAccountId?: string }) {
+  const list = useApi<InstitutionDTO[]>("institutions", api.listInstitutions);
+  const [accountId, setAccountId] = useState<string | null>(initialAccountId ?? null);
 
-  const accounts = institution.data?.accounts ?? [];
-  const activeAccountId = accountId ?? accounts[0]?.id ?? null;
-  const account = accounts.find((a) => a.id === activeAccountId) ?? null;
+  const institution = list.data?.find((i) => i.id === institutionId) ?? null;
+  const accounts = institution?.accounts ?? [];
+  const account = accounts.find((a) => a.id === accountId) ?? accounts[0] ?? null;
 
   return (
     <>
@@ -40,19 +52,18 @@ export function TransactionHistory({ institutionId }: { institutionId: string })
         <ArrowLeft className="size-4" aria-hidden="true" /> All institutions
       </Link>
       <PageHeader
-        title={institution.data?.name ?? "Institution"}
-        description="Recent transactions, fetched live from your bank through Teller. Nothing is saved in this app."
+        title={institution?.name ?? "Institution"}
+        description={
+          account
+            ? `The last 89 days, saved on this computer from your last sync. Balance ${money(account.balanceCents, account.currency)} as of ${fmtShort(account.balanceDate)}.`
+            : "The last 89 days, saved on this computer from your last sync."
+        }
         actions={
           accounts.length > 1 ? (
-            <Select
-              aria-label="Account"
-              value={activeAccountId ?? ""}
-              onChange={(e) => setAccountId(e.target.value)}
-              data-testid="account-picker"
-            >
+            <Select aria-label="Account" value={account?.id ?? ""} onChange={(e) => setAccountId(e.target.value)} data-testid="account-picker">
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {a.name} ••{a.lastFour}
+                  {a.name}
                 </option>
               ))}
             </Select>
@@ -60,9 +71,9 @@ export function TransactionHistory({ institutionId }: { institutionId: string })
         }
       />
 
-      {institution.error && !institution.data ? (
-        <ErrorState message={institution.error} onRetry={institution.reload} />
-      ) : !institution.data ? (
+      {list.error && !list.data ? (
+        <ErrorState message={list.error} onRetry={list.reload} />
+      ) : !list.data ? (
         <LoadingRegion label="Loading institution">
           <Card className="flex flex-col gap-3 p-5">
             {[0, 1, 2].map((i) => (
@@ -70,8 +81,10 @@ export function TransactionHistory({ institutionId }: { institutionId: string })
             ))}
           </Card>
         </LoadingRegion>
+      ) : !institution ? (
+        <EmptyState title="Connection not found" description="It may have been removed." testId="institution-not-found" />
       ) : !account ? (
-        <EmptyState title="No accounts" description="This institution didn't share any accounts." testId="transactions-no-accounts" />
+        <EmptyState title="No accounts" description="SimpleFIN hasn't shared any accounts yet. Press Refresh on the Institutions page." testId="transactions-no-accounts" />
       ) : (
         <Transactions key={account.id} institutionId={institutionId} accountId={account.id} currency={account.currency} />
       )}
@@ -86,12 +99,12 @@ function Transactions({ institutionId, accountId, currency }: { institutionId: s
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(
-    async (fromId?: string) => {
+    async (offset = 0) => {
       setLoading(true);
       setError(null);
       try {
-        const page = await api.listBankTransactions(institutionId, { accountId, fromId });
-        setRows((prev) => (fromId ? [...prev, ...page.transactions] : page.transactions));
+        const page = await api.listBankTransactions(institutionId, { accountId, offset });
+        setRows((prev) => (offset > 0 ? [...prev, ...page.transactions] : page.transactions));
         setHasMore(page.hasMore);
       } catch (err) {
         setError(errorMessage(err));
@@ -119,19 +132,24 @@ function Transactions({ institutionId, accountId, currency }: { institutionId: s
     );
   }
   if (rows.length === 0) {
-    return <EmptyState title="No transactions" description="The bank returned no transactions for this account." testId="transactions-empty" />;
+    return (
+      <EmptyState
+        title="No transactions"
+        description="No transactions were stored for this account in the last sync."
+        testId="transactions-empty"
+      />
+    );
   }
 
   return (
     <>
       <Card className="overflow-hidden">
         <Table data-testid="transactions-table" aria-label="Transactions">
-          <TableCaption className="sr-only">Transactions</TableCaption>
+          <TableCaption className="sr-only">Transactions, newest first</TableCaption>
           <TableHeader className="bg-muted/60 text-left text-xs font-semibold text-muted-foreground">
             <TableRow>
               <TableHead className="px-4">Date</TableHead>
               <TableHead className="px-4">Description</TableHead>
-              <TableHead className="hidden px-4 sm:table-cell">Category</TableHead>
               <TableHead className="px-4 text-right">Amount</TableHead>
             </TableRow>
           </TableHeader>
@@ -139,22 +157,16 @@ function Transactions({ institutionId, accountId, currency }: { institutionId: s
             {rows.map((tx) => (
               <TableRow key={tx.id} data-testid={`transaction-row-${tx.id}`}>
                 <TableCell className="whitespace-nowrap px-4">{fmtShort(tx.date)}</TableCell>
-                <TableCell className="whitespace-normal px-4">
-                  <span className="font-medium text-foreground">{tx.counterparty ?? tx.description}</span>
+                <TableCell className="px-4 whitespace-normal break-words">
+                  <span className="font-medium text-foreground">{tx.description}</span>
                   {tx.pending && (
                     <Badge tone="warning" className="ml-2">
                       Pending
                     </Badge>
                   )}
-                  {tx.counterparty && tx.counterparty !== tx.description && (
-                    <div className="max-w-[28rem] truncate text-xs text-muted-foreground" title={tx.description}>
-                      {tx.description}
-                    </div>
-                  )}
                 </TableCell>
-                <TableCell className="hidden px-4 capitalize sm:table-cell">{tx.category?.replace(/_/g, " ") ?? "—"}</TableCell>
                 <TableCell className="px-4 text-right">
-                  <Amount tx={tx} currency={currency} />
+                  <Amount cents={tx.amountCents} currency={currency} />
                 </TableCell>
               </TableRow>
             ))}
@@ -165,8 +177,8 @@ function Transactions({ institutionId, accountId, currency }: { institutionId: s
       {error && <ErrorState className="mt-4" title="Couldn't load more" message={error} />}
       {hasMore && (
         <div className="mt-4 flex justify-center">
-          <Button loading={loading} onClick={() => void load(rows[rows.length - 1].id)} data-testid="load-older">
-            Load older
+          <Button loading={loading} onClick={() => void load(rows.length)} data-testid="load-more">
+            Load more
           </Button>
         </div>
       )}

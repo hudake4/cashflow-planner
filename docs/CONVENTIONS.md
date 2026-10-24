@@ -88,16 +88,25 @@ The ledger is sorted by:
 - All input is validated with the Zod schemas in `src/contracts/api.ts`, shared by server and client.
 - Errors use the `ApiErrorBody` shape: `{ error: { code, message, fieldErrors? } }`.
 - The data access layer is scoped by `householdId` (always `"local"` in the MVP).
-- The only remote API is Teller (`api.teller.io`), used read-only to list a user's connected bank accounts and transactions. Only the server calls it; access tokens never reach the browser. There are no analytics and no other external services.
+- There are no analytics and no external services except the optional **SimpleFIN Bridge** bank connection (see *SimpleFIN (bank connections)* below). Any other provider must be documented here first; credentials stay server-side and are never exposed to the browser.
+- **Only src/server/simplefin.ts touches setup tokens and Access URLs.** It never logs them, never puts them (or the Authorization header) in an error message, and no DTO or API response ever contains an Access URL. Pure parsing lives in src/server/simplefin-mapping.ts (no I/O). Tests mock etch or the module and never call the network.
 - The app runs on port **3000** only. `scripts/check-port.mjs` fails loudly if the port is taken.
 
-### Teller (bank connections)
+### SimpleFIN (bank connections)
 
-- Only `src/server/teller.ts` touches the Teller certificate, private key and access tokens. DTOs and API responses never include `accessToken`.
-- Teller's `amount` is a signed decimal string. It is converted to integer cents by string parsing (`src/server/teller-mapping.ts`), never with floats.
-- Bank transaction amounts are signed from the account holder's point of view: **money in is positive, money out is negative**. This is the opposite of bills (positive magnitudes). The sign normalization lives in one function so it can be adjusted once Teller's convention is confirmed with sandbox data.
-- Transactions are **fetched live** from Teller on every request and are not stored in the database. Only enrollments (with their tokens) and account metadata are stored.
-- Settings come from the environment (`TELLER_APPLICATION_ID`, `TELLER_ENVIRONMENT`, `TELLER_CERT_PATH`, `TELLER_KEY_PATH`), not the UI. The desktop app maps an optional `teller.json` in its data folder onto the same variables.
+SimpleFIN Bridge is the only bank-connection provider. It is read-only, paid by the user directly to SimpleFIN, and optional.
+
+- **Setup token and Access URL.** The user pastes a *setup token* (base64 of a claim URL). The server decodes it and POSTs to the claim URL once; the response body is the *Access URL* (`https://user:password@host/simplefin`), which is stored in `BankConnection.accessUrl` (unencrypted, like the rest of the data) and used only by `simplefin.ts`. The claim URL comes from user input, so it is POSTed to only if it is `https` on `simplefin.org` or a subdomain (not `evilsimplefin.org`, not `simplefin.org.evil.com`, no credentials or port); anything else is a `400` before any network call. The returned Access URL is validated by the same host rule and must carry credentials. `fetch` rejects credentials in URLs, so requests strip them and send `Authorization: Basic base64(user:pass)`, with redirects disabled and a 20 second timeout.
+- **Amounts** are decimal strings converted to integer cents by **string parsing**, never floats (`"-12.34"` becomes `-1234`, `"12.3"` becomes `1230`). More than two decimals round half away from zero. Values outside the signed 32-bit range are treated as unreadable.
+- **Sign convention: money in is positive, money out is negative**, exactly as SimpleFIN reports it (`BankTransaction.amountCents`). This is the opposite of bills, which are positive magnitudes whose sign comes from their kind. The UI shows the sign and an arrow, not color alone.
+- **Dates:** SimpleFIN timestamps are epoch seconds; they become the **UTC calendar date** (`YYYY-MM-DD`) of that instant. A transaction with no `posted` time (pending) uses `transacted_at`, else the sync date (the server's local today, passed in). A missing balance date uses the sync date.
+- **Currency:** stored as given when it is a 3-letter code; a non-ISO value (SimpleFIN allows a URL) is stored as `USD`. Display only, no conversion.
+- **Stored snapshot, explicit sync.** SimpleFIN allows **24 requests per day** (abuse gets the token disabled) and refreshes bank data about once a day. The app therefore never fetches while a page is viewed: it fetches on *connect* and on the user's *Refresh*. A refresh needs **at least 15 minutes** since the last successful sync (`409 CONFLICT` otherwise); `lastSyncedAt` moves only after a successful fetch.
+- **Window:** each request covers at most 90 days. The first sync fetches the last ~90 days; later syncs start 7 days before `lastSyncedAt` (late-posting items), never earlier than the cap, floored to a UTC midnight; `end-date` (exclusive) is now plus one day.
+- **History window:** only the last **89 days, counting today** (dates >= today - 88 days, HISTORY_DAYS / historyCutoff in simplefin-mapping.ts) are shown or kept. The transactions endpoint filters by it, so rows age out of view even without a sync, and every sync deletes older rows. SimpleFIN returns at most 90 days per request anyway, so there is no backfill.
+- **Replace-in-window:** in one database transaction, accounts are upserted and, per account, all stored *pending* transactions and all non-pending ones dated inside the fetched window are deleted and replaced by the fetched rows (no duplicates, stale pending rows disappear). After each sync, transactions older than the history window (below) are deleted. An account that SimpleFIN reports an error for keeps its stored transactions.
+- **Warnings** (`errlist` messages, or the deprecated `errors` strings) are plain display text, rendered as text only. If the claim succeeds but the first sync fails, the connection is kept (a token can't be claimed twice) and the failure is returned as a warning.
+- Removing a connection is local only (SimpleFIN has no revoke API); the UI tells the user to disable the token in their SimpleFIN account.
 
 ## 10. Domain module API (pure, unit-testable)
 

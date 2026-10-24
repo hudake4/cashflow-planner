@@ -1,141 +1,76 @@
 "use client";
 
-import { Landmark, Plus, Trash } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { ExternalLink, Landmark, Plus, RefreshCw, Trash } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
-import type { InstitutionDTO, InstitutionsConfigDTO } from "@/contracts/api";
+import { useState, type FormEvent } from "react";
+import { connectInstitutionSchema, type BankAccountDTO, type InstitutionDTO } from "@/contracts/api";
 import { api, errorMessage } from "@/lib/api-client";
 import { fmtShort } from "@/lib/dates";
 import { useApi } from "@/lib/use-api";
 import { PageHeader } from "@/components/app-shell";
-import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Dialog } from "@/components/ui/dialog";
+import { Field, Textarea } from "@/components/ui/field";
+import { Balance } from "@/components/ui/money";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
-import { EmptyState, ErrorState } from "@/components/ui/states";
+import { EmptyState, ErrorState, InlineStatus } from "@/components/ui/states";
 import { useToast } from "@/components/ui/toast";
 
-const CONNECT_SCRIPT = "https://cdn.teller.io/connect/connect.js";
+const SIMPLEFIN_CREATE_URL = "https://bridge.simplefin.org/simplefin/create";
 
-interface TellerConnectSuccess {
-  accessToken: string;
-  enrollment: { id: string; institution: { name: string } };
-}
-
-interface TellerConnectHandle {
-  open(): void;
-}
-
-declare global {
-  interface Window {
-    TellerConnect?: {
-      setup(options: {
-        applicationId: string;
-        environment: string;
-        products: string[];
-        onSuccess: (auth: TellerConnectSuccess) => void;
-        onFailure?: (failure: { message?: string }) => void;
-      }): TellerConnectHandle;
-    };
-  }
-}
-
-function loadConnectScript(): Promise<void> {
-  if (window.TellerConnect) return Promise.resolve();
-  return new Promise((resolve, reject) => {
-    const existing = document.querySelector<HTMLScriptElement>(`script[src="${CONNECT_SCRIPT}"]`);
-    const script = existing ?? document.createElement("script");
-    script.addEventListener("load", () => resolve(), { once: true });
-    script.addEventListener("error", () => reject(new Error("Could not load Teller Connect. Check your internet connection.")), { once: true });
-    if (!existing) {
-      script.src = CONNECT_SCRIPT;
-      script.async = true;
-      document.head.appendChild(script);
-    }
-  });
+interface Notice {
+  title: string;
+  messages: string[];
 }
 
 export function InstitutionsView() {
   const toast = useToast();
-  const config = useApi<InstitutionsConfigDTO>("institutions-config", api.getInstitutionsConfig);
   const list = useApi<InstitutionDTO[]>("institutions", api.listInstitutions);
   const [removing, setRemoving] = useState<InstitutionDTO | null>(null);
-  const [connecting, setConnecting] = useState(false);
-  const [connectError, setConnectError] = useState<string | null>(null);
+  const [connectOpen, setConnectOpen] = useState(false);
+  const [notice, setNotice] = useState<Notice | null>(null);
 
-  const configured = config.data?.configured === true;
   const items = list.data ?? [];
 
-  async function startConnect() {
-    const cfg = config.data;
-    if (!cfg?.configured || !cfg.applicationId || !cfg.environment) return;
-    setConnectError(null);
-    setConnecting(true);
-    try {
-      await loadConnectScript();
-      const connect = window.TellerConnect?.setup({
-        applicationId: cfg.applicationId,
-        environment: cfg.environment,
-        products: ["balance", "transactions"],
-        // The access token is posted straight to our server and never kept in the browser.
-        onSuccess: (auth) => {
-          void (async () => {
-            try {
-              const saved = await api.connectInstitution({
-                accessToken: auth.accessToken,
-                enrollmentId: auth.enrollment.id,
-                institutionName: auth.enrollment.institution.name,
-              });
-              toast(`Connected ${saved.name}.`, "success");
-              await list.reload();
-            } catch (err) {
-              setConnectError(errorMessage(err));
-            } finally {
-              setConnecting(false);
-            }
-          })();
-        },
-        onFailure: (failure) => {
-          if (failure.message) setConnectError(failure.message);
-          setConnecting(false);
-        },
-      });
-      if (!connect) throw new Error("Teller Connect did not load.");
-      connect.open();
-      // Closing the Connect window without finishing fires no callback we rely on, so allow another try.
-      setConnecting(false);
-    } catch (err) {
-      setConnectError(errorMessage(err));
-      setConnecting(false);
-    }
-  }
-
-  const addButton = configured ? (
-    <Button
-      variant="primary"
-      className="w-full sm:w-auto"
-      onClick={() => void startConnect()}
-      loading={connecting}
-      data-testid="add-institution-button"
-    >
-      <Plus aria-hidden="true" data-icon="inline-start" /> Add institution
+  const addButton = (
+    <Button variant="primary" className="w-full sm:w-auto" onClick={() => setConnectOpen(true)} data-testid="add-institution-button">
+      <Plus aria-hidden="true" data-icon="inline-start" /> Connect a bank
     </Button>
-  ) : undefined;
+  );
 
   return (
     <>
       <PageHeader
         title="Institutions"
-        description="Connect your bank read-only to see its transaction history. Nothing here changes your projection."
+        description="Connect your bank read-only through SimpleFIN Bridge to see balances and transactions. Nothing here changes your projection."
         actions={addButton}
       />
 
-      {connectError && <ErrorState className="mb-4" title="Couldn't connect" message={connectError} />}
+      {notice && (
+        <Alert role="status" className="mb-4 flex items-start gap-3 rounded-control border-border bg-muted p-4" data-testid="institutions-notice">
+          <div className="min-w-0 flex-1">
+            <AlertTitle className="font-semibold text-foreground">{notice.title}</AlertTitle>
+            <AlertDescription className="mt-1 text-sm text-muted-foreground">
+              <ul className="list-disc space-y-1 pl-5">
+                {notice.messages.map((m) => (
+                  <li key={m}>{m}</li>
+                ))}
+              </ul>
+            </AlertDescription>
+          </div>
+          <Button size="sm" variant="ghost" onClick={() => setNotice(null)} data-testid="institutions-notice-dismiss">
+            Dismiss
+          </Button>
+        </Alert>
+      )}
 
-      {config.error && !config.data ? (
-        <ErrorState message={config.error} onRetry={config.reload} />
-      ) : config.loading || list.loading ? (
+      {list.error && !list.data ? (
+        <ErrorState message={list.error} onRetry={list.reload} />
+      ) : list.loading ? (
         <LoadingRegion label="Loading institutions">
           <Card className="flex flex-col gap-3 p-5">
             {[0, 1].map((i) => (
@@ -143,48 +78,66 @@ export function InstitutionsView() {
             ))}
           </Card>
         </LoadingRegion>
-      ) : !configured && items.length === 0 ? (
-        <NotConfigured />
-      ) : list.error && !list.data ? (
-        <ErrorState message={list.error} onRetry={list.reload} />
       ) : items.length === 0 ? (
         <EmptyState
           icon={<Landmark className="h-6 w-6" />}
-          title="No institutions connected"
-          description="Add your bank to see its recent transactions here. You sign in through Teller, and this app only gets read access."
+          title="No banks connected"
+          description="Connect a bank through SimpleFIN Bridge (a paid service run by SimpleFIN) to see its balances and recent transactions here. This app only gets read access."
           action={addButton}
           testId="institutions-empty"
         />
       ) : (
-        <>
-          {!configured && <NotConfigured className="mb-4" />}
-          <ul className="grid grid-cols-1 gap-4 lg:grid-cols-2" data-testid="institutions-list">
-            {items.map((inst) => (
-              <li key={inst.id} className="min-w-0">
-                <InstitutionCard institution={inst} onRemove={setRemoving} />
-              </li>
-            ))}
-          </ul>
-        </>
+        <ul className="grid grid-cols-1 gap-4 lg:grid-cols-2" data-testid="institutions-list">
+          {items.map((inst) => (
+            <li key={inst.id} className="min-w-0">
+              <InstitutionCard
+                institution={inst}
+                onRemove={setRemoving}
+                onSynced={async (warnings) => {
+                  if (warnings.length) setNotice({ title: `Notices for ${inst.name}`, messages: warnings });
+                  await list.reload();
+                }}
+              />
+            </li>
+          ))}
+        </ul>
       )}
+
+      <ConnectDialog
+        open={connectOpen}
+        onClose={() => setConnectOpen(false)}
+        onConnected={async (saved) => {
+          setConnectOpen(false);
+          if (saved.warnings.length) setNotice({ title: `Notices for ${saved.name}`, messages: saved.warnings });
+          else setNotice(null);
+          toast(`Connected ${saved.name}.`, "success");
+          await list.reload();
+        }}
+      />
 
       <ConfirmDialog
         open={removing !== null}
         onClose={() => setRemoving(null)}
-        title="Remove institution?"
+        title="Remove this connection?"
         confirmLabel="Remove"
         testId="confirm-remove-institution"
         description={
-          <span className="block">
-            <strong className="font-semibold text-foreground">{removing?.name}</strong> will be disconnected. Access is revoked at Teller
-            and removed from this app. Your bank account itself is not affected. You can add it again later.
+          <span className="block space-y-2">
+            <span className="block">
+              <strong className="font-semibold text-foreground">{removing?.name}</strong> and its stored balances and transactions will be
+              removed from this app only. Your bank account itself is not affected.
+            </span>
+            <span className="block">
+              SimpleFIN can&apos;t be told to revoke access from here. To fully revoke it, also disable the token in your SimpleFIN
+              Bridge account. To connect again later you need a new setup token.
+            </span>
           </span>
         }
         onConfirm={async () => {
           if (!removing) return;
           const name = removing.name;
           await api.removeInstitution(removing.id);
-          toast(`Removed “${name}”.`, "success");
+          toast(`Removed “${name}” from this app.`, "success");
           await list.reload();
         }}
         onError={(message) => toast(message, "error")}
@@ -193,69 +146,212 @@ export function InstitutionsView() {
   );
 }
 
-function InstitutionCard({ institution, onRemove }: { institution: InstitutionDTO; onRemove: (i: InstitutionDTO) => void }) {
+function ConnectDialog({
+  open,
+  onClose,
+  onConnected,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onConnected: (saved: Awaited<ReturnType<typeof api.connectInstitution>>) => Promise<void>;
+}) {
+  const [token, setToken] = useState("");
+  const [fieldError, setFieldError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  function close() {
+    if (busy) return;
+    setToken("");
+    setFieldError(null);
+    setError(null);
+    onClose();
+  }
+
+  async function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    const parsed = connectInstitutionSchema.safeParse({ setupToken: token });
+    if (!parsed.success) {
+      setFieldError(parsed.error.issues[0]?.message ?? "Paste your SimpleFIN setup token");
+      return;
+    }
+    setFieldError(null);
+    setBusy(true);
+    try {
+      // The token goes straight to our server. It is single-use, so it is never kept in the browser.
+      const saved = await api.connectInstitution(parsed.data);
+      setBusy(false);
+      setToken("");
+      await onConnected(saved);
+    } catch (err) {
+      setBusy(false);
+      setError(errorMessage(err));
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onClose={close}
+      title="Connect a bank"
+      description="Banks are linked through SimpleFIN Bridge. Your bank login never goes through this app."
+      testId="connect-dialog"
+    >
+      {open && (
+        <form onSubmit={submit} noValidate className="flex flex-col gap-4" aria-busy={busy} data-testid="connect-form">
+          <ol className="list-decimal space-y-2 pl-5 text-sm text-foreground">
+            <li>
+              Make an account at SimpleFIN Bridge, link your bank there, and create a <strong>Setup Token</strong>.{" "}
+              <a
+                href={SIMPLEFIN_CREATE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 font-medium text-brand-700 underline underline-offset-2"
+                data-testid="simplefin-link"
+              >
+                Create a setup token <ExternalLink className="size-3.5" aria-hidden="true" />
+                <span className="sr-only">(opens in your browser)</span>
+              </a>
+            </li>
+            <li>Paste the token below. It is shown only once and can only be used once.</li>
+          </ol>
+          {error && <InlineStatus tone="error">{error}</InlineStatus>}
+          <Field label="Setup token" error={fieldError} testId="setup-token">
+            <Textarea
+              rows={3}
+              value={token}
+              onChange={(e) => {
+                setToken(e.target.value);
+                setFieldError(null);
+              }}
+              autoComplete="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              maxLength={2000}
+              className="font-mono"
+              placeholder="aHR0cHM6Ly9..."
+              data-testid="setup-token"
+            />
+          </Field>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button className="w-full sm:w-auto" onClick={close} disabled={busy} data-testid="connect-cancel">
+              Cancel
+            </Button>
+            <Button className="w-full sm:w-auto" type="submit" variant="primary" loading={busy} data-testid="connect-submit">
+              Connect
+            </Button>
+          </div>
+        </form>
+      )}
+    </Dialog>
+  );
+}
+
+function lastSyncedText(institution: InstitutionDTO): string {
+  if (!institution.lastSyncedAt) return "Not synced yet";
+  return `Last synced ${formatDistanceToNow(new Date(institution.lastSyncedAt), { addSuffix: true })}`;
+}
+
+function InstitutionCard({
+  institution,
+  onRemove,
+  onSynced,
+}: {
+  institution: InstitutionDTO;
+  onRemove: (i: InstitutionDTO) => void;
+  onSynced: (warnings: string[]) => Promise<void>;
+}) {
+  const toast = useToast();
+  const [syncing, setSyncing] = useState(false);
+
+  async function refresh() {
+    setSyncing(true);
+    try {
+      const result = await api.syncInstitution(institution.id);
+      toast(`Refreshed ${result.name}.`, "success");
+      await onSynced(result.warnings);
+    } catch (err) {
+      toast(errorMessage(err), "error");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   return (
     <Card className="p-5" data-testid={`institution-card-${institution.id}`}>
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="font-semiwide truncate text-base font-bold text-foreground">
-            <Link
-              href={`/institutions/${encodeURIComponent(institution.id)}`}
-              className="rounded-control hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-              data-testid={`institution-link-${institution.id}`}
-            >
-              {institution.name}
-            </Link>
-          </h2>
-          <p className="text-xs text-muted-foreground">Connected {fmtShort(institution.connectedAt.slice(0, 10))}</p>
+          <h2 className="font-semiwide truncate text-base font-bold text-foreground">{institution.name}</h2>
+          <p
+            className="text-xs text-muted-foreground"
+            title={institution.lastSyncedAt ? new Date(institution.lastSyncedAt).toLocaleString() : undefined}
+            data-testid={`institution-synced-${institution.id}`}
+          >
+            {lastSyncedText(institution)} · Connected {fmtShort(institution.connectedAt.slice(0, 10))}
+          </p>
         </div>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-          onClick={() => onRemove(institution)}
-          aria-label={`Remove ${institution.name}`}
-          data-testid={`remove-institution-${institution.id}`}
-        >
-          <Trash aria-hidden="true" data-icon="inline-start" />
-          Remove
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            size="sm"
+            onClick={() => void refresh()}
+            loading={syncing}
+            aria-label={`Refresh ${institution.name}`}
+            data-testid={`sync-institution-${institution.id}`}
+          >
+            {!syncing && <RefreshCw aria-hidden="true" data-icon="inline-start" />}
+            Refresh
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            onClick={() => onRemove(institution)}
+            disabled={syncing}
+            aria-label={`Remove ${institution.name}`}
+            data-testid={`remove-institution-${institution.id}`}
+          >
+            <Trash aria-hidden="true" data-icon="inline-start" />
+            Remove
+          </Button>
+        </div>
       </div>
       <ul className="mt-4 divide-y divide-border border-t border-border text-sm">
-        {institution.accounts.length === 0 && <li className="py-2 text-muted-foreground">No accounts were shared.</li>}
+        {institution.accounts.length === 0 && (
+          <li className="py-2 text-muted-foreground">No accounts yet. Press Refresh to load them from SimpleFIN.</li>
+        )}
         {institution.accounts.map((a) => (
-          <li key={a.id} className="flex items-center justify-between gap-3 py-2">
-            <span className="min-w-0 truncate text-foreground">
-              {a.name} <span className="text-muted-foreground tabular-nums">••{a.lastFour}</span>
-            </span>
-            <span className="flex shrink-0 items-center gap-1.5">
-              <Badge>{a.subtype.replace(/_/g, " ")}</Badge>
-              {a.status !== "open" && <Badge tone="warning">{a.status}</Badge>}
-            </span>
-          </li>
+          <AccountRow key={a.id} account={a} institutionId={institution.id} showInstitution={new Set(institution.accounts.map((x) => x.institutionName)).size > 1} />
         ))}
       </ul>
     </Card>
   );
 }
 
-function NotConfigured({ className }: { className?: string }) {
+function AccountRow({ account, institutionId, showInstitution }: { account: BankAccountDTO; institutionId: string; showInstitution: boolean }) {
   return (
-    <Card className={className} data-testid="institutions-not-configured">
-      <div className="flex flex-col gap-3 p-5 text-sm text-foreground">
-        <h2 className="font-semiwide text-base font-bold text-foreground">Set up Teller to connect a bank</h2>
-        <p>Bank connections go through Teller. The settings live in a file, not on this page:</p>
-        <ol className="list-decimal space-y-1 pl-5">
-          <li>Create a free developer account at teller.io and copy your Application ID.</li>
-          <li>Download the certificate and private key. Keep them outside this project and never commit them.</li>
-          <li>
-            Set <code>TELLER_APPLICATION_ID</code>, <code>TELLER_ENVIRONMENT</code> (<code>sandbox</code>, <code>development</code> or{" "}
-            <code>production</code>), <code>TELLER_CERT_PATH</code> and <code>TELLER_KEY_PATH</code> in <code>.env</code>. In the desktop
-            app, put the same values in <code>teller.json</code> in the app&apos;s data folder (<code>%APPDATA%\CashFlow Planner</code>).
-          </li>
-          <li>Restart the app. Try <code>sandbox</code> first (fake banks), then <code>development</code> for real banks.</li>
-        </ol>
+    <li className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-3" data-testid={`account-row-${account.id}`}>
+      <div className="min-w-0">
+        <Link
+          href={`/institutions/${encodeURIComponent(institutionId)}?account=${encodeURIComponent(account.id)}`}
+          className="rounded-control font-medium text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          data-testid={`account-link-${account.id}`}
+        >
+          {account.name}
+          <span className="sr-only"> transactions</span>
+        </Link>
+        <p className="text-xs text-muted-foreground">
+          {showInstitution && `${account.institutionName} · `}As of {fmtShort(account.balanceDate)}
+        </p>
       </div>
-    </Card>
+      <div className="text-right">
+        <Balance cents={account.balanceCents} currency={account.currency} className="font-semibold" />
+        {account.availableBalanceCents !== null && (
+          <p className="text-xs text-muted-foreground">
+            Available <Balance cents={account.availableBalanceCents} currency={account.currency} className="font-normal" />
+          </p>
+        )}
+      </div>
+    </li>
   );
 }

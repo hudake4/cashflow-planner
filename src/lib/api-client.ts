@@ -7,14 +7,14 @@ import type {
   ApiErrorCode,
   BillDTO,
   BillInput,
-  BillOccurrenceDTO,
   BankTransactionsResponse,
+  BillOccurrenceDTO,
   ConnectInstitutionInput,
   DashboardResponse,
   IncomeDTO,
   IncomeInput,
   InstitutionDTO,
-  InstitutionsConfigDTO,
+  InstitutionSyncDTO,
   OccurrenceUpdateInput,
   ProjectionResponse,
   SettingsDTO,
@@ -106,17 +106,6 @@ export const api = {
   resetOccurrence: (billId: string, date: string) =>
     request<void>(`/bills/${encodeURIComponent(billId)}/occurrences/${date}`, json("DELETE")),
 
-  getInstitutionsConfig: () => request<InstitutionsConfigDTO>("/institutions/config"),
-  listInstitutions: () => request<InstitutionDTO[]>("/institutions"),
-  getInstitution: (id: string) => request<InstitutionDTO>(`/institutions/${encodeURIComponent(id)}`),
-  connectInstitution: (input: ConnectInstitutionInput) => request<InstitutionDTO>("/institutions", json("POST", input)),
-  removeInstitution: (id: string) => request<void>(`/institutions/${encodeURIComponent(id)}`, json("DELETE")),
-  listBankTransactions: (id: string, query: { accountId: string; fromId?: string }) => {
-    const qs = new URLSearchParams({ accountId: query.accountId });
-    if (query.fromId) qs.set("fromId", query.fromId);
-    return request<BankTransactionsResponse>(`/institutions/${encodeURIComponent(id)}/transactions?${qs}`);
-  },
-
   getProjection: (range?: { from?: string; to?: string }) => {
     const qs = new URLSearchParams();
     if (range?.from) qs.set("from", range.from);
@@ -125,6 +114,16 @@ export const api = {
     return request<ProjectionResponse>(`/projection${q ? `?${q}` : ""}`);
   },
   getDashboard: () => request<DashboardResponse>("/dashboard"),
+
+  listInstitutions: () => request<InstitutionDTO[]>("/institutions"),
+  /** Claims a SimpleFIN setup token (one use only) and runs the first sync. */
+  connectInstitution: (input: ConnectInstitutionInput) => request<InstitutionSyncDTO>("/institutions", json("POST", input)),
+  syncInstitution: (id: string) => request<InstitutionSyncDTO>(`/institutions/${encodeURIComponent(id)}/sync`, json("POST")),
+  removeInstitution: (id: string) => request<void>(`/institutions/${encodeURIComponent(id)}`, json("DELETE")),
+  listBankTransactions: (id: string, { accountId, offset = 0 }: { accountId: string; offset?: number }) => {
+    const qs = new URLSearchParams({ accountId, offset: String(offset) });
+    return request<BankTransactionsResponse>(`/institutions/${encodeURIComponent(id)}/transactions?${qs.toString()}`);
+  },
 
   loadDemoData: () => request<{ ok: true }>("/data/demo", json("POST")),
   resetAllData: () => request<{ ok: true }>("/data/reset", json("POST")),

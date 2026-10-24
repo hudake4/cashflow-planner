@@ -343,74 +343,74 @@ export interface DashboardResponse {
 }
 
 // ---------------------------------------------------------------------------
-// Institutions (bank connections through Teller; read-only)
+// Institutions (SimpleFIN Bridge bank connections, read-only)
 // ---------------------------------------------------------------------------
+// Only src/server/simplefin.ts ever sees a setup token or access URL. No DTO below
+// carries an access URL. Bank amounts are SIGNED like SimpleFIN: money in is positive,
+// money out is negative (the opposite of bills, which are positive magnitudes).
 
-export const TELLER_ENVIRONMENTS = ["sandbox", "development", "production"] as const;
-export type TellerEnvironment = (typeof TELLER_ENVIRONMENTS)[number];
+/** Transactions returned per page by GET /api/institutions/:id/transactions. */
+export const BANK_TRANSACTIONS_PAGE_SIZE = 50;
 
-/** `GET /api/institutions/config`. The Application ID is public; certificates and tokens never leave the server. */
-export interface InstitutionsConfigDTO {
-  configured: boolean;
-  applicationId: string | null;
-  environment: TellerEnvironment | null;
-}
+/** Minimum time between two syncs of one connection (SimpleFIN allows 24 requests/day). */
+export const MIN_SYNC_INTERVAL_MINUTES = 15;
+
+export const connectInstitutionSchema = z.object({
+  setupToken: z
+    .string({ required_error: "Paste your SimpleFIN setup token", invalid_type_error: "Paste your SimpleFIN setup token" })
+    .trim()
+    .min(1, "Paste your SimpleFIN setup token")
+    .max(2000, "That doesn't look like a setup token (too long)"),
+});
+export type ConnectInstitutionInput = z.input<typeof connectInstitutionSchema>;
+
+export const bankTransactionsQuerySchema = z.object({
+  accountId: z.string({ required_error: "accountId is required" }).trim().min(1, "accountId is required"),
+  offset: z.coerce.number().int("offset must be a whole number").min(0, "offset must be 0 or more").default(0),
+});
+export type BankTransactionsQuery = z.output<typeof bankTransactionsQuerySchema>;
 
 export interface BankAccountDTO {
   id: string;
   name: string;
-  type: string; // depository | credit
-  subtype: string;
-  lastFour: string;
+  institutionName: string;
+  /** 3-letter currency code. */
   currency: string;
-  status: string; // open | closed
+  balanceCents: number;
+  availableBalanceCents: number | null;
+  /** YYYY-MM-DD: when the bank reported this balance (UTC date). */
+  balanceDate: string;
 }
 
-/** A connected institution with its accounts. Never includes the access token. */
 export interface InstitutionDTO {
-  id: string; // Teller enrollment id
-  institutionId: string;
+  id: string;
+  /** The bank name(s) reported by SimpleFIN, or "SimpleFIN connection" before any account is known. */
   name: string;
   connectedAt: string;
+  /** ISO timestamp of the last successful sync; null if no sync has succeeded yet. */
+  lastSyncedAt: string | null;
   accounts: BankAccountDTO[];
 }
 
-/** Body of `POST /api/institutions`: the values Teller Connect returns in `onSuccess`. */
-export const connectInstitutionSchema = z.object({
-  accessToken: z.string().trim().min(1, "Access token is required"),
-  enrollmentId: z.string().trim().min(1, "Enrollment id is required"),
-  institutionName: z.string().trim().min(1, "Institution name is required").max(120, "Institution name is too long"),
-  institutionId: z.string().trim().max(120).optional(),
-});
-export type ConnectInstitutionInput = z.input<typeof connectInstitutionSchema>;
-
-export const BANK_TRANSACTIONS_PAGE_SIZE = 50;
-
-export const bankTransactionsQuerySchema = z.object({
-  accountId: z.string().trim().min(1, "Account is required"),
-  fromId: z.string().trim().min(1).optional(),
-});
-export type BankTransactionsQuery = z.infer<typeof bankTransactionsQuerySchema>;
+/** Returned by connect and sync: the connection plus any notices SimpleFIN reported. */
+export interface InstitutionSyncDTO extends InstitutionDTO {
+  warnings: string[];
+}
 
 export interface BankTransactionDTO {
   id: string;
   accountId: string;
-  date: string; // YYYY-MM-DD
+  date: string;
   description: string;
-  /** Counterparty name when Teller provides one, otherwise null. */
-  counterparty: string | null;
-  category: string | null;
-  /** Signed cents from the account holder's point of view: money in is positive, money out is negative. */
+  /** Signed: money in positive, money out negative. */
   amountCents: number;
   pending: boolean;
 }
 
 export interface BankTransactionsResponse {
   transactions: BankTransactionDTO[];
-  /** True when a full page came back, so older transactions may exist. */
   hasMore: boolean;
 }
-
 // ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------
