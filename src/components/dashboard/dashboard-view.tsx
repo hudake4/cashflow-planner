@@ -42,7 +42,13 @@ export function DashboardView() {
             >
               <RefreshCw className="h-4 w-4" aria-hidden="true" /> Refresh
             </Button>
-            <Button asChild variant="default" size="lg" className="min-h-11 flex-1 rounded-control font-semibold sm:flex-none" data-testid="dashboard-open-calendar">
+            <Button
+              asChild
+              variant={dash.data && !dash.data.hasData ? "outline" : "default"}
+              size="lg"
+              className="min-h-11 flex-1 rounded-control font-semibold sm:flex-none"
+              data-testid="dashboard-open-calendar"
+            >
               <Link href="/calendar">
                 <CalendarDays className="h-4 w-4" aria-hidden="true" /> Open calendar
               </Link>
