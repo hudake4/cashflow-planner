@@ -22,9 +22,6 @@ import { TrendChart } from "./trend-chart";
 
 const DISCLAIMER = "Projected balance assumes all scheduled income arrives and all listed bills are paid on time.";
 
-const linkButton =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded-control px-4 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600";
-
 export function DashboardView() {
   const dash = useApi<DashboardResponse>("dashboard", api.getDashboard);
 
@@ -45,9 +42,11 @@ export function DashboardView() {
             >
               <RefreshCw className="h-4 w-4" aria-hidden="true" /> Refresh
             </Button>
-            <Link href="/calendar" className={clsx(linkButton, "flex-1 bg-brand-600 text-on-accent hover:bg-brand-700 sm:flex-none")} data-testid="dashboard-open-calendar">
-              <CalendarDays className="h-4 w-4" aria-hidden="true" /> Open calendar
-            </Link>
+            <Button asChild variant="default" size="lg" className="min-h-11 flex-1 rounded-control font-semibold sm:flex-none" data-testid="dashboard-open-calendar">
+              <Link href="/calendar">
+                <CalendarDays className="h-4 w-4" aria-hidden="true" /> Open calendar
+              </Link>
+            </Button>
           </div>
         }
       />
@@ -174,15 +173,19 @@ function DashboardContent({ d }: { d: DashboardResponse }) {
           testId="dashboard-empty"
           action={
             <div className="flex flex-wrap justify-center gap-2">
-              <Link href="/income" className={clsx(linkButton, "bg-brand-600 text-on-accent hover:bg-brand-700")}>
-                <HandCoins className="h-4 w-4" aria-hidden="true" /> Add your first paycheck
-              </Link>
-              <Link href="/bills" className={clsx(linkButton, "border border-slate-300 bg-sheet text-slate-800 hover:border-slate-400")}>
-                <Receipt className="h-4 w-4" aria-hidden="true" /> Add a bill
-              </Link>
-              <Link href="/settings" className={clsx(linkButton, "text-slate-700 hover:bg-slate-200/60")}>
-                Set starting balance or load demo data
-              </Link>
+              <Button asChild variant="default" size="lg" className="min-h-11 rounded-control font-semibold">
+                <Link href="/income">
+                  <HandCoins className="h-4 w-4" aria-hidden="true" /> Add your first paycheck
+                </Link>
+              </Button>
+              <Button asChild variant="outline" size="lg" className="min-h-11 rounded-control font-semibold">
+                <Link href="/bills">
+                  <Receipt className="h-4 w-4" aria-hidden="true" /> Add a bill
+                </Link>
+              </Button>
+              <Button asChild variant="ghost" size="lg" className="min-h-11 rounded-control font-semibold">
+                <Link href="/settings">Set starting balance or load demo data</Link>
+              </Button>
             </div>
           }
         />
