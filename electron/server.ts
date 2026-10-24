@@ -12,6 +12,7 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { backupDatabase, pendingMigrations, pruneBackups } from "./backup";
 
 const HOST = "127.0.0.1";
 
@@ -40,9 +41,11 @@ export interface StartOptions {
   migrationsDir: string;
   /** Absolute path of the SQLite database file. */
   dbFile: string;
+  /** Folder for the database backups taken before pending migrations are applied. */
+  backupDir: string;
 }
 
-export async function startServer({ serverDir, migrationsDir, dbFile }: StartOptions): Promise<RunningServer> {
+export async function startServer({ serverDir, migrationsDir, dbFile, backupDir }: StartOptions): Promise<RunningServer> {
   // Resolve next and @prisma/client from the standalone bundle, not from the app.asar.
   const requireFromServer = createRequire(path.join(serverDir, "server.js"));
 
@@ -59,7 +62,7 @@ export async function startServer({ serverDir, migrationsDir, dbFile }: StartOpt
   // Next resolves some paths from cwd; serverDir is a real folder (never inside asar).
   process.chdir(serverDir);
 
-  await applyMigrations(requireFromServer, migrationsDir);
+  await applyMigrations(requireFromServer, migrationsDir, dbFile, backupDir);
 
   // Listen first (port 0 = OS picks a free port, no check-then-bind race), then attach Next.
   let handler: ((req: http.IncomingMessage, res: http.ServerResponse) => Promise<void>) | null = null;
@@ -105,23 +108,33 @@ export async function startServer({ serverDir, migrationsDir, dbFile }: StartOpt
  * The Prisma CLI isn't shipped, so apply the bundled migration.sql files through the
  * Prisma client, recording each applied migration in _app_migrations. Each migration
  * runs in one transaction (SQLite DDL is transactional), so a failure leaves no half-state.
+ *
+ * Before anything is applied the database is copied to backupDir (see backup.ts). The
+ * pending list is read without writing and that connection is closed first, so the copy
+ * is taken with no connection open. If the backup fails, this throws and nothing is applied.
  */
-async function applyMigrations(requireFromServer: NodeRequire, migrationsDir: string): Promise<void> {
+async function applyMigrations(
+  requireFromServer: NodeRequire,
+  migrationsDir: string,
+  dbFile: string,
+  backupDir: string
+): Promise<void> {
   const { PrismaClient } = requireFromServer("@prisma/client") as { PrismaClient: new () => PrismaLike };
+  const available = fs
+    .readdirSync(migrationsDir, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name);
+  const pending = pendingMigrations(available, await readAppliedMigrations(new PrismaClient()));
+  if (pending.length === 0) return;
+
+  const backup = backupDatabase({ dbFile, backupDir, firstPendingMigration: pending[0] });
+  if (backup) pruneBackups(backupDir, { alwaysKeep: path.basename(backup) });
+
   const prisma = new PrismaClient();
   try {
     await prisma.$executeRawUnsafe(
       `CREATE TABLE IF NOT EXISTS "_app_migrations" ("name" TEXT NOT NULL PRIMARY KEY, "appliedAt" TEXT NOT NULL)`
     );
-    const applied = new Set(
-      (await prisma.$queryRawUnsafe<{ name: string }[]>(`SELECT "name" FROM "_app_migrations"`)).map((r) => r.name)
-    );
-    const pending = fs
-      .readdirSync(migrationsDir, { withFileTypes: true })
-      .filter((d) => d.isDirectory() && !applied.has(d.name))
-      .map((d) => d.name)
-      .sort(); // Prisma migration folders are timestamp-prefixed.
-
     for (const name of pending) {
       const sql = fs.readFileSync(path.join(migrationsDir, name, "migration.sql"), "utf8");
       await prisma.$transaction(async (tx) => {
@@ -131,6 +144,19 @@ async function applyMigrations(requireFromServer: NodeRequire, migrationsDir: st
         );
       });
     }
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/** Names in _app_migrations, read-only (an untracked database has none), then disconnects. */
+async function readAppliedMigrations(prisma: PrismaLike): Promise<string[]> {
+  try {
+    const tracked = await prisma.$queryRawUnsafe<unknown[]>(
+      `SELECT 1 FROM "sqlite_master" WHERE "type" = 'table' AND "name" = '_app_migrations'`
+    );
+    if (tracked.length === 0) return [];
+    return (await prisma.$queryRawUnsafe<{ name: string }[]>(`SELECT "name" FROM "_app_migrations"`)).map((r) => r.name);
   } finally {
     await prisma.$disconnect();
   }

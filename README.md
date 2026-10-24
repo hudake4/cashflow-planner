@@ -60,6 +60,8 @@ npm run desktop:start    # builds and runs the desktop app from source (data: %A
 
 The installer adds Start menu and desktop shortcuts. The app opens in its own window and runs the Next.js server inside Electron's main process, on `127.0.0.1` at a random free port, so it never conflicts with `npm run dev`. Closing the window quits the app and frees the port. Data lives in `%APPDATA%\CashFlow Planner\cashflow.db`, which is created and migrated on first launch (applied migrations are tracked in `_app_migrations`). The installer is unsigned, so Windows SmartScreen asks once: **More info → Run anyway**.
 
+Before a new version applies a database update, the app copies `cashflow.db` (and any `-journal`, `-wal` or `-shm` file next to it) to `%APPDATA%\CashFlow Planner\backups\cashflow-<YYYYMMDD-HHmmss>-pre-<migration>.db`. It keeps the newest 10 backups and deletes older ones. If the backup fails, the app shows an error and quits without changing the database. To restore, quit the app and copy a backup back over `cashflow.db`.
+
 On pushes to `main`, the workflow publishes the Windows NSIS installer as a GitHub Release tagged `v<package.json version>`, unless that tag or release already exists. `workflow_dispatch` can rerun it manually. The setup filename includes the app version.
 
 > If `ELECTRON_RUN_AS_NODE=1` is set in your shell (some IDE terminals set it), the exe silently runs as plain Node. Run `Remove-Item Env:ELECTRON_RUN_AS_NODE` first.
