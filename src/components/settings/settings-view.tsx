@@ -1,6 +1,6 @@
 "use client";
 
-import { Database, HardDrive, Sparkles, Trash } from "lucide-react";
+import { Database, Download, HardDrive, Sparkles, Trash } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import {
@@ -119,7 +119,36 @@ export function SettingsView({ appVersion }: { appVersion: string }) {
   );
 }
 
+/** Saves a blob through a temporary download link. */
+function saveFile(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  // Revoke after the click has handed the file to the browser.
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
 function DataCard({ onConfirmDemo, onConfirmReset }: { onConfirmDemo: () => void; onConfirmReset: () => void }) {
+  const toast = useToast();
+  const [exporting, setExporting] = useState(false);
+
+  async function downloadBackup() {
+    setExporting(true);
+    try {
+      const { blob, filename } = await api.downloadBackup();
+      saveFile(blob, filename);
+      toast("Backup downloaded.", "success");
+    } catch (err) {
+      toast(errorMessage(err), "error");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <Card>
       <CardHeader title="Data" description="Manage what&apos;s stored in this app." />
@@ -130,6 +159,20 @@ function DataCard({ onConfirmDemo, onConfirmReset }: { onConfirmDemo: () => void
             All data stays on this computer. The only thing that goes online is the optional SimpleFIN Bridge bank connection, when you connect or refresh a bank.
           </AlertDescription>
         </Alert>
+        <div className="flex flex-col gap-2">
+          <Button
+            className="w-full"
+            variant="secondary"
+            onClick={() => void downloadBackup()}
+            loading={exporting}
+            data-testid="settings-export"
+          >
+            {!exporting && <Download aria-hidden="true" data-icon="inline-start" />} Download backup
+          </Button>
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Saves every paycheck, bill, status and bank snapshot as a JSON file. Bank credentials are never included.
+          </p>
+        </div>
         <div className="flex flex-col gap-2">
           <Button className="w-full" variant="primary" onClick={onConfirmDemo} data-testid="load-demo-button">
             <Sparkles aria-hidden="true" data-icon="inline-start" /> Load demo data

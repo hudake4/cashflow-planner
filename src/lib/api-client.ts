@@ -70,14 +70,35 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
   }
 
-  if (!res.ok) {
-    if (isApiErrorBody(body)) {
-      throw new ApiError(res.status, body.error.code, body.error.message, body.error.fieldErrors);
-    }
-    const code: ApiErrorCode = res.status === 404 ? "NOT_FOUND" : res.status >= 500 ? "INTERNAL_ERROR" : "BAD_REQUEST";
-    throw new ApiError(res.status, code, res.status === 404 ? "Not found." : `Request failed (${res.status}).`);
-  }
+  if (!res.ok) throw toApiError(res.status, body);
   return body as T;
+}
+
+function toApiError(status: number, body: unknown): ApiError {
+  if (isApiErrorBody(body)) return new ApiError(status, body.error.code, body.error.message, body.error.fieldErrors);
+  const code: ApiErrorCode = status === 404 ? "NOT_FOUND" : status >= 500 ? "INTERNAL_ERROR" : "BAD_REQUEST";
+  return new ApiError(status, code, status === 404 ? "Not found." : `Request failed (${status}).`);
+}
+
+/** Fetches the backup file. The file name comes from the server's Content-Disposition header. */
+async function downloadBackup(): Promise<{ blob: Blob; filename: string }> {
+  let res: Response;
+  try {
+    res = await fetch("/api/data/export", { headers: { Accept: "application/json" }, cache: "no-store" });
+  } catch {
+    throw new ApiError(0, "NETWORK_ERROR", "Could not reach the app server. Is it still running?");
+  }
+  if (!res.ok) {
+    let body: unknown = null;
+    try {
+      body = await res.json();
+    } catch {
+      body = null;
+    }
+    throw toApiError(res.status, body);
+  }
+  const match = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "");
+  return { blob: await res.blob(), filename: match?.[1] ?? "cashflow-planner-backup.json" };
 }
 
 const json = (method: string, data?: unknown): RequestInit => ({
@@ -135,6 +156,8 @@ export const api = {
 
   loadDemoData: () => request<{ ok: true }>("/data/demo", json("POST")),
   resetAllData: () => request<{ ok: true }>("/data/reset", json("POST")),
+  /** The full backup as a JSON file (bank credentials are never included). */
+  downloadBackup,
 };
 
 export function errorMessage(err: unknown): string {

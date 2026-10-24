@@ -465,6 +465,140 @@ export interface RecurringScanResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Data export (backup file from GET /api/data/export)
+// ---------------------------------------------------------------------------
+// Everything the user entered plus the stored bank snapshot, as a single JSON file.
+// It never carries an access URL, setup token or any other BankConnection column
+// besides id, name, connectedAt and lastSyncedAt.
+
+export const DATA_EXPORT_FORMAT = "cashflow-planner-export";
+export const DATA_EXPORT_FORMAT_VERSION = 1;
+
+const timestampSchema = z.string().datetime();
+const signedCentsSchema = z.number().int();
+
+const settingsDTOSchema = z.object({
+  startingBalanceCents: balanceCentsSchema,
+  startingBalanceSource: startingBalanceSourceSchema,
+  accountsBalanceCents: signedCentsSchema.nullable(),
+  accountCount: z.number().int().min(0),
+  projectionStartDate: isoDateSchema,
+  currency: z.string().regex(/^[A-Z]{3}$/),
+  forecastDays: z.number().int().min(MIN_FORECAST_DAYS).max(MAX_FORECAST_DAYS),
+  weekStartsOn: z.number().int().min(0).max(6),
+  defaultCalendarView: calendarViewSchema,
+  updatedAt: timestampSchema.nullable(),
+});
+
+const incomeDTOSchema = z.object({
+  id: z.string().min(1),
+  name: z.string(),
+  amountCents: amountCentsSchema,
+  frequency: incomeFrequencySchema,
+  anchorDate: isoDateSchema,
+  endDate: isoDateSchema.nullable(),
+  active: z.boolean(),
+  notes: z.string().nullable(),
+  createdAt: timestampSchema,
+  updatedAt: timestampSchema,
+});
+
+const billDTOSchema = z.object({
+  id: z.string().min(1),
+  name: z.string(),
+  amountCents: amountCentsSchema,
+  frequency: billFrequencySchema,
+  anchorDate: isoDateSchema,
+  endDate: isoDateSchema.nullable(),
+  category: z.string().nullable(),
+  notes: z.string().nullable(),
+  active: z.boolean(),
+  createdAt: timestampSchema,
+  updatedAt: timestampSchema,
+});
+
+const billOccurrenceDTOSchema = z.object({
+  billId: z.string().min(1),
+  dueDate: isoDateSchema,
+  status: occurrenceStatusSchema,
+  amountOverrideCents: amountCentsSchema.nullable(),
+  note: z.string().nullable(),
+  updatedAt: timestampSchema,
+});
+
+const bankAccountDTOSchema = z
+  .object({
+    id: z.string().min(1),
+    name: z.string(),
+    institutionName: z.string(),
+    currency: z.string(),
+    balanceCents: signedCentsSchema,
+    availableBalanceCents: signedCentsSchema.nullable(),
+    balanceDate: isoDateSchema,
+  })
+  .strict();
+
+const bankTransactionDTOSchema = z
+  .object({
+    id: z.string().min(1),
+    accountId: z.string().min(1),
+    date: isoDateSchema,
+    description: z.string(),
+    amountCents: signedCentsSchema,
+    pending: z.boolean(),
+  })
+  .strict();
+
+/** Strict: a connection in the export may carry no other field (no credentials). */
+const exportedInstitutionSchema = z
+  .object({
+    id: z.string().min(1),
+    name: z.string(),
+    connectedAt: timestampSchema,
+    lastSyncedAt: timestampSchema.nullable(),
+    accounts: z.array(bankAccountDTOSchema),
+    /** Every stored transaction of the connection's accounts, newest first. */
+    transactions: z.array(bankTransactionDTOSchema),
+  })
+  .strict();
+
+export const dataExportSchema = z.object({
+  format: z.literal(DATA_EXPORT_FORMAT),
+  formatVersion: z.literal(DATA_EXPORT_FORMAT_VERSION),
+  /** package.json version of the build that wrote the file. */
+  appVersion: z.string().min(1),
+  exportedAt: timestampSchema,
+  settings: settingsDTOSchema,
+  incomes: z.array(incomeDTOSchema),
+  bills: z.array(billDTOSchema),
+  /** Every recorded status row for every bill (no row means UPCOMING at the default amount). */
+  billOccurrences: z.array(billOccurrenceDTOSchema),
+  institutions: z.array(exportedInstitutionSchema),
+});
+
+/** InstitutionDTO (id, name, connectedAt, lastSyncedAt, accounts) plus the stored transactions. */
+export interface ExportedInstitutionDTO extends InstitutionDTO {
+  transactions: BankTransactionDTO[];
+}
+
+export interface DataExportDTO {
+  format: typeof DATA_EXPORT_FORMAT;
+  formatVersion: typeof DATA_EXPORT_FORMAT_VERSION;
+  appVersion: string;
+  exportedAt: string;
+  settings: SettingsDTO;
+  incomes: IncomeDTO[];
+  bills: BillDTO[];
+  billOccurrences: BillOccurrenceDTO[];
+  institutions: ExportedInstitutionDTO[];
+}
+
+// The schema and the DTO interfaces must describe the same shape.
+type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+const exportSchemaMatchesDTO: Same<z.output<typeof dataExportSchema>, DataExportDTO> = true;
+void exportSchemaMatchesDTO;
+
+// ---------------------------------------------------------------------------
 // Spend analyzer (reads the stored bank transactions; never calls SimpleFIN)
 // ---------------------------------------------------------------------------
 

@@ -1,41 +1,12 @@
 # AGENTS.md
 
-Instructions for AI coding agents working in this repository.
+CashFlow Planner is a local, private Next.js app that projects a cash balance week by week. The owner uses it every day with real financial data.
 
-CashFlow Planner is a local, private Next.js app that projects a running cash balance week by week. Read [docs/CONVENTIONS.md](docs/CONVENTIONS.md) before changing anything: it defines the money, date, recurrence and projection rules, and the team workflow (portable Node on `PATH`, one shared dev server on port 3000, no package installs without asking the lead).
-
-## Rule: use Conventional Commits
-
-All commit messages must follow Conventional Commits: `<type>[optional scope]: <description>`. Use a type such as `feat`, `fix`, or `docs`, followed by a short description.
-
-Example: `docs(agents): require conventional commit messages`.
-
-## Rule: bump the version with every commit
-
-Every commit must include a version bump. The version lives in `package.json` (and is mirrored in `package-lock.json`). It is shown to users at the bottom of the Settings page, so it's how anyone can tell which build they're running.
-
-Pick the bump by what the commit changes, following [semantic versioning](https://semver.org):
-
-| Bump | When | Example |
-|---|---|---|
-| Patch (`0.1.0` → `0.1.1`) | Bug fixes, copy or styling tweaks, refactors, tests, docs | Fix a rounding display bug |
-| Minor (`0.1.0` → `0.2.0`) | New features or noticeable UI changes, backward compatible | Add a version number to Settings |
-| Major (`0.1.0` → `1.0.0`) | Breaking changes: data that no longer loads, removed features, API contract changes | Change the database schema without a migration path |
-
-While the version is `0.x`, treat breaking changes as a minor bump unless the lead says otherwise.
-
-How to bump (updates `package.json` and `package-lock.json` together, without creating a git tag):
-
-```sh
-npm version patch --no-git-tag-version   # or minor / major
-```
-
-Then stage both files with the rest of the change, so the bump lands in the same commit:
-
-```sh
-git add package.json package-lock.json
-```
-
-- One bump per commit. If a commit both fixes and adds, use the larger bump.
-- Don't edit the version by hand in only one of the two files.
-- Bumping the version is the one allowed edit to `package.json` that doesn't need the lead's approval. Dependency changes still do.
+- Use Node from `.nvmrc`. New worktree: `npm ci`, `cp .env.example .env`, `npm run db:deploy`.
+- Before you finish: `npm run typecheck`, `npm run lint`, `npm test`. CI runs the same, plus `npm audit`, dependency review and CodeQL.
+- The main checkout's `prisma/dev.db` and the desktop app's `cashflow.db` hold real data. Never reset, `migrate dev` or `db push` against them. Your own worktree's `prisma/dev.db` is yours. E2E uses its own throwaway database and needs `E2E_ALLOW_DATA_RESET=1`.
+- Migrations are forward-only and additive: `prisma migrate dev --create-only`, read the SQL, `npm run db:deploy`. Try it on a copy with data. Say in the PR what happens to an existing database.
+- Domain rules: [docs/CONVENTIONS.md](docs/CONVENTIONS.md). Endpoints: [docs/API.md](docs/API.md). UI: [DESIGN.md](DESIGN.md). Setup and commands: [README.md](README.md). A changed rule changes doc, code and tests together.
+- Adding a package is fine: `npm install <pkg>`, commit the lockfile, say why in the PR. The app stays offline except SimpleFIN.
+- Conventional Commits. One `npm version patch|minor --no-git-tag-version` per PR; CI requires a version above `main`. Pushing `main` publishes a release.
+- UI changes: look at a screenshot in light and dark mode before you call it done.

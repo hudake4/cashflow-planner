@@ -60,6 +60,8 @@ npm run desktop:start    # builds and runs the desktop app from source (data: %A
 
 The installer adds Start menu and desktop shortcuts. The app opens in its own window and runs the Next.js server inside Electron's main process, on `127.0.0.1` at a random free port, so it never conflicts with `npm run dev`. Closing the window quits the app and frees the port. Data lives in `%APPDATA%\CashFlow Planner\cashflow.db`, which is created and migrated on first launch (applied migrations are tracked in `_app_migrations`). The installer is unsigned, so Windows SmartScreen asks once: **More info → Run anyway**.
 
+Before a new version applies a database update, the app copies `cashflow.db` (and any `-journal`, `-wal` or `-shm` file next to it) to `%APPDATA%\CashFlow Planner\backups\cashflow-<YYYYMMDD-HHmmss>-pre-<migration>.db` (with `-2`, `-3`… before `.db` if that name is taken). Once the update has applied, it keeps the newest 10 backups and deletes older ones. If the backup fails, the app shows an error and quits without changing the database. To restore, quit the app, delete `cashflow.db` and any `cashflow.db-journal`, `cashflow.db-wal` or `cashflow.db-shm` next to it, then copy the backup's `.db` file and any of its `-journal`, `-wal` or `-shm` files back, renamed to `cashflow.db`, `cashflow.db-journal`, `cashflow.db-wal` and `cashflow.db-shm`.
+
 On pushes to `main`, the workflow publishes the Windows NSIS installer as a GitHub Release tagged `v<package.json version>`, unless that tag or release already exists. `workflow_dispatch` can rerun it manually. The setup filename includes the app version.
 
 > If `ELECTRON_RUN_AS_NODE=1` is set in your shell (some IDE terminals set it), the exe silently runs as plain Node. Run `Remove-Item Env:ELECTRON_RUN_AS_NODE` first.
@@ -89,10 +91,14 @@ npm run test:unit          # projection engine, recurrence, dates, money
 npm run test:integration   # API route handlers against a separate test SQLite DB
 npm test                   # all Vitest suites (unit + integration + component)
 npx playwright install chromium   # once, to download the E2E browser
-npm run test:e2e           # Playwright end-to-end (reuses or starts the server on :3000; resets app data)
+E2E_ALLOW_DATA_RESET=1 npm run test:e2e   # Playwright end-to-end (bash/zsh; starts its own server on :3000 with a throwaway database)
 ```
 
-Integration tests use their own database file and never touch `prisma/dev.db`. E2E tests drive the real app and **reset the data in `prisma/dev.db`**, so run them against a dev database you don't mind losing.
+PowerShell: `$env:E2E_ALLOW_DATA_RESET = "1"; npm run test:e2e`. Without `E2E_ALLOW_DATA_RESET=1` the suite refuses to run. Port 3000 must be free: the suite starts its own server through `scripts/e2e-server.mjs`, which recreates `prisma/test-e2e.db` from the migrations on every run and points the server at it, so `prisma/dev.db` is never touched. To reuse a server already running on port 3000 instead, also set `E2E_REUSE_SERVER=1` (exactly `1`).
+
+> **Warning:** with `E2E_REUSE_SERVER=1` the suite deletes all data in the database behind that server, so never use it against an app that holds real data.
+
+Integration tests (`prisma/test-integration.db`) and E2E tests (`prisma/test-e2e.db`) each use their own throwaway database file and never touch `prisma/dev.db`.
 
 ## How projections work (key assumptions)
 
@@ -135,3 +141,10 @@ All data lives in `prisma/dev.db` on this computer. The only external network ca
 ## Known dependency advisories
 
 `npm audit` reports a high-severity advisory in `deepmerge-ts`, which is pulled in by Prisma 6's dev-time config loader. The only fix is the breaking Prisma 7 upgrade. The issue requires merging attacker-controlled recursive objects into Prisma config, which doesn't happen in this local app, so it is accepted for now. PostCSS is pinned to a patched version through `overrides` in `package.json`.
+
+Two more high advisories are accepted in `.github/scripts/audit.mjs`, which CI runs on every PR and release:
+
+- **electron 44.7.0** (GHSA-jr5w-w6x2-84p9, certificate mitigation). The desktop app only loads `127.0.0.1`. Fixed in Electron 44.9.1, released 2026-10-20. Bump Electron and drop the allowlist entry once that release is two weeks old (from 2026-11-04).
+- **zod 3** (GHSA-mrhx-c7xc-m3w5, memory exhaustion on oversized collections). Every request comes from the single local user. The fix is the breaking zod 4 upgrade, to be done as its own PR.
+
+Any other high or critical advisory fails CI until it is fixed or added here with a reason.

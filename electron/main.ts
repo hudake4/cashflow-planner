@@ -7,6 +7,7 @@
  */
 import path from "node:path";
 import { app, BrowserWindow, dialog, Menu, session, shell } from "electron";
+import { DatabaseBackupError } from "./backup";
 import { startServer, type RunningServer } from "./server";
 
 const APP_NAME = "CashFlow Planner";
@@ -54,7 +55,9 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(launch).catch((err: unknown) => {
-    dialog.showErrorBox(`${APP_NAME} could not start`, err instanceof Error ? err.stack ?? err.message : String(err));
+    // A failed backup has a message written for the user; anything else shows its stack.
+    const detail = err instanceof DatabaseBackupError ? err.message : err instanceof Error ? err.stack ?? err.message : String(err);
+    dialog.showErrorBox(`${APP_NAME} could not start`, detail);
     app.exit(1);
   });
 }
@@ -76,6 +79,7 @@ async function launch(): Promise<void> {
   server = await startServer({
     ...paths,
     dbFile: path.join(app.getPath("userData"), "cashflow.db"),
+    backupDir: path.join(app.getPath("userData"), "backups"),
   });
   const origin = new URL(server.url).origin;
 

@@ -78,7 +78,8 @@ Adding a suggestion uses the existing `POST /api/bills` or `POST /api/income`, w
 ## Data management (local only)
 | Method | Path | Body | Response |
 |---|---|---|---|
-| POST | `/api/data/demo` | — | `200 { ok: true }`. **Replaces** all income, bills and occurrences with clearly labeled demo data ("Demo: …" names), and sets the start date to today and the starting balance to $1,250.00. |
-| POST | `/api/data/reset` | — | `200 { ok: true }`. Deletes all income, bills and occurrences, deletes every bank connection with its stored accounts and transactions (locally only; SimpleFIN has no revoke call), and resets settings to defaults. |
+| GET | `/api/data/export` | — | `200 DataExportDTO`, sent as a download: `Content-Type: application/json`, `Content-Disposition: attachment; filename="cashflow-planner-backup-<YYYY-MM-DD>.json"` (the server's local today) and `Cache-Control: no-store`. Body: `{ format: "cashflow-planner-export", formatVersion: 1, appVersion, exportedAt, settings, incomes, bills, billOccurrences, institutions }`. `settings` is the stored `SettingsDTO` (the typed balance), `billOccurrences` holds every recorded status row for every bill, and each institution is `{ id, name, connectedAt, lastSyncedAt, accounts: BankAccountDTO[], transactions: BankTransactionDTO[] }` with every stored transaction, newest first. The Zod schema is `dataExportSchema`. It **never** contains an Access URL, setup token, Authorization header or any other bank-connection field. Read only; changes nothing. |
+| POST | `/api/data/demo` | — | **Destructive.** `200 { ok: true }`. **Replaces** all income, bills and occurrences with clearly labeled demo data ("Demo: …" names), and sets the start date to today and the starting balance to $1,250.00. |
+| POST | `/api/data/reset` | — | **Destructive.** `200 { ok: true }`. Deletes all income, bills and occurrences, deletes every bank connection with its stored accounts and transactions (locally only; SimpleFIN has no revoke call), and resets settings to defaults. |
 
-The UI must confirm both actions with the user first.
+The UI must confirm both destructive actions with the user first. The export needs no confirmation.

@@ -1,7 +1,7 @@
 import type { z } from "zod";
 import type { BillDTO, BillOccurrenceDTO, billInputSchema, occurrenceUpdateSchema } from "../../contracts/api";
 import { isScheduledOn } from "../../domain/recurrence";
-import { db, HOUSEHOLD_ID } from "../db";
+import { db, HOUSEHOLD_ID, type DbClient } from "../db";
 import { badRequest, notFound } from "../http";
 import { toBillDTO, toOccurrenceDTO } from "../mappers";
 import { byName } from "./income";
@@ -9,8 +9,8 @@ import { byName } from "./income";
 export type BillData = z.output<typeof billInputSchema>;
 export type OccurrenceData = z.output<typeof occurrenceUpdateSchema>;
 
-export async function listBills(): Promise<BillDTO[]> {
-  const rows = await db.bill.findMany({ where: { householdId: HOUSEHOLD_ID } });
+export async function listBills(client: DbClient = db): Promise<BillDTO[]> {
+  const rows = await client.bill.findMany({ where: { householdId: HOUSEHOLD_ID } });
   return rows.map(toBillDTO).sort(byName);
 }
 
@@ -48,8 +48,8 @@ export async function listOccurrences(billId: string): Promise<BillOccurrenceDTO
 }
 
 /** All recorded occurrences for the household (projection input). */
-export async function listAllOccurrences(): Promise<BillOccurrenceDTO[]> {
-  const rows = await db.billOccurrence.findMany({ where: { bill: { householdId: HOUSEHOLD_ID } } });
+export async function listAllOccurrences(client: DbClient = db): Promise<BillOccurrenceDTO[]> {
+  const rows = await client.billOccurrence.findMany({ where: { bill: { householdId: HOUSEHOLD_ID } } });
   return rows.map(toOccurrenceDTO);
 }
 
