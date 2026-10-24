@@ -1,10 +1,9 @@
 import { clsx } from "clsx";
 import type { HTMLAttributes, ReactNode } from "react";
 
+/** A sheet of paper on the desk: ruled edge, no shadow. */
 export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div className={clsx("rounded-xl border border-slate-200 bg-white shadow-sm", className)} {...props} />
-  );
+  return <div className={clsx("rounded-sheet border border-slate-200 bg-sheet", className)} {...props} />;
 }
 
 export function CardHeader({
@@ -23,7 +22,7 @@ export function CardHeader({
   return (
     <div className={clsx("flex flex-wrap items-start justify-between gap-3 px-5 pt-5", className)}>
       <div className="min-w-0">
-        <Heading className="text-base font-semibold text-slate-900">{title}</Heading>
+        <Heading className="font-semiwide text-base font-bold text-slate-900">{title}</Heading>
         {description && <p className="mt-0.5 text-sm text-slate-600">{description}</p>}
       </div>
       {action}

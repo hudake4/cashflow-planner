@@ -212,7 +212,7 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
               <ChevronRight className="h-5 w-5" aria-hidden="true" />
             </Button>
           </div>
-          <h2 className="min-w-0 truncate text-lg font-semibold text-slate-900" aria-live="polite" data-testid="calendar-title">
+          <h2 className="font-semiwide min-w-0 truncate text-xl font-bold text-slate-900" aria-live="polite" data-testid="calendar-title">
             {title}
           </h2>
           {projection.refreshing && (
@@ -223,7 +223,7 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
           <Button size="sm" onClick={() => setCursor(today)} data-testid="calendar-today">
             Today
           </Button>
-          <div role="group" aria-label="Calendar view" className="inline-flex rounded-lg border border-slate-300 bg-white p-0.5 shadow-sm">
+          <div role="group" aria-label="Calendar view" className="inline-flex rounded-control border border-slate-300 bg-sheet p-0.5">
             {(["month", "week"] as const).map((v) => (
               <button
                 key={v}
@@ -232,8 +232,8 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
                 onClick={() => setView(v)}
                 data-testid={`calendar-view-${v}`}
                 className={clsx(
-                  "rounded-md px-3 py-1 text-sm font-medium capitalize focus-visible:outline-2 focus-visible:outline-brand-600",
-                  view === v ? "bg-brand-600 text-white" : "text-slate-700 hover:bg-slate-100",
+                  "rounded-chip px-3 py-1 text-sm font-semibold capitalize focus-visible:outline-2 focus-visible:outline-brand-600",
+                  view === v ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100",
                 )}
               >
                 {v}
@@ -269,7 +269,7 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
       </Card>
 
       {visibleNegative && (
-        <p role="alert" className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900" data-testid="calendar-negative-warning">
+        <p role="alert" className="flex items-start gap-2 rounded-sheet border border-rose-200 border-l-4 border-l-rose-700 bg-rose-50 px-4 py-3 text-sm text-rose-900" data-testid="calendar-negative-warning">
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-rose-700" aria-hidden="true" />
           <span>
             <strong className="font-semibold">Heads up:</strong> your projected balance dips below zero in the week of{" "}
@@ -283,22 +283,22 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
       ) : (
         <div
           className={clsx(
-            "md:overflow-hidden md:rounded-xl md:border md:border-slate-200 md:bg-white md:shadow-sm",
+            "md:overflow-hidden md:rounded-sheet md:border md:border-slate-300 md:bg-sheet",
             canFetch && !fresh && "opacity-60",
           )}
           aria-busy={canFetch && !fresh}
           data-testid={`calendar-${view}`}
         >
-          <div className="hidden grid-cols-7 border-b border-slate-200 bg-slate-50 md:grid" aria-hidden="true">
+          <div className="hidden grid-cols-7 border-b border-slate-300 bg-slate-50 md:grid" aria-hidden="true">
             {headerDays.map((d) => (
-              <div key={d} className="px-2 py-2 text-xs font-semibold tracking-wide text-slate-600 uppercase">
+              <div key={d} className="px-2.5 py-2 text-xs font-semibold text-slate-600">
                 {d.slice(0, 3)}
               </div>
             ))}
           </div>
           <div className="space-y-3 md:space-y-0">
             {!canFetch && (
-              <p className="rounded-xl bg-white p-4 text-sm text-slate-600 md:rounded-none md:border-b md:border-slate-200">
+              <p className="rounded-sheet bg-sheet p-4 text-sm text-slate-600 md:rounded-none md:border-b md:border-slate-200">
                 {grid.to < projectionStart
                   ? "These dates are before your projection start date, so there's no projected balance yet."
                   : "These dates are beyond the 12-month forecast limit."}{" "}

@@ -12,11 +12,11 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variants: Record<Variant, string> = {
-  primary: "bg-brand-600 text-white hover:bg-brand-700 shadow-sm",
-  secondary: "bg-white text-slate-800 border border-slate-300 hover:bg-slate-50 shadow-sm",
-  ghost: "text-slate-700 hover:bg-slate-100",
-  danger: "bg-rose-700 text-white hover:bg-rose-800 shadow-sm",
-  success: "bg-emerald-700 text-white hover:bg-emerald-800 shadow-sm",
+  primary: "bg-brand-600 text-white hover:bg-brand-700",
+  secondary: "bg-sheet text-slate-800 border border-slate-300 hover:border-slate-400 hover:bg-white",
+  ghost: "text-slate-700 hover:bg-slate-200/60",
+  danger: "bg-rose-700 text-white hover:bg-rose-800",
+  success: "bg-emerald-700 text-white hover:bg-emerald-800",
 };
 
 const sizes: Record<Size, string> = {
@@ -36,7 +36,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       disabled={disabled || loading}
       aria-busy={loading || undefined}
       className={clsx(
-        "inline-flex shrink-0 items-center justify-center rounded-lg font-medium transition-colors",
+        "inline-flex shrink-0 items-center justify-center rounded-control font-semibold transition-colors",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600",
         "disabled:cursor-not-allowed disabled:opacity-60",
         variants[variant],

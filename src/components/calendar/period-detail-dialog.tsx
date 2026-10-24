@@ -57,7 +57,7 @@ export function PeriodDetailDialog({
       {detail && (
         <div className="space-y-5">
           {detail.hasNegative && (
-            <p role="alert" className="flex items-start gap-2 rounded-lg bg-rose-50 px-3 py-2 text-sm font-medium text-rose-800">
+            <p role="alert" className="flex items-start gap-2 rounded-control bg-rose-50 px-3 py-2 text-sm font-medium text-rose-800">
               <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               Balance drops below zero this week (lowest {money(detail.lowestBalanceCents ?? 0, currency)}).
             </p>
@@ -78,14 +78,14 @@ export function PeriodDetailDialog({
                     onClick={() => onSelectEvent(e)}
                     aria-label={eventAriaLabel(e, currency)}
                     data-testid={`ledger-${e.id}`}
-                    className="group flex w-full items-center gap-3 rounded-md px-1 py-2.5 text-left hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-brand-600"
+                    className="group flex w-full items-center gap-3 rounded-chip px-1 py-2.5 text-left hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-brand-600"
                   >
                     <span className="block min-w-0 flex-1">
                       <span className={clsx("block truncate text-sm font-medium text-slate-900", skipped && "text-slate-500 line-through")}>{e.name}</span>
                       <span className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
                         {detail.kind === "week" && <span>{fmtDayShort(e.date)}</span>}
                         {e.status === "PAID" && <Badge tone="positive">Paid</Badge>}
-                        {skipped && <Badge tone="neutral">Skipped · not counted</Badge>}
+                        {skipped && <Badge tone="neutral">Skipped, not counted</Badge>}
                         {e.amountOverridden && <Badge tone="info">Adjusted</Badge>}
                       </span>
                     </span>
@@ -103,7 +103,7 @@ export function PeriodDetailDialog({
             })}
           </ol>
 
-          <dl className="grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-4 text-sm">
+          <dl className="grid grid-cols-2 gap-3 rounded-sheet border border-slate-200 bg-slate-50 p-4 text-sm">
             <div>
               <dt className="text-slate-500">Income</dt>
               <dd className="font-medium">

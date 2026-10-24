@@ -34,7 +34,7 @@ export function EventDetailDialog({
       open={event !== null}
       onClose={onClose}
       title={event?.name ?? ""}
-      description={event ? `${event.kind === "INCOME" ? "Income" : "Bill"} · ${fmtDayShort(event.date)}` : undefined}
+      description={event ? `${event.kind === "INCOME" ? "Income" : "Bill"} on ${fmtDayShort(event.date)}` : undefined}
       size="md"
       testId="event-detail"
     >
@@ -158,12 +158,12 @@ function EventDetailBody({
       </dl>
 
       {status === "SKIPPED" && (
-        <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-700">
+        <p className="rounded-control bg-slate-100 px-3 py-2 text-xs text-slate-700">
           Skipped occurrences are shown for reference but don&apos;t change the projected balance.
         </p>
       )}
       {status === "PAID" && (
-        <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-700">
+        <p className="rounded-control bg-slate-100 px-3 py-2 text-xs text-slate-700">
           “Paid” is a tracking mark. The bill still counts once on its due date. To match your real bank balance, update the starting
           balance and start date in Settings.
         </p>

@@ -22,17 +22,17 @@ export function EmptyState({
     <div
       data-testid={testId ?? "empty-state"}
       className={clsx(
-        "flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center",
+        "flex flex-col items-center justify-center rounded-sheet border border-dashed border-slate-300 bg-sheet px-6 py-14 text-center",
         className,
       )}
     >
       {icon && (
-        <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-600" aria-hidden="true">
+        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-sheet bg-slate-100 text-slate-600" aria-hidden="true">
           {icon}
         </div>
       )}
-      <h3 className="text-base font-semibold text-slate-900">{title}</h3>
-      {description && <p className="mt-1 max-w-md text-sm text-slate-600">{description}</p>}
+      <h3 className="font-semiwide text-lg font-bold text-slate-900">{title}</h3>
+      {description && <p className="mt-1.5 max-w-md text-sm leading-relaxed text-slate-600">{description}</p>}
       {action && <div className="mt-5">{action}</div>}
     </div>
   );
@@ -53,7 +53,7 @@ export function ErrorState({
     <div
       role="alert"
       data-testid="error-state"
-      className={clsx("flex flex-col items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-5 sm:flex-row sm:items-center", className)}
+      className={clsx("flex flex-col items-start gap-3 rounded-sheet border border-rose-200 bg-rose-50 p-5 sm:flex-row sm:items-center", className)}
     >
       <CircleAlert className="h-5 w-5 shrink-0 text-rose-700" aria-hidden="true" />
       <div className="min-w-0 flex-1">
@@ -76,7 +76,7 @@ export function InlineStatus({ tone, children }: { tone: "success" | "error"; ch
       role={tone === "error" ? "alert" : "status"}
       data-testid={tone === "error" ? "form-error" : "form-success"}
       className={clsx(
-        "flex items-start gap-2 rounded-lg px-3 py-2 text-sm",
+        "flex items-start gap-2 rounded-control px-3 py-2 text-sm",
         tone === "error" ? "bg-rose-50 text-rose-800" : "bg-emerald-50 text-emerald-800",
       )}
     >
