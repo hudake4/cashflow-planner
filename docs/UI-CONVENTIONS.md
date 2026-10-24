@@ -2,7 +2,7 @@
 
 CashFlow Planner is an operate-mode financial tool, not a marketing site. It should feel like a high-craft check register: quiet paper surfaces, crisp ink hierarchy, tabular numerals, restrained ballpoint blue, and semantic ledger colors. These rules apply to new UI and to UI touched during a change.
 
-The stable visual source of truth is [`src/app/globals.css`](../src/app/globals.css). It defines the `Archivo` font variable (`--font-archivo`), `slate`, `brand`, `emerald`, `rose`, `sheet`, `field`, and `highlight` colors, plus `rounded-chip`, `rounded-control`, `rounded-sheet`, `rounded-dialog`, `font-wide`, `font-semiwide`, `font-narrow`, and the `dark` theme.
+The stable visual source of truth is [`src/app/globals.css`](../src/app/globals.css). It defines the `Archivo` font variable (`--font-archivo`), `slate`, `brand`, `emerald`, `rose`, `sheet`, `field`, `field-boundary`, `field-placeholder`, and `highlight` colors, plus `rounded-chip`, `rounded-control`, `rounded-sheet`, `rounded-dialog`, `font-wide`, `font-semiwide`, `font-narrow`, and the `dark` theme.
 
 ## 1. Anti-slop catalogue
 
@@ -11,7 +11,7 @@ For every UI change, inspect the source diff and rendered screenshots. The code 
 | ID | Don't | Detect in code | Detect in screenshots | Do instead |
 |---|---|---|---|---|
 | ST-01 | Purple, indigo, neon, or decorative gradients and glows | Search for `bg-gradient-`, `from-indigo-`, `via-purple-`, and new glow shadows. Review the gradient accent in [`HaloToast`](../src/components/ui/halo-toast.tsx) separately from content surfaces. | Rainbow washes, neon borders, or glowing halos behind cards and text. | Use `bg-background`, `bg-card`, `bg-sheet`, `bg-muted`, `text-foreground`, `text-muted-foreground`, and `border-border`. Reserve `highlight` for the today marker in [`WeekRow`](../src/components/calendar/week-row.tsx) and intentional chart rendering. |
-| ST-02 | Thick colored accent borders on cards, chips, or rows | Flag new `border-l-[3px]`, `border-t-[3px]`, or similar rules. [`EventChip`](../src/components/calendar/week-row.tsx) is the existing domain-specific case to review when editing calendar chips. | Heavy vertical or top stripes that dominate a card or event. | Use a uniform `border border-border`, a domain icon or `+`/`−` sign, and a restrained semantic tint such as `bg-emerald-50` or `bg-rose-50`. |
+| ST-02 | Thick colored accent borders on cards, chips, or rows | Flag new `border-l-[3px]`, `border-t-[3px]`, or similar rules. [`EventChip`](../src/components/calendar/week-row.tsx) is the existing domain-specific case to review when editing calendar chips. | Heavy vertical or top stripes that dominate a card or event. | Use a uniform `border border-border`, a domain icon or `+`/`−` sign, and a restrained semantic tint such as `bg-emerald-50` or `bg-rose-50`. **D-18 narrow exception:** the dashboard forecast register may use one neutral double horizontal rule to separate its final accounting total from the running-total lines above it, only on the `RegisterLine` total row in [`DashboardView`](../src/components/dashboard/dashboard-view.tsx). This separator must not become a decorative stripe or be reused on cards, chips, events, or ordinary rows. |
 | ST-03 | Tracked-out all-caps eyebrow labels above headings | Search for `uppercase` paired with `tracking-wide` or `tracking-widest`; [`RecurringScanButton`](../src/components/recurring/recurring-scan.tsx) contains an existing example. | Tiny spaced capitals floating above a title or dialog heading. | Use a sentence-case heading, subtext, or an inline [`Badge`](../src/components/ui/badge.tsx) for metadata. |
 | ST-04 | Hero metric followed by three equal SaaS stat tiles | Search for new `clamp(` display sizes and `grid-cols-3` tile rows. [`DashboardView`](../src/components/dashboard/dashboard-view.tsx) and its local `SummaryMetric` component are the existing summary composition to reassess when changing the dashboard. | An oversized number above three identical, airy boxes with weak connection to the register. | Keep related figures in a compact ledger summary or cohesive table with a clear reading order. |
 | ST-05 | Card-in-card nesting and excessive boxing | Search for nested `<Card>` elements, repeated `rounded-sheet border`, or bordered boxes inside dialogs. | Concentric boxes with double borders and matching radii. | Use one [`Card`](../src/components/ui/card.tsx), `CardBody`, `space-y-*`, `divide-y`, `border-t`, or a flat `bg-muted` band. |
@@ -36,7 +36,7 @@ For every UI change, inspect the source diff and rendered screenshots. The code 
 
 ### Color and theme parity
 
-- Use semantic tokens from [`src/app/globals.css`](../src/app/globals.css): `bg-background`, `bg-card`, `bg-sheet`, `bg-field`, `bg-muted`, `text-foreground`, `text-muted-foreground`, `border-border`, `bg-brand-600`, `text-emerald-700`, and `text-rose-700`.
+- Use semantic tokens from [`src/app/globals.css`](../src/app/globals.css): `bg-background`, `bg-card`, `bg-sheet`, `bg-field`, `bg-muted`, `text-foreground`, `text-muted-foreground`, `border-border`, `border-field-boundary`, `placeholder:text-field-placeholder`, `bg-brand-600`, `text-emerald-700`, and `text-rose-700`.
 - The check-register roles are: light paper `#e9eeea`, light sheet `#fbfcfa`, light ink `#172a33`, light brand `#2c49a6`, light income `#1c6b43`, and light bill/negative `#a82a20`. Dark mode maps them to carbon `#121212`, sheet `#1c1c1c`, ink `#e0e0e0`, brand `#e0e0e0`, income `#7fcf9f`, and bill/negative `#ee948a`.
 - Color is semantic, never decorative: emerald means money in or positive state; rose means money out, negative state, or destructive action; `highlight` marks today. Always pair color with text, a sign, an icon, or a state label.
 - Test every changed surface in both `.dark` and light mode. Do not introduce raw component-level hex values or unauthorized purple, indigo, red, green, or blue palette ramps.
@@ -51,7 +51,7 @@ For every UI change, inspect the source diff and rendered screenshots. The code 
 ### Components, copy, and states
 
 - Prefer shared exports from `src/components/ui/`: [`Button`](../src/components/ui/button.tsx), [`Card`](../src/components/ui/card.tsx), [`Badge`](../src/components/ui/badge.tsx), [`Field`](../src/components/ui/field.tsx), [`Input`](../src/components/ui/input.tsx), [`MoneyInput`](../src/components/ui/field.tsx), [`Select`](../src/components/ui/field.tsx), [`Textarea`](../src/components/ui/field.tsx), [`Switch`](../src/components/ui/field.tsx), [`Dialog`](../src/components/ui/dialog.tsx), [`ConfirmDialog`](../src/components/ui/confirm-dialog.tsx), [`Table`](../src/components/ui/table.tsx), [`ToggleGroup`](../src/components/ui/toggle-group.tsx), [`DropdownMenu`](../src/components/ui/dropdown-menu.tsx), and [`Expandable`](../src/components/ui/expandable.tsx).
-- Keep one `variant="primary"` action per view. Name actions for their result: `Add bill`, `Add income`, `Connect a bank`, `Save settings`, `Refresh`, `Retry`, and `Load demo data` are repository examples. Use sentence case and active voice.
+- Keep one `variant="primary"` action per view, including empty states. Name actions for their result: `Add bill`, `Add income`, `Connect a bank`, `Save settings`, `Refresh`, `Retry`, and `Load demo data` are repository examples. Use sentence case and active voice.
 - Never imply that projections are live bank balances. Distinguish entered projections from read-only SimpleFIN snapshots. An error must say what failed and how to recover; do not use vague or blaming copy.
 - Every data view and async control has an explicit loading, empty, error, partial/out-of-window, and success state where applicable. Use [`LoadingRegion`](../src/components/ui/skeleton.tsx) with layout-matched [`Skeleton`](../src/components/ui/skeleton.tsx), [`EmptyState`](../src/components/ui/states.tsx), [`ErrorState`](../src/components/ui/states.tsx), [`InlineStatus`](../src/components/ui/states.tsx), or [`HaloToast`](../src/components/ui/halo-toast.tsx). Calendar views must explain `Before projection start`, `Beyond 12-month forecast limit`, and partial weeks when those states occur.
 
@@ -63,9 +63,11 @@ For every UI change, inspect the source diff and rendered screenshots. The code 
 
 ### Accessibility
 
-- Meet WCAG 2.2 AA targets: normal text contrast at least `4.5:1`, large text at least `3:1`, and control boundaries/focus indicators at least `3:1` in both themes.
-- Provide at least `44×44px` touch targets on mobile and at least `24×24px` pointer targets on desktop with adequate spacing. Sticky bars and dialog footers must not obscure focus.
+- Meet WCAG 2.2 AA targets: normal text and placeholder text at least `4.5:1`, large text at least `3:1`, and unfocused input boundaries, control boundaries, and focus indicators at least `3:1` in both themes.
+- Make mobile controls at least `44px` high (and at least `44×44px` where a compact touch target is used); provide at least `24×24px` pointer targets on desktop with adequate spacing. Sticky bars and dialog footers must not obscure focus.
 - Preserve the skip link to `#main`, `aria-current="page"` navigation state, explicit labels, `aria-invalid` and `aria-describedby` for field errors, and screen-reader status/alert roles.
+- Controlled dialogs must restore focus to their opener, or to a sensible connected fallback when the opener was unmounted.
+- **D-19 inline-link exception:** inline text links may use the WCAG 2.5.8 inline-text-link exception instead of a `44×44px` box when they remain part of a sentence or text block and are not standalone controls; standalone action links still need the target-size rule.
 - Preserve focus restoration in [`ConfirmDialog`](../src/components/ui/confirm-dialog.tsx). Charts must have a readable summary and an expandable table alternative, as [`TrendChart`](../src/components/dashboard/trend-chart.tsx) does. Never rely on color alone for money direction, negative balances, or status.
 
 ## 3. Screenshot grading rubric
@@ -120,3 +122,4 @@ Record evidence in this shape:
 - [ ] No horizontal overflow, clipped text, overlapping controls, or focus obscured by sticky bars appears at either viewport.
 - [ ] Money uses shared display components, `tabular-nums`, right-aligned numeric columns, and non-color sign/icon cues.
 - [ ] Keyboard Tab/Escape behavior, focus restoration, labels, status/alert announcements, and light/dark contrast were checked.
+- [ ] Placeholder text is at least `4.5:1`, unfocused input boundaries are at least `3:1`, mobile controls are at least `44px` high, and every view (including empty states) has one primary action.
