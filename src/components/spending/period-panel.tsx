@@ -1,0 +1,136 @@
+import { ArrowLeftRight } from "lucide-react";
+import type { ReactNode } from "react";
+import type { SpendingPeriodDTO } from "@/contracts/api";
+import { fmtDate } from "@/lib/dates";
+import { money } from "@/lib/format";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardBody } from "@/components/ui/card";
+import { Balance } from "@/components/ui/money";
+import { CATEGORY_ICONS, CATEGORY_LABELS } from "./categories";
+
+/** "Oct 1 – Oct 24" (a period never crosses a year, so the year is left off). */
+function periodLabel(from: string, to: string): string {
+  return from === to ? fmtDate(from, "MMM d") : `${fmtDate(from, "MMM d")} – ${fmtDate(to, "MMM d")}`;
+}
+
+/** Share of the period total, rounded; a nonzero amount never reads as 0%. */
+function percentLabel(part: number, total: number): string {
+  if (total <= 0 || part <= 0) return "0%";
+  const pct = Math.round((part / total) * 100);
+  return pct === 0 ? "<1%" : `${pct}%`;
+}
+
+/**
+ * One month of spending: total, an optional comparison line, the category breakdown, top merchants
+ * and the transfers note. It only displays what the API returned.
+ */
+export function PeriodPanel({
+  id,
+  title,
+  period,
+  currency,
+  comparison,
+}: {
+  /** "this-month" or "last-month": suffixes the test ids. */
+  id: string;
+  title: string;
+  period: SpendingPeriodDTO;
+  currency: string;
+  comparison?: ReactNode;
+}) {
+  const headingId = `spending-${id}-heading`;
+  // TRANSFERS is never spending, so it never gets a row even if a response included it.
+  const categories = period.categories.filter((c) => c.category !== "TRANSFERS");
+
+  return (
+    <Card className="min-w-0" data-testid={`spending-period-${id}`}>
+      <CardBody>
+        <section aria-labelledby={headingId} className="flex flex-col gap-6">
+          <div>
+            <h2 id={headingId} className="font-semiwide text-base font-bold text-foreground">
+              {title}
+            </h2>
+            <p className="text-sm text-muted-foreground">{periodLabel(period.from, period.to)}</p>
+            <p className="mt-3 text-sm font-semibold text-muted-foreground">Total spent</p>
+            <div>
+              <Balance
+                cents={period.totalCents}
+                currency={currency}
+                testId={`spending-total-${id}`}
+                className="font-wide text-4xl leading-tight font-extrabold tracking-[-0.02em] text-foreground"
+              />
+            </div>
+            {comparison}
+          </div>
+
+          {categories.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No spending in this period.</p>
+          ) : (
+            <>
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">By category</h3>
+                <ul className="mt-3 flex flex-col gap-4">
+                  {categories.map((c) => {
+                    const Icon = CATEGORY_ICONS[c.category];
+                    const share = period.totalCents > 0 ? Math.min(100, (c.totalCents / period.totalCents) * 100) : 0;
+                    return (
+                      <li key={c.category} data-testid="spending-category-row">
+                        <div className="flex items-baseline justify-between gap-3 text-sm">
+                          <span className="flex min-w-0 items-center gap-2 font-medium text-foreground">
+                            <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                            <span className="truncate">{CATEGORY_LABELS[c.category]}</span>
+                          </span>
+                          <span className="shrink-0 tabular-nums text-foreground">
+                            <span className="font-semibold">{money(c.totalCents, currency)}</span>
+                            <span className="ml-2 text-muted-foreground">{percentLabel(c.totalCents, period.totalCents)}</span>
+                          </span>
+                        </div>
+                        {/* The label, amount and percent above carry the data; the bar is a visual aid. */}
+                        <div className="mt-1.5 h-2 overflow-hidden rounded-chip bg-slate-200" aria-hidden="true">
+                          <div className="h-full rounded-chip bg-brand-600" style={{ width: `${share}%` }} />
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+
+              {period.topMerchants.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">Top merchants</h3>
+                  <ul className="mt-2 divide-y divide-border">
+                    {period.topMerchants.map((m) => (
+                      <li
+                        key={`${m.name}:${m.category}`}
+                        className="flex items-center justify-between gap-3 py-2.5"
+                        data-testid="spending-merchant-row"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-foreground" title={m.name}>
+                            {m.name}
+                          </p>
+                          <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                            <Badge tone="neutral">{CATEGORY_LABELS[m.category]}</Badge>
+                            {m.transactionCount} {m.transactionCount === 1 ? "transaction" : "transactions"}
+                          </p>
+                        </div>
+                        <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground">{money(m.totalCents, currency)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
+          )}
+
+          {period.transfersCents > 0 && (
+            <p className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground" data-testid={`spending-transfers-${id}`}>
+              <ArrowLeftRight className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+              Transfers and card payments ({money(period.transfersCents, currency)}) aren&apos;t counted as spending.
+            </p>
+          )}
+        </section>
+      </CardBody>
+    </Card>
+  );
+}

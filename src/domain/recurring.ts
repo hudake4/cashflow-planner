@@ -74,6 +74,8 @@ const KEY_TOKENS = 3;
 const NOISE = new Set([
   "pos", "debit", "credit", "card", "purchase", "recurring", "ach", "web", "ppd", "ccd", "online", "checkcard",
   "visa", "mastercard", "withdrawal", "direct", "dep", "deposit", "autopay", "payment", "pmt", "bill", "transaction",
+  // "DDA PUR AP <merchant>": debit-card purchase prefix. Left in, the first 3 words ("dda pur ap") put every purchase in one group.
+  "dda", "pur", "ap",
 ]);
 
 // ---------------------------------------------------------------------------
@@ -91,7 +93,7 @@ export function nameTokens(description: string): string[] {
   return meaningful.length > 0 ? meaningful : words;
 }
 
-function displayName(description: string): string {
+export function displayName(description: string): string {
   const kept = description
     .split(/\s+/)
     .filter((w) => {
