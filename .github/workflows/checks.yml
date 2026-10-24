@@ -46,58 +46,6 @@ jobs:
       - name: Test
         run: npm test
 
-  version:
-    name: Version bump
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out source
-        uses: actions/checkout@v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Check the version was bumped and is consistent
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          git fetch origin "$BASE_REF" --depth=1
-          base_version="$(git show "origin/$BASE_REF:package.json" | node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).version")"
-          pkg_version="$(node -p "require('./package.json').version")"
-          lock_version="$(node -p "require('./package-lock.json').version")"
-          lock_root_version="$(node -p "require('./package-lock.json').packages[''].version")"
-
-          if [[ "$pkg_version" != "$lock_version" || "$pkg_version" != "$lock_root_version" ]]; then
-            echo "::error::package.json ($pkg_version) and package-lock.json ($lock_version, packages[\"\"] $lock_root_version) versions differ."
-            echo "Fix: run 'npm version patch --no-git-tag-version' (or minor) once, which updates both files together."
-            exit 1
-          fi
-
-          BASE_VERSION="$base_version" PKG_VERSION="$pkg_version" node -e '
-            const parse = (v) => {
-              const m = /^(\d+)\.(\d+)\.(\d+)/.exec(v);
-              if (!m) {
-                console.error(`::error::Cannot parse "${v}" as major.minor.patch.`);
-                process.exit(1);
-              }
-              return m.slice(1).map(Number);
-            };
-            const base = parse(process.env.BASE_VERSION);
-            const pkg = parse(process.env.PKG_VERSION);
-            let cmp = 0;
-            for (let i = 0; i < 3 && cmp === 0; i++) cmp = Math.sign(pkg[i] - base[i]);
-            if (cmp <= 0) {
-              const how = cmp === 0 ? "the same as" : "lower than";
-              console.error(`::error::Version is ${process.env.PKG_VERSION}, ${how} ${process.env.BASE_VERSION} on ${process.env.BASE_REF}. Every PR needs a version bump above the base branch.`);
-              console.error("Fix: run \x27npm version patch --no-git-tag-version\x27 (or \x27minor\x27) once for this PR, then commit package.json and package-lock.json.");
-              process.exit(1);
-            }
-          '
-
-          echo "Version bumped: $base_version -> $pkg_version"
-
   audit:
     name: Dependency audit
     runs-on: ubuntu-latest
@@ -148,16 +96,39 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
+      - name: Check out source history
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
       - name: Check the title follows Conventional Commits
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
+        shell: node {0}
         run: |
-          node -e '
-            const title = process.env.PR_TITLE;
-            const re = /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9._/-]+\))?!?: .+/;
-            if (!re.test(title)) {
-              console.error(`::error::PR title "${title}" is not a Conventional Commit.`);
-              console.error("Expected: type(scope): description, for example fix(calendar): keep week totals aligned.");
-              process.exit(1);
-            }
-          '
+          const title = process.env.PR_TITLE;
+          const re = /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9._/-]+\))?!?: .+/;
+          if (!re.test(title)) {
+            console.error(`::error::PR title "${title}" is not a Conventional Commit.`);
+            console.error("Expected: type(scope): description, for example fix(calendar): keep week totals aligned.");
+            process.exit(1);
+          }
+
+      - name: Check every non-merge commit follows Conventional Commits
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin "$BASE_REF" --depth=1000
+          mapfile -t subjects < <(git log --no-merges "origin/$BASE_REF..HEAD" --format=%s)
+          re='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9._/-]+\))?!?: .+'
+          for subject in "${subjects[@]}"; do
+            if [[ ! "$subject" =~ $re ]]; then
+              echo "::error::Commit subject is not a Conventional Commit: $subject"
+              exit 1
+            fi
+          done
+          echo "All ${#subjects[@]} non-merge commit subjects follow Conventional Commits."
