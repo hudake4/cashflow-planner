@@ -27,6 +27,7 @@ const INSTITUTION: InstitutionDTO = {
       id: "conn1:a1",
       name: "Checking",
       institutionName: "Demo Bank",
+      kind: "BANK",
       currency: "USD",
       balanceCents: 123456,
       availableBalanceCents: 100000,
@@ -36,6 +37,7 @@ const INSTITUTION: InstitutionDTO = {
       id: "conn1:a2",
       name: "Card",
       institutionName: "Demo Bank",
+      kind: "CREDIT",
       currency: "USD",
       balanceCents: -5000,
       availableBalanceCents: null,
@@ -140,6 +142,51 @@ describe("InstitutionsView", () => {
     await user.click(within(card).getByTestId("sync-institution-conn1"));
     await waitFor(() => expect(within(card).getByText(/last synced/i)).toBeInTheDocument());
     expect(fetchMock.mock.calls.some(([url, init]) => url === "/api/institutions/conn1/sync" && init?.method === "POST")).toBe(true);
+  });
+
+  it("labels an account through the select and reloads the list", async () => {
+    let kind = "BANK";
+    const accounts = () => INSTITUTION.accounts.map((a) => (a.id === "conn1:a1" ? { ...a, kind } : a));
+    route({
+      "GET /institutions": () => json(200, [{ ...INSTITUTION, accounts: accounts() }]),
+      "PATCH /institutions/conn1/accounts/conn1%3Aa1": () => {
+        kind = "LOAN";
+        return json(200, accounts()[0]);
+      },
+    });
+    const user = userEvent.setup();
+    renderView();
+
+    const select = await screen.findByTestId("account-kind-conn1:a1");
+    expect(select).toHaveAccessibleName("Account type for Checking");
+    expect(select).toHaveValue("BANK");
+    expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual([
+      "Bank account",
+      "Credit card / line of credit",
+      "Loan",
+      "Other",
+    ]);
+    expect(screen.queryByTestId("account-excluded-conn1:a1")).toBeNull();
+
+    await user.selectOptions(select, "LOAN");
+
+    const patch = fetchMock.mock.calls.find(([, init]) => init?.method === "PATCH");
+    expect(patch![0]).toBe("/api/institutions/conn1/accounts/conn1%3Aa1");
+    expect(JSON.parse(patch![1].body)).toEqual({ kind: "LOAN" });
+    await waitFor(() => expect(screen.getByTestId("account-kind-conn1:a1")).toHaveValue("LOAN"));
+    expect(screen.getByTestId("account-excluded-conn1:a1")).toHaveTextContent("Not counted in your starting balance");
+    const getCalls = fetchMock.mock.calls.filter(([url, init]) => url === "/api/institutions" && (init?.method ?? "GET") === "GET");
+    expect(getCalls.length).toBeGreaterThanOrEqual(2); // initial load + reload after the change
+  });
+
+  it("notes that non-bank accounts are not counted in the starting balance", async () => {
+    route({ "GET /institutions": () => json(200, [INSTITUTION]) });
+    renderView();
+
+    await screen.findByTestId("institution-card-conn1");
+    expect(screen.queryByTestId("account-excluded-conn1:a1")).toBeNull(); // bank account
+    expect(screen.getByTestId("account-kind-conn1:a2")).toHaveValue("CREDIT");
+    expect(screen.getByTestId("account-excluded-conn1:a2")).toHaveTextContent("Not counted in your starting balance");
   });
 
   it("explains that removing is local only before deleting", async () => {

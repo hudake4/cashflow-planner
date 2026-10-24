@@ -3,8 +3,10 @@
  * All money is integer cents; all dates are YYYY-MM-DD strings.
  */
 import type {
+  AccountKind,
   ApiErrorBody,
   ApiErrorCode,
+  BankAccountDTO,
   BillDTO,
   BillInput,
   BankTransactionsResponse,
@@ -143,6 +145,11 @@ export const api = {
   connectInstitution: (input: ConnectInstitutionInput) => request<InstitutionSyncDTO>("/institutions", json("POST", input)),
   syncInstitution: (id: string) => request<InstitutionSyncDTO>(`/institutions/${encodeURIComponent(id)}/sync`, json("POST")),
   removeInstitution: (id: string) => request<void>(`/institutions/${encodeURIComponent(id)}`, json("DELETE")),
+  setAccountKind: (id: string, accountId: string, kind: AccountKind) =>
+    request<BankAccountDTO>(
+      `/institutions/${encodeURIComponent(id)}/accounts/${encodeURIComponent(accountId)}`,
+      json("PATCH", { kind }),
+    ),
   listBankTransactions: (id: string, { accountId, offset = 0 }: { accountId: string; offset?: number }) => {
     const qs = new URLSearchParams({ accountId, offset: String(offset) });
     return request<BankTransactionsResponse>(`/institutions/${encodeURIComponent(id)}/transactions?${qs.toString()}`);

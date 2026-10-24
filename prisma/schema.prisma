@@ -100,6 +100,7 @@ model BankAccount {
   providerAccountId     String // SimpleFIN account id
   institutionName       String // the SimpleFIN connection (bank) name
   name                  String
+  kind                  String            @default("BANK") // "BANK" | "CREDIT" | "LOAN" | "OTHER"; user's label, only BANK counts toward the starting balance
   currency              String // 3-letter code, "USD" when SimpleFIN gives a non-ISO currency
   balanceCents          Int
   availableBalanceCents Int?

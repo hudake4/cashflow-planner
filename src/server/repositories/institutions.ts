@@ -10,6 +10,7 @@ import type { BankAccount, BankConnection, BankTransaction } from "@prisma/clien
 import type { z } from "zod";
 import {
   MIN_SYNC_INTERVAL_MINUTES,
+  type AccountKind,
   type BankAccountDTO,
   type BankTransactionDTO,
   type BankTransactionsResponse,
@@ -17,6 +18,7 @@ import {
   type InstitutionSyncDTO,
   type connectInstitutionSchema,
 } from "../../contracts/api";
+import { guessAccountKind } from "../../domain/account-kind";
 import { todayLocal } from "../../domain/dates";
 import { db, HOUSEHOLD_ID, type DbClient } from "../db";
 import { ApiError, notFound } from "../http";
@@ -35,6 +37,7 @@ const toAccountDTO = (a: BankAccount): BankAccountDTO => ({
   id: a.id,
   name: a.name,
   institutionName: a.institutionName,
+  kind: a.kind as AccountKind,
   currency: a.currency,
   balanceCents: a.balanceCents,
   availableBalanceCents: a.availableBalanceCents,
@@ -111,9 +114,10 @@ async function runSync(row: BankConnection, now: Date): Promise<string[]> {
         availableBalanceCents: a.availableBalanceCents,
         balanceDate: a.balanceDate,
       };
+      // `kind` is set only on create: a sync never overwrites the user's label.
       await tx.bankAccount.upsert({
         where: { id },
-        create: { id, connectionId: row.id, ...fields },
+        create: { id, connectionId: row.id, kind: guessAccountKind(a.name), ...fields },
         update: fields,
       });
       if (a.incomplete) continue;
@@ -202,6 +206,16 @@ export async function connect(input: ConnectData, now: Date = new Date()): Promi
 export async function removeConnection(id: string): Promise<void> {
   await getConnection(id);
   await db.bankConnection.delete({ where: { id } });
+}
+
+/** Sets the user's label for one account. 404 when the account isn't part of the connection. */
+export async function setAccountKind(connectionId: string, accountId: string, kind: AccountKind): Promise<BankAccountDTO> {
+  const account = await db.bankAccount.findFirst({
+    where: { id: accountId, connectionId, connection: { householdId: HOUSEHOLD_ID } },
+    select: { id: true },
+  });
+  if (!account) throw notFound("Account");
+  return toAccountDTO(await db.bankAccount.update({ where: { id: accountId }, data: { kind } }));
 }
 
 /** Stored transactions of one account from the last HISTORY_DAYS days, newest first. 404 when the account isn't part of the connection. */

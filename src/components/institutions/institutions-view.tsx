@@ -4,7 +4,7 @@ import { formatDistanceToNow } from "date-fns";
 import { ExternalLink, Landmark, Plus, RefreshCw, Trash } from "lucide-react";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
-import { connectInstitutionSchema, type BankAccountDTO, type InstitutionDTO } from "@/contracts/api";
+import { ACCOUNT_KINDS, connectInstitutionSchema, type AccountKind, type BankAccountDTO, type InstitutionDTO } from "@/contracts/api";
 import { api, errorMessage } from "@/lib/api-client";
 import { fmtShort } from "@/lib/dates";
 import { useApi } from "@/lib/use-api";
@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog } from "@/components/ui/dialog";
-import { Field, Textarea } from "@/components/ui/field";
+import { Field, Select, Textarea } from "@/components/ui/field";
 import { Balance } from "@/components/ui/money";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState, InlineStatus } from "@/components/ui/states";
@@ -46,7 +46,7 @@ export function InstitutionsView() {
     <>
       <PageHeader
         title="Institutions"
-        description="Connect your bank read-only through SimpleFIN Bridge to see balances and transactions. Nothing here changes your projection."
+        description="Connect your bank read-only through SimpleFIN Bridge to see balances and transactions. Label each account: only bank accounts add up to your starting balance when Settings uses the sum of your accounts."
         actions={addButton}
       />
 
@@ -321,14 +321,52 @@ function InstitutionCard({
           <li className="py-2 text-muted-foreground">No accounts yet. Press Refresh to load them from SimpleFIN.</li>
         )}
         {institution.accounts.map((a) => (
-          <AccountRow key={a.id} account={a} institutionId={institution.id} showInstitution={new Set(institution.accounts.map((x) => x.institutionName)).size > 1} />
+          <AccountRow
+            key={a.id}
+            account={a}
+            institutionId={institution.id}
+            showInstitution={new Set(institution.accounts.map((x) => x.institutionName)).size > 1}
+            onKindChanged={() => onSynced([])}
+          />
         ))}
       </ul>
     </Card>
   );
 }
 
-function AccountRow({ account, institutionId, showInstitution }: { account: BankAccountDTO; institutionId: string; showInstitution: boolean }) {
+const KIND_LABELS: Record<AccountKind, string> = {
+  BANK: "Bank account",
+  CREDIT: "Credit card / line of credit",
+  LOAN: "Loan",
+  OTHER: "Other",
+};
+
+function AccountRow({
+  account,
+  institutionId,
+  showInstitution,
+  onKindChanged,
+}: {
+  account: BankAccountDTO;
+  institutionId: string;
+  showInstitution: boolean;
+  onKindChanged: () => Promise<void>;
+}) {
+  const toast = useToast();
+  const [saving, setSaving] = useState(false);
+
+  async function changeKind(kind: AccountKind) {
+    setSaving(true);
+    try {
+      await api.setAccountKind(institutionId, account.id, kind);
+      await onKindChanged();
+    } catch (err) {
+      toast(errorMessage(err), "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <li className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-3" data-testid={`account-row-${account.id}`}>
       <div className="min-w-0">
@@ -343,6 +381,25 @@ function AccountRow({ account, institutionId, showInstitution }: { account: Bank
         <p className="text-xs text-muted-foreground">
           {showInstitution && `${account.institutionName} · `}As of {fmtShort(account.balanceDate)}
         </p>
+        <Select
+          value={account.kind}
+          onChange={(e) => void changeKind(e.target.value as AccountKind)}
+          disabled={saving}
+          aria-label={`Account type for ${account.name}`}
+          className="mt-1.5 h-8 w-auto max-w-full py-0 text-sm"
+          data-testid={`account-kind-${account.id}`}
+        >
+          {ACCOUNT_KINDS.map((k) => (
+            <option key={k} value={k}>
+              {KIND_LABELS[k]}
+            </option>
+          ))}
+        </Select>
+        {account.kind !== "BANK" && (
+          <p className="mt-1 text-xs text-muted-foreground" data-testid={`account-excluded-${account.id}`}>
+            Not counted in your starting balance
+          </p>
+        )}
       </div>
       <div className="text-right">
         <Balance cents={account.balanceCents} currency={account.currency} className="font-semibold" />

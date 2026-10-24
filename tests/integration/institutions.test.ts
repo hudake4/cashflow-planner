@@ -3,8 +3,9 @@ import * as resetRoute from "@/app/api/data/reset/route";
 import * as listRoute from "@/app/api/institutions/route";
 import * as itemRoute from "@/app/api/institutions/[id]/route";
 import * as syncRoute from "@/app/api/institutions/[id]/sync/route";
+import * as kindRoute from "@/app/api/institutions/[id]/accounts/[accountId]/route";
 import * as txRoute from "@/app/api/institutions/[id]/transactions/route";
-import type { BankTransactionsResponse, InstitutionDTO, InstitutionSyncDTO } from "@/contracts/api";
+import type { BankAccountDTO, BankTransactionsResponse, InstitutionDTO, InstitutionSyncDTO } from "@/contracts/api";
 import { ApiError } from "@/server/http";
 import { connect, syncConnection } from "@/server/repositories/institutions";
 import * as simplefin from "@/server/simplefin";
@@ -109,6 +110,7 @@ describe("connecting", () => {
         id: `${res.body.id}:a1`,
         name: "Checking",
         institutionName: "Demo Bank",
+        kind: "BANK",
         currency: "USD",
         balanceCents: 123456,
         availableBalanceCents: 100000,
@@ -326,6 +328,108 @@ describe("syncing", () => {
     await expect(syncConnection(first.id, new Date(NOW.getTime() + 31 * MIN))).rejects.toMatchObject({ status: 409 });
     release();
     await running;
+  });
+});
+
+describe("account labels", () => {
+  const rawAccount = (id: string, name: string) => ({
+    id,
+    name,
+    conn_id: "c1",
+    currency: "USD",
+    balance: "-250.00",
+    "balance-date": ep("2026-10-24"),
+    transactions: [],
+  });
+  const patchKind = (connId: string, accountId: string, body: unknown) =>
+    call<BankAccountDTO>(kindRoute.PATCH, "PATCH", `/api/institutions/${connId}/accounts/${accountId}`, {
+      params: { id: connId, accountId },
+      body,
+    });
+
+  it("labels new accounts from their name and lets the user change the label", async () => {
+    mocked.fetchAccountSet.mockResolvedValue(
+      accountSet(FIRST, { accounts: [rawAccount("a2", "Chase Credit Card"), rawAccount("a3", "Auto Loan")] }),
+    );
+    const created = await postConnect();
+    const kinds = Object.fromEntries(created.body.accounts.map((a) => [a.name, a.kind]));
+    expect(kinds).toEqual({ Checking: "BANK", "Chase Credit Card": "CREDIT", "Auto Loan": "LOAN" });
+
+    const acc = `${created.body.id}:a1`;
+    const res = await patchKind(created.body.id, acc, { kind: "OTHER" });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      id: acc,
+      name: "Checking",
+      institutionName: "Demo Bank",
+      kind: "OTHER",
+      currency: "USD",
+      balanceCents: 123456,
+      availableBalanceCents: 100000,
+      balanceDate: "2026-10-24",
+    });
+    expect((await testPrisma.bankAccount.findUniqueOrThrow({ where: { id: acc } })).kind).toBe("OTHER");
+    const list = await call<InstitutionDTO[]>(listRoute.GET as never, "GET", "/api/institutions");
+    expect(list.body[0].accounts.find((a) => a.id === acc)?.kind).toBe("OTHER");
+  });
+
+  it("a sync never overwrites the user's label, but labels accounts it sees for the first time", async () => {
+    const first = await connect({ setupToken: SETUP_TOKEN }, NOW);
+    const acc = `${first.id}:a1`;
+    expect((await patchKind(first.id, acc, { kind: "CREDIT" })).body.kind).toBe("CREDIT");
+
+    // Same account again (now with a credit-card-like name) plus a new credit card.
+    mocked.fetchAccountSet.mockResolvedValueOnce(
+      normalizeAccountSet(
+        {
+          accounts: [
+            { id: "a1", name: "Checking", conn_id: "c1", balance: "1.00", "balance-date": ep("2026-10-24"), transactions: [] },
+            rawAccount("a9", "Rewards Credit Card"),
+          ],
+        },
+        "2026-10-24",
+      ),
+    );
+    const synced = await syncConnection(first.id, new Date(NOW.getTime() + 20 * MIN));
+    expect(Object.fromEntries(synced.accounts.map((a) => [a.id.split(":").pop(), a.kind]))).toEqual({ a1: "CREDIT", a9: "CREDIT" });
+
+    // The name still looks like a credit card, but the user's BANK label stays.
+    await patchKind(first.id, `${first.id}:a9`, { kind: "BANK" });
+    mocked.fetchAccountSet.mockResolvedValueOnce(
+      normalizeAccountSet({ accounts: [rawAccount("a9", "Rewards Credit Card")] }, "2026-10-24"),
+    );
+    const again = await syncConnection(first.id, new Date(NOW.getTime() + 40 * MIN));
+    expect(again.accounts.find((a) => a.id.endsWith(":a9"))?.kind).toBe("BANK");
+  });
+
+  it.each([{ kind: "CHECKING" }, { kind: "bank" }, { kind: 1 }, {}, { kind: null }])("400 VALIDATION_ERROR for %j", async (body) => {
+    const first = await connect({ setupToken: SETUP_TOKEN }, NOW);
+    const acc = `${first.id}:a1`;
+    expectApiError(await patchKind(first.id, acc, body), 400, "VALIDATION_ERROR", ["kind"]);
+    expect((await testPrisma.bankAccount.findUniqueOrThrow({ where: { id: acc } })).kind).toBe("BANK");
+  });
+
+  it("400 BAD_REQUEST for malformed JSON", async () => {
+    const first = await connect({ setupToken: SETUP_TOKEN }, NOW);
+    expectApiError(await patchKind(first.id, `${first.id}:a1`, "{not json"), 400, "BAD_REQUEST");
+  });
+
+  it("404s for an unknown account, an unknown connection, and an account of another connection", async () => {
+    const first = await connect({ setupToken: SETUP_TOKEN }, NOW);
+    const acc = `${first.id}:a1`;
+    expectApiError(await patchKind(first.id, "missing", { kind: "LOAN" }), 404, "NOT_FOUND");
+    expectApiError(await patchKind("nope", acc, { kind: "LOAN" }), 404, "NOT_FOUND");
+
+    const other = await testPrisma.bankConnection.create({ data: { accessUrl: "https://u:p@bridge.simplefin.org/simplefin" } });
+    const foreign = `${other.id}:z`;
+    await testPrisma.bankAccount.create({
+      data: {
+        id: foreign, connectionId: other.id, providerAccountId: "z", institutionName: "X", name: "Z",
+        currency: "USD", balanceCents: 0, balanceDate: "2026-10-24",
+      },
+    });
+    expectApiError(await patchKind(first.id, foreign, { kind: "LOAN" }), 404, "NOT_FOUND");
+    expect((await testPrisma.bankAccount.findUniqueOrThrow({ where: { id: foreign } })).kind).toBe("BANK");
   });
 });
 
