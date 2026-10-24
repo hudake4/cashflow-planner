@@ -20,6 +20,7 @@ import type {
   RecurringScanResponse,
   SettingsDTO,
   SettingsInput,
+  SpendingResponse,
 } from "@/contracts/api";
 
 export class ApiError extends Error {
@@ -128,6 +129,9 @@ export const api = {
 
   /** Finds repeating payments/deposits in the stored bank history. Reads local data only. */
   scanRecurring: () => request<RecurringScanResponse>("/recurring"),
+
+  /** Last month's and this month's spending by category from the stored bank history. Reads local data only. */
+  getSpending: () => request<SpendingResponse>("/spending"),
 
   loadDemoData: () => request<{ ok: true }>("/data/demo", json("POST")),
   resetAllData: () => request<{ ok: true }>("/data/reset", json("POST")),

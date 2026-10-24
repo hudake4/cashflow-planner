@@ -465,6 +465,75 @@ export interface RecurringScanResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Spend analyzer (reads the stored bank transactions; never calls SimpleFIN)
+// ---------------------------------------------------------------------------
+
+/** Display order. TRANSFERS is tracked separately and never counts as spending. OTHER is the fallback. */
+export const SPENDING_CATEGORIES = [
+  "GROCERIES",
+  "DINING",
+  "GAS",
+  "UTILITIES",
+  "BILLS",
+  "SHOPPING",
+  "TRANSPORT",
+  "ENTERTAINMENT",
+  "HEALTH",
+  "TRANSFERS",
+  "OTHER",
+] as const;
+export type SpendingCategory = (typeof SPENDING_CATEGORIES)[number];
+
+export interface SpendingCategoryTotalDTO {
+  category: SpendingCategory;
+  /** Positive magnitude of money out. */
+  totalCents: number;
+  transactionCount: number;
+}
+
+export interface SpendingMerchantDTO {
+  /** Cleaned-up merchant name. */
+  name: string;
+  category: SpendingCategory;
+  totalCents: number;
+  transactionCount: number;
+}
+
+export interface SpendingPeriodDTO {
+  /** First day of the calendar month, YYYY-MM-DD. */
+  from: string;
+  /** Last day counted (inclusive): today for the current month, the month's last day for last month. */
+  to: string;
+  /** Total spending, excluding TRANSFERS. Positive magnitude. */
+  totalCents: number;
+  transactionCount: number;
+  /** Money moved between accounts or paid to a card. Not part of totalCents. */
+  transfersCents: number;
+  /** Categories with spending, largest first. Excludes TRANSFERS. */
+  categories: SpendingCategoryTotalDTO[];
+  /** Up to 5 merchants with the most spending, largest first. */
+  topMerchants: SpendingMerchantDTO[];
+}
+
+export interface SpendingAnalysisDTO {
+  thisMonth: SpendingPeriodDTO;
+  lastMonth: SpendingPeriodDTO;
+  /** Last month's spending from the 1st through the same day-of-month as today (clamped to the month's length). */
+  lastMonthToDateCents: number;
+  /** Earliest settled transaction date in the stored history; null when there are none. */
+  coverageStart: string | null;
+}
+
+export interface SpendingResponse extends SpendingAnalysisDTO {
+  currency: string;
+  /** Bank connections stored locally; 0 means there is nothing to analyze yet. */
+  connectionCount: number;
+  /** Settled transactions examined (pending ones are ignored). */
+  transactionCount: number;
+  lastSyncedAt: string | null;
+}
+
+// ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------
 

@@ -91,7 +91,7 @@ export function nameTokens(description: string): string[] {
   return meaningful.length > 0 ? meaningful : words;
 }
 
-function displayName(description: string): string {
+export function displayName(description: string): string {
   const kept = description
     .split(/\s+/)
     .filter((w) => {
