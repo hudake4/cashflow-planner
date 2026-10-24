@@ -5,6 +5,7 @@
 import {
   DATA_EXPORT_FORMAT,
   DATA_EXPORT_FORMAT_VERSION,
+  dataExportSchema,
   type DashboardResponse,
   type DataExportDTO,
   type ProjectionResponse,
@@ -13,6 +14,7 @@ import { buildDashboard } from "../domain/dashboard";
 import { todayLocal } from "../domain/dates";
 import { computeProjection } from "../domain/projection";
 import { effectiveStartingBalanceCents } from "../domain/starting-balance";
+import { db } from "./db";
 import { listAllOccurrences, listBills } from "./repositories/bills";
 import { listIncome } from "./repositories/income";
 import { listAllTransactionsByConnection, listConnections } from "./repositories/institutions";
@@ -48,15 +50,19 @@ export async function getDashboard(today: string = todayLocal()): Promise<Dashbo
  * Settings are exported as stored: the typed balance, not the accounts' total.
  */
 export async function getDataExport(appVersion: string, now: Date = new Date()): Promise<DataExportDTO> {
-  const [settings, incomes, bills, occurrences, connections, transactions] = await Promise.all([
-    getSettings(),
-    listIncome(),
-    listBills(),
-    listAllOccurrences(),
-    listConnections(),
-    listAllTransactionsByConnection(),
-  ]);
-  return {
+  // One read transaction, so the file is a single consistent snapshot even if a sync or edit lands mid-export.
+  const { settings, incomes, bills, occurrences, connections, transactions } = await db.$transaction(
+    async (tx) => ({
+      settings: await getSettings(tx),
+      incomes: await listIncome(tx),
+      bills: await listBills(tx),
+      occurrences: await listAllOccurrences(tx),
+      connections: await listConnections(tx),
+      transactions: await listAllTransactionsByConnection(tx),
+    }),
+    { timeout: 30_000 },
+  );
+  const data: DataExportDTO = {
     format: DATA_EXPORT_FORMAT,
     formatVersion: DATA_EXPORT_FORMAT_VERSION,
     appVersion,
@@ -76,4 +82,12 @@ export async function getDataExport(appVersion: string, now: Date = new Date()):
       transactions: transactions.get(c.id) ?? [],
     })),
   };
+  // The schema is strict about institutions, accounts and transactions: a stray field (such as a
+  // credential) fails the export instead of reaching the file. Report paths only, never values.
+  const checked = dataExportSchema.safeParse(data);
+  if (!checked.success) {
+    const paths = checked.error.issues.map((i) => i.path.join(".") || "_root").join(", ");
+    throw new Error(`Data export failed its schema check at: ${paths}`);
+  }
+  return checked.data;
 }

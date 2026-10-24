@@ -1,13 +1,13 @@
 import type { z } from "zod";
 import type { IncomeDTO, incomeInputSchema } from "../../contracts/api";
-import { db, HOUSEHOLD_ID } from "../db";
+import { db, HOUSEHOLD_ID, type DbClient } from "../db";
 import { notFound } from "../http";
 import { toIncomeDTO } from "../mappers";
 
 export type IncomeData = z.output<typeof incomeInputSchema>;
 
-export async function listIncome(): Promise<IncomeDTO[]> {
-  const rows = await db.incomeSource.findMany({ where: { householdId: HOUSEHOLD_ID } });
+export async function listIncome(client: DbClient = db): Promise<IncomeDTO[]> {
+  const rows = await client.incomeSource.findMany({ where: { householdId: HOUSEHOLD_ID } });
   return rows.map(toIncomeDTO).sort(byName);
 }
 
