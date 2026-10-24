@@ -41,6 +41,6 @@ Deviations from the plan: the standalone server ships unpacked under `resources/
 
 ## Environment reminders
 
-- The system Node is v12. Always prepend the portable Node 22: `$env:Path = "F:\Claude App Projects\cashflow-planner\.tools\node;$env:Path"`.
+- Use Node 24 LTS as pinned in `.nvmrc`. With portable Node on Windows, prepend it: `$env:Path = "$PWD\.tools\node;$env:Path"`.
 - Current baseline (2026-10-23): lint ✔, typecheck ✔, vitest 199/199 ✔, build ✔, Playwright E2E 4/4 ✔.
 - Do this directly in the main session. It is one connected piece of work, so no agent team is needed.
