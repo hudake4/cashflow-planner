@@ -112,6 +112,7 @@ export async function startServer({ serverDir, migrationsDir, dbFile, backupDir 
  * Before anything is applied the database is copied to backupDir (see backup.ts). The
  * pending list is read without writing and that connection is closed first, so the copy
  * is taken with no connection open. If the backup fails, this throws and nothing is applied.
+ * Old backups are pruned only after every pending migration applied.
  */
 async function applyMigrations(
   requireFromServer: NodeRequire,
@@ -128,7 +129,6 @@ async function applyMigrations(
   if (pending.length === 0) return;
 
   const backup = backupDatabase({ dbFile, backupDir, firstPendingMigration: pending[0] });
-  if (backup) pruneBackups(backupDir, { alwaysKeep: path.basename(backup) });
 
   const prisma = new PrismaClient();
   try {
@@ -147,6 +147,10 @@ async function applyMigrations(
   } finally {
     await prisma.$disconnect();
   }
+
+  // Only now that every migration applied: while an upgrade keeps failing, each launch
+  // adds a backup, and pruning then could delete the one taken before the upgrade began.
+  if (backup) pruneBackups(backupDir, { alwaysKeep: path.basename(backup) });
 }
 
 /** Names in _app_migrations, read-only (an untracked database has none), then disconnects. */
