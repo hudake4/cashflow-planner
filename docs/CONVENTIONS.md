@@ -129,7 +129,8 @@ buildDashboard(input: Omit<ProjectionInput, "from" | "to" | "settings"> & { sett
 
 ## 11. Team workflow rules
 
-- Every shell command must put the portable Node first on PATH: `$env:Path = "F:\Claude App Projects\cashflow-planner\.tools\node;$env:Path"`. The system Node (v12) is too old.
+- Node.js **24 LTS** is the project standard. Use the version pinned in `.nvmrc` (currently **24.22.1**) for development, tests, builds and CI; `package.json` permits newer Node 24 releases but excludes other major versions. Keep `.nvmrc` current with Node 24 LTS patch releases. npm enforces this requirement through `.npmrc`.
+- Select that runtime before every shell command. With nvm, run `nvm install` and `nvm use` from the repository root. For portable Node on Windows, install the pinned release in `.tools/node` and prepend it: `$env:Path = "$PWD\.tools\node;$env:Path"`. On macOS/Linux with a portable distribution there, use `export PATH="$PWD/.tools/node/bin:$PATH"`. Verify with `node --version`.
 - **One shared dev server** runs at http://localhost:3000 (started by the lead; it hot-reloads). Do not start another `next dev` or `next build`, because they share `.next/` and corrupt each other. Only the lead runs `next build`.
 - Do not edit `package.json` or install packages. Ask the lead.
 - Prisma schema changes require stopping the dev server on Windows (the engine DLL is locked). Ask the lead.

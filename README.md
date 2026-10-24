@@ -18,19 +18,19 @@ You enter a starting balance, your paychecks (weekly, biweekly or one-time) and 
 
 ## Prerequisites
 
-- **Node.js 20.9 or newer** (developed with Node 22 LTS) and npm.
+- **Node.js 24 LTS** (24.22.1 or newer within Node 24) and npm. `.nvmrc` pins the standard development and CI version to **24.22.1**; run `nvm install` and `nvm use` if you use nvm. npm rejects unsupported Node versions through `.npmrc`.
 - No database server is needed. SQLite is stored in a file at `prisma/dev.db`.
 
-> **This machine:** the system Node is v12, which is too old, so a portable Node 22 is kept in `.tools/node` (git-ignored). Put it first on your PATH in each PowerShell window before running any command below:
+> **Windows portable setup:** if using `.tools/node` (git-ignored), install the Node 24 release specified in `.nvmrc` there. Put it first on your PATH in each PowerShell window before running any command below:
 > ```powershell
 > $env:Path = "$PWD\.tools\node;$env:Path"
-> node --version   # v22.x
+> node --version   # v24.22.1
 > ```
 
 ## Setup
 
 ```bash
-npm install                 # installs dependencies and generates the Prisma client
+npm ci                      # installs locked dependencies and generates the Prisma client
 cp .env.example .env        # PowerShell: Copy-Item .env.example .env
 npm run db:deploy           # creates prisma/dev.db and applies migrations
 npm run db:seed             # OPTIONAL: loads clearly labeled demo data ("Demo: …")
