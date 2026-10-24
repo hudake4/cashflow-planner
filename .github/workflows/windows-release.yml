@@ -1,0 +1,145 @@
+name: Windows NSIS release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-release
+  cancel-in-progress: false
+
+jobs:
+  check-version:
+    name: Check release version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      should_release: ${{ steps.check.outputs.should_release }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: true
+
+      - name: Read package version
+        id: version
+        shell: bash
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+
+      - name: Skip versions already published or tagged
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: v${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          set +e
+          release_output="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json tagName 2>&1)"
+          release_status=$?
+          set -e
+          if [[ "$release_status" -eq 0 ]]; then
+            echo "Release $RELEASE_TAG already exists; skipping Windows build."
+            printf 'should_release=false\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          elif [[ "$release_output" != *"release not found"* ]]; then
+            printf '%s\n' "$release_output" >&2
+            exit "$release_status"
+          fi
+
+          set +e
+          tag_output="$(git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" 2>&1)"
+          tag_status=$?
+          set -e
+          if [[ "$tag_status" -eq 0 ]]; then
+            echo "Tag $RELEASE_TAG already exists; skipping Windows build."
+            printf 'should_release=false\n' >> "$GITHUB_OUTPUT"
+          elif [[ "$tag_status" -eq 2 ]]; then
+            echo "No release or tag found for $RELEASE_TAG; Windows build can run."
+            printf 'should_release=true\n' >> "$GITHUB_OUTPUT"
+          else
+            printf '%s\n' "$tag_output" >&2
+            exit "$tag_status"
+          fi
+
+  build-and-release:
+    name: Build and publish Windows installer
+    needs: check-version
+    if: needs.check-version.outputs.should_release == 'true' && github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build the desktop app
+        run: npm run desktop:build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+
+      - name: Build the NSIS installer without publishing
+        run: npx electron-builder --win nsis --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ needs.check-version.outputs.version }}
+          RELEASE_SHA: ${{ github.sha }}
+        shell: pwsh
+        run: |
+          $tag = "v$env:RELEASE_VERSION"
+          $installer = "dist-desktop/CashFlow Planner Setup $env:RELEASE_VERSION.exe"
+          if (-not (Test-Path -LiteralPath $installer)) {
+            throw "Expected NSIS installer was not created: $installer"
+          }
+
+          $releaseOutput = & gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName 2>&1
+          $releaseStatus = $LASTEXITCODE
+          if ($releaseStatus -eq 0) {
+            Write-Host "::notice::Release $tag now exists; skipping Windows release."
+            exit 0
+          }
+          $releaseMessage = $releaseOutput -join "`n"
+          if ($releaseMessage -notmatch '(?i)release not found') {
+            Write-Error $releaseMessage
+            exit $releaseStatus
+          }
+
+          $tagOutput = & gh api "repos/$env:GITHUB_REPOSITORY/git/ref/tags/$tag" --jq .ref 2>&1
+          $tagStatus = $LASTEXITCODE
+          if ($tagStatus -eq 0) {
+            Write-Host "::notice::Tag $tag now exists; skipping Windows release."
+            exit 0
+          }
+          $tagMessage = $tagOutput -join "`n"
+          if ($tagMessage -notmatch '(?i)HTTP 404') {
+            Write-Error $tagMessage
+            exit $tagStatus
+          }
+
+          gh release create $tag $installer --repo $env:GITHUB_REPOSITORY --target $env:RELEASE_SHA --title "CashFlow Planner $tag" --generate-notes
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
