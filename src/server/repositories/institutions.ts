@@ -6,11 +6,12 @@
  * requests/day and refreshes bank data roughly once a day. `accessUrl` holds credentials:
  * it is read only here (to hand to ../simplefin) and is never part of a DTO.
  */
-import type { BankAccount, BankConnection } from "@prisma/client";
+import type { BankAccount, BankConnection, BankTransaction } from "@prisma/client";
 import type { z } from "zod";
 import {
   MIN_SYNC_INTERVAL_MINUTES,
   type BankAccountDTO,
+  type BankTransactionDTO,
   type BankTransactionsResponse,
   type InstitutionDTO,
   type InstitutionSyncDTO,
@@ -38,6 +39,15 @@ const toAccountDTO = (a: BankAccount): BankAccountDTO => ({
   balanceCents: a.balanceCents,
   availableBalanceCents: a.availableBalanceCents,
   balanceDate: a.balanceDate,
+});
+
+const toTransactionDTO = (t: BankTransaction): BankTransactionDTO => ({
+  id: t.id,
+  accountId: t.accountId,
+  date: t.date,
+  description: t.description,
+  amountCents: t.amountCents,
+  pending: t.pending,
 });
 
 /** Never includes the access URL. */
@@ -214,14 +224,27 @@ export async function listTransactions(
     take: limit + 1,
   });
   return {
-    transactions: rows.slice(0, limit).map((t) => ({
-      id: t.id,
-      accountId: t.accountId,
-      date: t.date,
-      description: t.description,
-      amountCents: t.amountCents,
-      pending: t.pending,
-    })),
+    transactions: rows.slice(0, limit).map(toTransactionDTO),
     hasMore: rows.length > limit,
   };
+}
+
+/**
+ * Every stored transaction of the household, grouped by connection id, newest first
+ * (date, then id). Unlike listTransactions this applies no history cutoff: it is for the
+ * backup file, which keeps whatever is in the database.
+ */
+export async function listAllTransactionsByConnection(): Promise<Map<string, BankTransactionDTO[]>> {
+  const rows = await db.bankTransaction.findMany({
+    where: { account: { connection: { householdId: HOUSEHOLD_ID } } },
+    include: { account: { select: { connectionId: true } } },
+    orderBy: [{ date: "desc" }, { id: "desc" }],
+  });
+  const byConnection = new Map<string, BankTransactionDTO[]>();
+  for (const row of rows) {
+    const list = byConnection.get(row.account.connectionId) ?? [];
+    list.push(toTransactionDTO(row));
+    byConnection.set(row.account.connectionId, list);
+  }
+  return byConnection;
 }
