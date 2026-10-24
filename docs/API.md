@@ -76,6 +76,14 @@ Finds repeating payments and deposits in the stored bank transactions and sugges
 
 Adding a suggestion uses the existing `POST /api/bills` or `POST /api/income`, with the notes "Found in your bank history."
 
+## Spend analyzer (from bank history)
+Last month's and this month's spending by category. Rules are in [`CONVENTIONS.md`](CONVENTIONS.md) section 13. Both endpoints read and write the local database only and never call SimpleFIN.
+
+| Method | Path | Body / query | Response |
+|---|---|---|---|
+| GET | `/api/spending` | — | `SpendingResponse` `{ thisMonth, lastMonth, lastMonthToDateCents, coverageStart, currency, connectionCount, transactionCount, lastSyncedAt }`. Each period is a `SpendingPeriodDTO`: `from`, `to`, `totalCents`, `transactionCount`, `transfersCents`, `categories`, `topMerchants` and `transactions` (every money-out transaction of the period, transfers included, newest first: `id`, `date`, `name`, `description`, `cents`, `category`, `source` (`AUTO`, `MERCHANT` or `MANUAL`) and `merchantLearnable`). |
+| PUT | `/api/spending/transactions/:id/category` | `{ category, applyToMerchant? }` | The refreshed `SpendingResponse`. `category` is a `SpendingCategory` (including `TRANSFERS`) or `null` to go back to the automatic category. `applyToMerchant` defaults to `true`: the choice is remembered for the transaction's merchant, replacing any per-transaction choices for it; `false` changes only this transaction. 404 for a transaction that isn't a settled one in the 89-day history; 400 `BAD_REQUEST` for money in, or for `applyToMerchant` on a description with no merchant name (`merchantLearnable: false`); 400 `VALIDATION_ERROR` for an unknown category or extra fields. |
+
 ## Data management (local only)
 | Method | Path | Body | Response |
 |---|---|---|---|

@@ -14,6 +14,8 @@ export const testPrisma = new PrismaClient({ datasources: { db: { url } } });
 
 export async function resetTables() {
   await testPrisma.bankConnection.deleteMany(); // accounts and transactions cascade
+  await testPrisma.transactionCategory.deleteMany();
+  await testPrisma.merchantCategoryRule.deleteMany();
   await testPrisma.billOccurrence.deleteMany();
   await testPrisma.bill.deleteMany();
   await testPrisma.incomeSource.deleteMany();

@@ -1,19 +1,21 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SpendingPeriodDTO, SpendingResponse } from "@/contracts/api";
 import { SpendingView } from "@/components/spending/spending-view";
+import { ToastProvider } from "@/components/ui/toast";
 import { ApiError } from "@/lib/api-client";
 
-const { getSpending } = vi.hoisted(() => ({ getSpending: vi.fn() }));
+const { getSpending, setTransactionCategory } = vi.hoisted(() => ({ getSpending: vi.fn(), setTransactionCategory: vi.fn() }));
 
 vi.mock("@/lib/api-client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api-client")>();
-  return { ...actual, api: { ...actual.api, getSpending } };
+  return { ...actual, api: { ...actual.api, getSpending, setTransactionCategory } };
 });
 
 beforeEach(() => {
   getSpending.mockReset();
+  setTransactionCategory.mockReset();
 });
 
 const THIS_MONTH: SpendingPeriodDTO = {
@@ -31,6 +33,11 @@ const THIS_MONTH: SpendingPeriodDTO = {
     { name: "Whole Foods", category: "GROCERIES", totalCents: 40000, transactionCount: 3 },
     { name: "Chipotle", category: "DINING", totalCents: 12000, transactionCount: 1 },
   ],
+  transactions: [
+    { id: "t2", date: "2026-10-12", name: "Chipotle", description: "CHIPOTLE 1234", cents: 12000, category: "DINING", source: "AUTO", merchantLearnable: true },
+    { id: "t1", date: "2026-10-05", name: "Whole Foods", description: "WHOLEFDS #12", cents: 40000, category: "GROCERIES", source: "MERCHANT", merchantLearnable: true },
+    { id: "t0", date: "2026-10-03", name: "Mystery", description: "12345", cents: 5000, category: "OTHER", source: "MANUAL", merchantLearnable: false },
+  ],
 };
 
 const LAST_MONTH: SpendingPeriodDTO = {
@@ -45,6 +52,7 @@ const LAST_MONTH: SpendingPeriodDTO = {
     { category: "UTILITIES", totalCents: 50000, transactionCount: 2 },
   ],
   topMerchants: [{ name: "Shell", category: "GAS", totalCents: 50000, transactionCount: 4 }],
+  transactions: [],
 };
 
 const response = (over: Partial<SpendingResponse> = {}): SpendingResponse => ({
@@ -67,6 +75,7 @@ const EMPTY_PERIOD = (from: string, to: string): SpendingPeriodDTO => ({
   transfersCents: 0,
   categories: [],
   topMerchants: [],
+  transactions: [],
 });
 
 const thisPanel = () => screen.getByTestId("spending-period-this-month");
@@ -247,6 +256,113 @@ describe("SpendingView", () => {
     await screen.findByTestId("spending-view");
 
     expect(screen.queryByTestId("spending-coverage-warning")).toBeNull();
+  });
+
+  describe("changing categories", () => {
+    const renderView = () =>
+      render(
+        <ToastProvider>
+          <SpendingView />
+        </ToastProvider>,
+      );
+
+    async function openDialogFor(user: ReturnType<typeof userEvent.setup>, name: string) {
+      await screen.findByTestId("spending-view");
+      await user.click(screen.getByTestId("spending-transactions-toggle-this-month"));
+      const row = within(screen.getByTestId("spending-transactions-this-month"))
+        .getAllByTestId("spending-transaction-row")
+        .find((r) => r.textContent?.includes(name));
+      await user.click(within(row!).getByTestId("spending-transaction-edit"));
+      return screen.findByTestId("category-dialog");
+    }
+
+    it("keeps the transaction list collapsed until asked, then shows category and where it came from", async () => {
+      getSpending.mockResolvedValue(response());
+      const user = userEvent.setup();
+      renderView();
+      await screen.findByTestId("spending-view");
+
+      const toggle = screen.getByTestId("spending-transactions-toggle-this-month");
+      expect(toggle).toHaveTextContent("Review categories (3)");
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      expect(screen.queryByTestId("spending-transactions-this-month")).toBeNull();
+
+      await user.click(toggle);
+      expect(toggle).toHaveAttribute("aria-expanded", "true");
+      const rows = within(screen.getByTestId("spending-transactions-this-month")).getAllByTestId("spending-transaction-row");
+      expect(rows).toHaveLength(3);
+      expect(rows[0]).toHaveTextContent("Chipotle");
+      expect(rows[0]).toHaveTextContent("Dining");
+      expect(rows[0]).not.toHaveTextContent(/learned|set by you/i);
+      expect(rows[1]).toHaveTextContent("Learned");
+      expect(rows[2]).toHaveTextContent("Set by you");
+      // Last month has no transactions, so no toggle.
+      expect(screen.queryByTestId("spending-transactions-toggle-last-month")).toBeNull();
+    });
+
+    it("saves the new category for the merchant by default and shows the refreshed analysis", async () => {
+      getSpending.mockResolvedValue(response());
+      const refreshed = response({ thisMonth: { ...THIS_MONTH, totalCents: 145000, categories: [{ category: "HEALTH", totalCents: 145000, transactionCount: 14 }] } });
+      setTransactionCategory.mockResolvedValue(refreshed);
+      const user = userEvent.setup();
+      renderView();
+
+      const dialog = await openDialogFor(user, "Chipotle");
+      expect(within(dialog).getByTestId("category-select")).toHaveValue("DINING");
+      expect(within(dialog).getByTestId("category-apply-merchant")).toBeChecked();
+      expect(within(dialog).queryByTestId("category-reset")).toBeNull();
+
+      await user.selectOptions(within(dialog).getByTestId("category-select"), "HEALTH");
+      await user.click(within(dialog).getByTestId("category-save"));
+
+      expect(setTransactionCategory).toHaveBeenCalledWith("t2", { category: "HEALTH", applyToMerchant: true });
+      await waitFor(() => expect(screen.queryByTestId("category-dialog")).toBeNull());
+      expect(getSpending).toHaveBeenCalledTimes(1);
+      const rows = within(thisPanel()).getAllByTestId("spending-category-row");
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toHaveTextContent("Health");
+    });
+
+    it("can limit the change to one transaction", async () => {
+      getSpending.mockResolvedValue(response());
+      setTransactionCategory.mockResolvedValue(response());
+      const user = userEvent.setup();
+      renderView();
+
+      const dialog = await openDialogFor(user, "Whole Foods");
+      await user.click(within(dialog).getByTestId("category-apply-merchant"));
+      await user.selectOptions(within(dialog).getByTestId("category-select"), "SHOPPING");
+      await user.click(within(dialog).getByTestId("category-save"));
+
+      expect(setTransactionCategory).toHaveBeenCalledWith("t1", { category: "SHOPPING", applyToMerchant: false });
+    });
+
+    it("offers a reset to automatic for a category the user set or taught, never a merchant switch without a name", async () => {
+      getSpending.mockResolvedValue(response());
+      setTransactionCategory.mockResolvedValue(response());
+      const user = userEvent.setup();
+      renderView();
+
+      const dialog = await openDialogFor(user, "Mystery");
+      expect(within(dialog).queryByTestId("category-apply-merchant")).toBeNull();
+      await user.click(within(dialog).getByTestId("category-reset"));
+
+      expect(setTransactionCategory).toHaveBeenCalledWith("t0", { category: null, applyToMerchant: false });
+      await waitFor(() => expect(screen.queryByTestId("category-dialog")).toBeNull());
+    });
+
+    it("keeps the dialog open and explains when saving fails", async () => {
+      getSpending.mockResolvedValue(response());
+      setTransactionCategory.mockRejectedValue(new ApiError(404, "NOT_FOUND", "Transaction not found."));
+      const user = userEvent.setup();
+      renderView();
+
+      const dialog = await openDialogFor(user, "Chipotle");
+      await user.click(within(dialog).getByTestId("category-save"));
+
+      expect(await within(dialog).findByTestId("form-error")).toHaveTextContent("Transaction not found.");
+      expect(screen.getByTestId("category-dialog")).toBeInTheDocument();
+    });
   });
 
   it("shows an error with a retry that loads the data", async () => {
