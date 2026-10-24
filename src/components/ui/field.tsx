@@ -26,7 +26,10 @@ export const Input = forwardRef<HTMLInputElement, ComponentProps<typeof ShadcnIn
   return (
     <ShadcnInput
       ref={ref}
-      className={cn("h-10 rounded-control bg-field px-3 text-base text-foreground placeholder:text-slate-400 sm:text-sm", className)}
+      className={cn(
+        "h-10 min-h-11 rounded-control border-field-boundary bg-field px-3 text-base text-foreground placeholder:text-field-placeholder sm:min-h-0 sm:text-sm",
+        className,
+      )}
       {...props}
       aria-invalid={invalid || props["aria-invalid"] || undefined}
     />
@@ -41,7 +44,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
     <select
       ref={ref}
       className={cn(
-        "block h-10 w-full rounded-control border border-input bg-field px-3 pr-8 text-base text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30 aria-invalid:border-destructive aria-invalid:focus:border-destructive disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 sm:text-sm",
+        "block h-10 min-h-11 w-full rounded-control border border-field-boundary bg-field px-3 pr-8 text-base text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30 aria-invalid:border-destructive aria-invalid:focus:border-destructive disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 sm:min-h-0 sm:text-sm",
         className,
       )}
       {...props}
@@ -55,7 +58,10 @@ export const Textarea = forwardRef<HTMLTextAreaElement, ComponentProps<typeof Sh
     return (
       <ShadcnTextarea
         ref={ref}
-        className={cn("min-h-24 rounded-control bg-field px-3 py-2 text-base text-foreground placeholder:text-slate-400 sm:text-sm", className)}
+        className={cn(
+          "min-h-24 rounded-control border-field-boundary bg-field px-3 py-2 text-base text-foreground placeholder:text-field-placeholder sm:text-sm",
+          className,
+        )}
         {...props}
         aria-invalid={invalid || props["aria-invalid"] || undefined}
       />

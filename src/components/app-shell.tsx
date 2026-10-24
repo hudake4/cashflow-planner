@@ -33,7 +33,11 @@ function RegisterMark({ className }: { className?: string }) {
 
 function Logo() {
   return (
-    <Link href="/" className="flex items-center gap-2.5 rounded-control" aria-label="CashFlow Planner home">
+    <Link
+      href="/"
+      className="flex min-h-11 items-center gap-2.5 rounded-control lg:min-h-0"
+      aria-label="CashFlow Planner home"
+    >
       <RegisterMark className="h-7 w-7" />
       <span className="font-semiwide text-[15px] font-bold tracking-tight text-slate-900">CashFlow Planner</span>
     </Link>
