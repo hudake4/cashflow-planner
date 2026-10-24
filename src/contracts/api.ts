@@ -100,8 +100,15 @@ export const MIN_FORECAST_DAYS = 7;
 export const MAX_FORECAST_DAYS = 366;
 export const DEFAULT_FORECAST_DAYS = 90;
 
+export const STARTING_BALANCE_SOURCES = ["MANUAL", "ACCOUNTS"] as const;
+export const startingBalanceSourceSchema = z.enum(STARTING_BALANCE_SOURCES, {
+  errorMap: () => ({ message: "Starting balance source must be manual or accounts" }),
+});
+export type StartingBalanceSource = z.infer<typeof startingBalanceSourceSchema>;
+
 export const settingsInputSchema = z.object({
   startingBalanceCents: balanceCentsSchema,
+  startingBalanceSource: startingBalanceSourceSchema.default("MANUAL"),
   projectionStartDate: isoDateSchema,
   currency: z
     .string()
@@ -123,7 +130,12 @@ export const settingsInputSchema = z.object({
 export type SettingsInput = z.input<typeof settingsInputSchema>;
 
 export interface SettingsDTO {
+  /** The balance the user typed. Used when `startingBalanceSource` is MANUAL (or no accounts are connected). */
   startingBalanceCents: number;
+  startingBalanceSource: StartingBalanceSource;
+  /** Sum of the connected bank accounts' balances; null when none are connected. */
+  accountsBalanceCents: number | null;
+  accountCount: number;
   projectionStartDate: string;
   currency: string;
   forecastDays: number;

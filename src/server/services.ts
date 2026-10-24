@@ -6,6 +6,7 @@ import type { DashboardResponse, ProjectionResponse } from "../contracts/api";
 import { buildDashboard } from "../domain/dashboard";
 import { todayLocal } from "../domain/dates";
 import { computeProjection } from "../domain/projection";
+import { effectiveStartingBalanceCents } from "../domain/starting-balance";
 import { listAllOccurrences, listBills } from "./repositories/bills";
 import { listIncome } from "./repositories/income";
 import { getSettings } from "./repositories/settings";
@@ -17,7 +18,13 @@ async function loadInputs() {
     listBills(),
     listAllOccurrences(),
   ]);
-  return { settings, incomes, bills, occurrences };
+  // The engine and every view see one balance: the typed one, or the bank accounts' total.
+  return {
+    settings: { ...settings, startingBalanceCents: effectiveStartingBalanceCents(settings) },
+    incomes,
+    bills,
+    occurrences,
+  };
 }
 
 export async function getProjection(from?: string, to?: string): Promise<ProjectionResponse> {

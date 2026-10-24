@@ -12,11 +12,15 @@ import type {
   IncomeFrequency,
   OccurrenceStatus,
   SettingsDTO,
+  StartingBalanceSource,
 } from "../contracts/api";
 
-export function toSettingsDTO(row: Settings): SettingsDTO {
+export function toSettingsDTO(row: Settings, accounts: { balanceCents: number | null; count: number }): SettingsDTO {
   return {
     startingBalanceCents: row.startingBalanceCents,
+    startingBalanceSource: row.startingBalanceSource as StartingBalanceSource,
+    accountsBalanceCents: accounts.count ? accounts.balanceCents : null,
+    accountCount: accounts.count,
     projectionStartDate: row.projectionStartDate,
     currency: row.currency,
     forecastDays: row.forecastDays,

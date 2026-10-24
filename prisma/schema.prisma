@@ -16,14 +16,15 @@ datasource db {
 }
 
 model Settings {
-  householdId          String   @id @default("local")
-  startingBalanceCents Int      @default(0)
-  projectionStartDate  String // YYYY-MM-DD; balance is BEFORE any events on this date
-  currency             String   @default("USD")
-  forecastDays         Int      @default(90)
-  weekStartsOn         Int      @default(0) // 0 = Sunday ... 6 = Saturday
-  defaultCalendarView  String   @default("month") // "month" | "week"
-  updatedAt            DateTime @updatedAt
+  householdId           String   @id @default("local")
+  startingBalanceCents  Int      @default(0)
+  startingBalanceSource String   @default("MANUAL") // "MANUAL" | "ACCOUNTS" (sum of connected bank accounts)
+  projectionStartDate   String // YYYY-MM-DD; balance is BEFORE any events on this date
+  currency              String   @default("USD")
+  forecastDays          Int      @default(90)
+  weekStartsOn          Int      @default(0) // 0 = Sunday ... 6 = Saturday
+  defaultCalendarView   String   @default("month") // "month" | "week"
+  updatedAt             DateTime @updatedAt
 }
 
 model IncomeSource {

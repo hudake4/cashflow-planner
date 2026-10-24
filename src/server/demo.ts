@@ -80,7 +80,7 @@ export async function loadDemoData(prisma: PrismaClient, today: string): Promise
         weekStartsOn: defaults.weekStartsOn,
         defaultCalendarView: defaults.defaultCalendarView,
       },
-      update: { startingBalanceCents: DEMO_STARTING_BALANCE_CENTS, projectionStartDate: today },
+      update: { startingBalanceCents: DEMO_STARTING_BALANCE_CENTS, startingBalanceSource: "MANUAL", projectionStartDate: today },
     });
   });
 }
