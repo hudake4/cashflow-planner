@@ -20,6 +20,7 @@ import type {
   RecurringScanResponse,
   SettingsDTO,
   SettingsInput,
+  SpendingCategoryInput,
   SpendingResponse,
 } from "@/contracts/api";
 
@@ -153,6 +154,9 @@ export const api = {
 
   /** Last month's and this month's spending by category from the stored bank history. Reads local data only. */
   getSpending: () => request<SpendingResponse>("/spending"),
+  /** Sets (null = back to automatic) the category of one transaction; by default it is learned for the whole merchant. Returns the refreshed analysis. */
+  setTransactionCategory: (transactionId: string, input: SpendingCategoryInput) =>
+    request<SpendingResponse>(`/spending/transactions/${encodeURIComponent(transactionId)}/category`, json("PUT", input)),
 
   loadDemoData: () => request<{ ok: true }>("/data/demo", json("POST")),
   resetAllData: () => request<{ ok: true }>("/data/reset", json("POST")),

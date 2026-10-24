@@ -2,21 +2,25 @@
  * Spend analyzer (CONVENTIONS section 13). Pure: no Prisma, no clock (today is passed in), no I/O.
  *
  * Money out of the stored bank history is grouped by category for this calendar month (1st through
- * today) and last month. Categories come from keyword rules on the description; nothing is stored,
- * so improving the lists below re-categorizes history on the next request.
+ * today) and last month. A category is the user's choice for that transaction, else what the user
+ * taught the analyzer about its merchant, else the keyword rules below. Only those two kinds of
+ * choice are stored, so improving the lists below re-categorizes everything the user hasn't decided.
  */
 import { SPENDING_CATEGORIES } from "../contracts/api";
 import type {
   SpendingAnalysisDTO,
   SpendingCategory,
+  SpendingCategorySource,
   SpendingCategoryTotalDTO,
   SpendingMerchantDTO,
   SpendingPeriodDTO,
+  SpendingTransactionDTO,
 } from "../contracts/api";
 import { daysInMonth, formatIsoDate, parseIsoDate } from "./dates";
 import { displayName, nameTokens } from "./recurring";
 
 export interface SpendingTransaction {
+  id: string;
   date: string;
   description: string;
   /** Signed like the bank: money in positive, money out negative. */
@@ -27,9 +31,14 @@ export interface SpendingInput {
   transactions: SpendingTransaction[];
   /** Server-local calendar date. */
   today: string;
+  /** The user's category for one transaction, by transaction id. */
+  overrides?: ReadonlyMap<string, SpendingCategory>;
+  /** What the user taught the analyzer, by `merchantKey`. */
+  merchantRules?: ReadonlyMap<string, SpendingCategory>;
 }
 
 const TOP_MERCHANTS = 5;
+const KEY_TOKENS = 3;
 
 // ---------------------------------------------------------------------------
 // Categories
@@ -186,14 +195,39 @@ export function categorize(description: string): SpendingCategory {
   return rule?.category ?? "OTHER";
 }
 
+/**
+ * Identifies a merchant: the first three words of its cleaned-up name, so "KROGER #1234" and
+ * "Kroger 5678" are one merchant. Empty when the description has no usable name.
+ */
+export function merchantKey(description: string): string {
+  return nameTokens(description).slice(0, KEY_TOKENS).join(" ");
+}
+
+/** The category and where it came from: the user's pick for this transaction, then the learned merchant rule, then keywords. */
+function resolveCategory(
+  t: SpendingTransaction,
+  key: string,
+  overrides: ReadonlyMap<string, SpendingCategory> | undefined,
+  merchantRules: ReadonlyMap<string, SpendingCategory> | undefined,
+): { category: SpendingCategory; source: SpendingCategorySource } {
+  const manual = overrides?.get(t.id);
+  if (manual) return { category: manual, source: "MANUAL" };
+  const learned = key ? merchantRules?.get(key) : undefined;
+  if (learned) return { category: learned, source: "MERCHANT" };
+  return { category: categorize(t.description), source: "AUTO" };
+}
+
 // ---------------------------------------------------------------------------
 // Periods
 // ---------------------------------------------------------------------------
 
 interface Spend {
+  id: string;
   date: string;
   description: string;
+  key: string;
   category: SpendingCategory;
+  source: SpendingCategorySource;
   /** Positive magnitude. */
   cents: number;
 }
@@ -206,10 +240,21 @@ function buildPeriod(spends: Spend[], from: string, to: string): SpendingPeriodD
   let transfersCents = 0;
   const byCategory = new Map<SpendingCategory, SpendingCategoryTotalDTO>();
   const byMerchant = new Map<string, SpendingMerchantDTO>();
+  const transactions: SpendingTransactionDTO[] = [];
 
   // Oldest first, so the newest description names the merchant and sets its category.
   for (const s of spends) {
     if (s.date < from || s.date > to) continue;
+    transactions.push({
+      id: s.id,
+      date: s.date,
+      name: displayName(s.description) || "Unknown",
+      description: s.description,
+      cents: s.cents,
+      category: s.category,
+      source: s.source,
+      merchantLearnable: s.key !== "",
+    });
     if (s.category === "TRANSFERS") {
       transfersCents += s.cents;
       continue;
@@ -222,13 +267,12 @@ function buildPeriod(spends: Spend[], from: string, to: string): SpendingPeriodD
     category.transactionCount += 1;
     byCategory.set(s.category, category);
 
-    const key = nameTokens(s.description).slice(0, 3).join(" ");
-    const merchant = byMerchant.get(key) ?? { name: "", category: s.category, totalCents: 0, transactionCount: 0 };
+    const merchant = byMerchant.get(s.key) ?? { name: "", category: s.category, totalCents: 0, transactionCount: 0 };
     merchant.name = displayName(s.description) || "Unknown";
     merchant.category = s.category;
     merchant.totalCents += s.cents;
     merchant.transactionCount += 1;
-    byMerchant.set(key, merchant);
+    byMerchant.set(s.key, merchant);
   }
 
   const order = (c: SpendingCategory) => SPENDING_CATEGORIES.indexOf(c);
@@ -242,10 +286,11 @@ function buildPeriod(spends: Spend[], from: string, to: string): SpendingPeriodD
     topMerchants: [...byMerchant.values()]
       .sort((a, b) => b.totalCents - a.totalCents || a.name.localeCompare(b.name))
       .slice(0, TOP_MERCHANTS),
+    transactions: transactions.reverse(),
   };
 }
 
-export function buildSpending({ transactions, today }: SpendingInput): SpendingAnalysisDTO {
+export function buildSpending({ transactions, today, overrides, merchantRules }: SpendingInput): SpendingAnalysisDTO {
   const { year, month, day } = parseIsoDate(today);
   const lastYear = month === 1 ? year - 1 : year;
   const lastMonth = month === 1 ? 12 : month - 1;
@@ -259,7 +304,10 @@ export function buildSpending({ transactions, today }: SpendingInput): SpendingA
   const spends: Spend[] = transactions
     .filter((t) => t.amountCents < 0)
     .sort((a, b) => compareDate(a.date, b.date))
-    .map((t) => ({ date: t.date, description: t.description, category: categorize(t.description), cents: -t.amountCents }));
+    .map((t): Spend => {
+      const key = merchantKey(t.description);
+      return { id: t.id, date: t.date, description: t.description, key, cents: -t.amountCents, ...resolveCategory(t, key, overrides, merchantRules) };
+    });
 
   const lastMonthPeriod = buildPeriod(spends, lastFrom, lastTo);
   const coverageStart = transactions.reduce<string | null>((min, t) => (min === null || t.date < min ? t.date : min), null);

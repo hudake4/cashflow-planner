@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { SpendingCategory } from "@/contracts/api";
-import { buildSpending, categorize, type SpendingTransaction } from "@/domain/spending";
+import { buildSpending, categorize, merchantKey, type SpendingTransaction } from "@/domain/spending";
 
 const TODAY = "2026-10-24";
 
-const tx = (date: string, description: string, amountCents: number): SpendingTransaction => ({ date, description, amountCents });
+let nextId = 0;
+const tx = (date: string, description: string, amountCents: number): SpendingTransaction => ({ id: `t${nextId++}`, date, description, amountCents });
 const run = (transactions: SpendingTransaction[], today = TODAY) => buildSpending({ transactions, today });
 
 describe("categorize", () => {
@@ -138,8 +139,8 @@ describe("buildSpending periods", () => {
   it("returns zeros and a null coverageStart for no transactions", () => {
     const out = run([]);
     expect(out).toEqual({
-      thisMonth: { from: "2026-10-01", to: "2026-10-24", totalCents: 0, transactionCount: 0, transfersCents: 0, categories: [], topMerchants: [] },
-      lastMonth: { from: "2026-09-01", to: "2026-09-30", totalCents: 0, transactionCount: 0, transfersCents: 0, categories: [], topMerchants: [] },
+      thisMonth: { from: "2026-10-01", to: "2026-10-24", totalCents: 0, transactionCount: 0, transfersCents: 0, categories: [], topMerchants: [], transactions: [] },
+      lastMonth: { from: "2026-09-01", to: "2026-09-30", totalCents: 0, transactionCount: 0, transfersCents: 0, categories: [], topMerchants: [], transactions: [] },
       lastMonthToDateCents: 0,
       coverageStart: null,
     });
@@ -230,5 +231,77 @@ describe("buildSpending top merchants", () => {
     const out = run([tx("2026-10-02", "KROGER", -100), tx("2026-09-02", "PUBLIX", -200)]);
     expect(out.thisMonth.topMerchants.map((m) => m.name)).toEqual(["Kroger"]);
     expect(out.lastMonth.topMerchants.map((m) => m.name)).toEqual(["Publix"]);
+  });
+});
+
+describe("merchantKey", () => {
+  it("is the first three words of the cleaned-up name", () => {
+    expect(merchantKey("KROGER #1234 ATLANTA GA")).toBe("kroger atlanta ga");
+    expect(merchantKey("POS DEBIT Kroger 5678 Atlanta GA")).toBe("kroger atlanta ga");
+  });
+
+  it("is empty when nothing usable is left", () => {
+    expect(merchantKey("12345 6789")).toBe("");
+  });
+});
+
+describe("buildSpending user categories", () => {
+  const run2 = (transactions: SpendingTransaction[], extra: { overrides?: [string, SpendingCategory][]; rules?: [string, SpendingCategory][] }) =>
+    buildSpending({
+      transactions,
+      today: TODAY,
+      overrides: new Map(extra.overrides ?? []),
+      merchantRules: new Map(extra.rules ?? []),
+    });
+
+  it("lists every money-out transaction of the period newest first, with its category and where it came from", () => {
+    const a = tx("2026-10-02", "KROGER #1", -1000);
+    const b = tx("2026-10-09", "ZELLE TO JOHN", -5000);
+    const c = tx("2026-09-20", "SHELL OIL", -700);
+    const out = run([a, b, c, tx("2026-10-05", "ACME PAYROLL", 90000)]);
+    expect(out.thisMonth.transactions).toEqual([
+      { id: b.id, date: "2026-10-09", name: "Zelle To John", description: "ZELLE TO JOHN", cents: 5000, category: "TRANSFERS", source: "AUTO", merchantLearnable: true },
+      { id: a.id, date: "2026-10-02", name: "Kroger", description: "KROGER #1", cents: 1000, category: "GROCERIES", source: "AUTO", merchantLearnable: true },
+    ]);
+    expect(out.lastMonth.transactions.map((t) => t.id)).toEqual([c.id]);
+  });
+
+  it("a per-transaction choice beats everything and moves the money between categories", () => {
+    const a = tx("2026-10-02", "KROGER", -1000);
+    const b = tx("2026-10-03", "KROGER", -2000);
+    const out = run2([a, b], { overrides: [[a.id, "DINING"]], rules: [["kroger", "HEALTH"]] });
+    expect(out.thisMonth.categories).toEqual([
+      { category: "HEALTH", totalCents: 2000, transactionCount: 1 },
+      { category: "DINING", totalCents: 1000, transactionCount: 1 },
+    ]);
+    expect(out.thisMonth.transactions.map((t) => [t.category, t.source])).toEqual([
+      ["HEALTH", "MERCHANT"],
+      ["DINING", "MANUAL"],
+    ]);
+  });
+
+  it("a learned merchant rule beats the keywords, for old and new transactions alike", () => {
+    const out = run2([tx("2026-10-02", "KROGER #1", -1000), tx("2026-09-12", "POS DEBIT KROGER 77", -400)], { rules: [["kroger", "SHOPPING"]] });
+    expect(out.thisMonth.categories.map((c) => c.category)).toEqual(["SHOPPING"]);
+    expect(out.lastMonth.categories.map((c) => c.category)).toEqual(["SHOPPING"]);
+    expect(out.thisMonth.topMerchants[0]).toMatchObject({ name: "Kroger", category: "SHOPPING" });
+  });
+
+  it("can move a transfer into spending, and spending into transfers", () => {
+    const zelle = tx("2026-10-02", "ZELLE TO LANDLORD", -90000);
+    const kroger = tx("2026-10-03", "KROGER", -3000);
+    const out = run2([zelle, kroger], { overrides: [[zelle.id, "BILLS"], [kroger.id, "TRANSFERS"]] });
+    expect(out.thisMonth).toMatchObject({ totalCents: 90000, transactionCount: 1, transfersCents: 3000 });
+    expect(out.thisMonth.categories.map((c) => c.category)).toEqual(["BILLS"]);
+  });
+
+  it("falls back to the keywords for everything the user hasn't decided", () => {
+    const out = run2([tx("2026-10-02", "SHELL OIL", -1000)], { rules: [["kroger", "SHOPPING"]], overrides: [["nope", "DINING"]] });
+    expect(out.thisMonth.categories.map((c) => c.category)).toEqual(["GAS"]);
+  });
+
+  it("flags descriptions with no merchant name as not learnable and ignores a rule for the empty key", () => {
+    const out = run2([tx("2026-10-02", "12345 6789", -1000)], { rules: [["", "DINING"]] });
+    expect(out.thisMonth.transactions[0]).toMatchObject({ category: "OTHER", source: "AUTO", merchantLearnable: false });
   });
 });

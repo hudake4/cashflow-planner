@@ -618,6 +618,35 @@ export const SPENDING_CATEGORIES = [
 ] as const;
 export type SpendingCategory = (typeof SPENDING_CATEGORIES)[number];
 
+/** Where a transaction's category came from: keyword rules, a learned merchant rule, or the user's choice for this one. */
+export type SpendingCategorySource = "AUTO" | "MERCHANT" | "MANUAL";
+
+/** `PUT /api/spending/transactions/:id/category`. A null category goes back to the automatic one. */
+export const spendingCategoryInputSchema = z
+  .object({
+    category: z.enum(SPENDING_CATEGORIES).nullable(),
+    /** Teach the analyzer: every transaction from the same merchant, now and later, gets this category. */
+    applyToMerchant: z.boolean().default(true),
+  })
+  .strict();
+export type SpendingCategoryInput = z.input<typeof spendingCategoryInputSchema>;
+
+export interface SpendingTransactionDTO {
+  id: string;
+  /** YYYY-MM-DD */
+  date: string;
+  /** Cleaned-up merchant name, the same one the merchant list uses. */
+  name: string;
+  /** The bank's description, as stored. */
+  description: string;
+  /** Positive magnitude of money out. */
+  cents: number;
+  category: SpendingCategory;
+  source: SpendingCategorySource;
+  /** False when the description has no usable name, so a merchant-wide rule isn't possible. */
+  merchantLearnable: boolean;
+}
+
 export interface SpendingCategoryTotalDTO {
   category: SpendingCategory;
   /** Positive magnitude of money out. */
@@ -647,6 +676,8 @@ export interface SpendingPeriodDTO {
   categories: SpendingCategoryTotalDTO[];
   /** Up to 5 merchants with the most spending, largest first. */
   topMerchants: SpendingMerchantDTO[];
+  /** Every money-out transaction in the period, TRANSFERS included, newest first, so any of them can be recategorized. */
+  transactions: SpendingTransactionDTO[];
 }
 
 export interface SpendingAnalysisDTO {

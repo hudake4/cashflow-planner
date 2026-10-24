@@ -2,7 +2,8 @@
 
 import { ArrowDown, ArrowUp, ChartPie, Equal, Landmark, TriangleAlert } from "lucide-react";
 import Link from "next/link";
-import type { SpendingResponse } from "@/contracts/api";
+import { useState } from "react";
+import type { SpendingResponse, SpendingTransactionDTO } from "@/contracts/api";
 import { api } from "@/lib/api-client";
 import { fmtShort } from "@/lib/dates";
 import { money } from "@/lib/format";
@@ -11,6 +12,7 @@ import { PageHeader } from "@/components/app-shell";
 import { Card, CardBody } from "@/components/ui/card";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/ui/states";
+import { CategoryDialog } from "./category-dialog";
 import { PeriodPanel } from "./period-panel";
 
 const linkButton =
@@ -21,6 +23,9 @@ const textLink =
 
 export function SpendingView() {
   const spending = useApi<SpendingResponse>("spending", api.getSpending);
+  // A category change returns the refreshed analysis; it replaces the loaded one until the next load.
+  const [saved, setSaved] = useState<{ base: SpendingResponse; next: SpendingResponse } | null>(null);
+  const data = saved && saved.base === spending.data ? saved.next : spending.data;
 
   return (
     <>
@@ -30,9 +35,9 @@ export function SpendingView() {
       />
       {spending.error && !spending.data ? (
         <ErrorState message={spending.error} onRetry={spending.reload} title="Couldn't load your spending" />
-      ) : spending.data ? (
+      ) : data ? (
         <div aria-busy={spending.refreshing || undefined}>
-          <SpendingContent s={spending.data} />
+          <SpendingContent s={data} onSaved={(next) => spending.data && setSaved({ base: spending.data, next })} />
         </div>
       ) : (
         <SpendingSkeleton />
@@ -77,7 +82,9 @@ function Comparison({ thisMonthCents, lastToDateCents, currency }: { thisMonthCe
   );
 }
 
-function SpendingContent({ s }: { s: SpendingResponse }) {
+function SpendingContent({ s, onSaved }: { s: SpendingResponse; onSaved: (next: SpendingResponse) => void }) {
+  const [editing, setEditing] = useState<SpendingTransactionDTO | null>(null);
+
   if (s.connectionCount === 0) {
     return (
       <EmptyState
@@ -121,9 +128,11 @@ function SpendingContent({ s }: { s: SpendingResponse }) {
           period={s.thisMonth}
           currency={s.currency}
           comparison={<Comparison thisMonthCents={s.thisMonth.totalCents} lastToDateCents={s.lastMonthToDateCents} currency={s.currency} />}
+          onEditTransaction={setEditing}
         />
-        <PeriodPanel id="last-month" title="Last month" period={s.lastMonth} currency={s.currency} />
+        <PeriodPanel id="last-month" title="Last month" period={s.lastMonth} currency={s.currency} onEditTransaction={setEditing} />
       </div>
+      <CategoryDialog transaction={editing} currency={s.currency} onClose={() => setEditing(null)} onSaved={onSaved} />
 
       <div className="space-y-2 text-xs leading-relaxed text-muted-foreground">
         {incomplete && s.coverageStart && (

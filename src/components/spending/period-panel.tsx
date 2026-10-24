@@ -1,9 +1,12 @@
-import { ArrowLeftRight } from "lucide-react";
-import type { ReactNode } from "react";
-import type { SpendingPeriodDTO } from "@/contracts/api";
-import { fmtDate } from "@/lib/dates";
+"use client";
+
+import { ArrowLeftRight, ChevronDown, ChevronRight } from "lucide-react";
+import { useId, useState, type ReactNode } from "react";
+import type { SpendingPeriodDTO, SpendingTransactionDTO } from "@/contracts/api";
+import { fmtDate, fmtShort } from "@/lib/dates";
 import { money } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { Balance } from "@/components/ui/money";
 import { CATEGORY_ICONS, CATEGORY_LABELS } from "./categories";
@@ -20,9 +23,70 @@ function percentLabel(part: number, total: number): string {
   return pct === 0 ? "<1%" : `${pct}%`;
 }
 
+const SOURCE_NOTES = { AUTO: null, MERCHANT: "Learned", MANUAL: "Set by you" } as const;
+
+/** Every transaction of the period, collapsed until asked for, each with a way to change its category. */
+function TransactionList({
+  id,
+  transactions,
+  currency,
+  onEdit,
+}: {
+  id: string;
+  transactions: SpendingTransactionDTO[];
+  currency: string;
+  onEdit: (transaction: SpendingTransactionDTO) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const listId = useId();
+  const Chevron = open ? ChevronDown : ChevronRight;
+  return (
+    <div>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={listId}
+        onClick={() => setOpen((o) => !o)}
+        className="inline-flex min-h-11 items-center gap-1.5 rounded-control text-sm font-semibold text-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        data-testid={`spending-transactions-toggle-${id}`}
+      >
+        <Chevron className="size-4" aria-hidden="true" />
+        Review categories ({transactions.length})
+      </button>
+      {open && (
+        <ul id={listId} className="mt-1 divide-y divide-border" data-testid={`spending-transactions-${id}`}>
+          {transactions.map((t) => {
+            const note = SOURCE_NOTES[t.source];
+            return (
+              <li key={t.id} className="flex items-center justify-between gap-3 py-2.5" data-testid="spending-transaction-row">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-foreground" title={t.description}>
+                    {t.name}
+                  </p>
+                  <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                    {fmtShort(t.date)}
+                    <Badge tone="neutral">{CATEGORY_LABELS[t.category]}</Badge>
+                    {note && <span>{note}</span>}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="text-sm font-semibold tabular-nums text-foreground">{money(t.cents, currency)}</span>
+                  <Button size="sm" onClick={() => onEdit(t)} aria-label={`Change category of ${t.name}, ${fmtShort(t.date)}`} data-testid="spending-transaction-edit">
+                    Change
+                  </Button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 /**
  * One month of spending: total, an optional comparison line, the category breakdown, top merchants
- * and the transfers note. It only displays what the API returned.
+ * and the transfers note, plus the transaction list for fixing categories. It only displays what the API returned.
  */
 export function PeriodPanel({
   id,
@@ -30,6 +94,7 @@ export function PeriodPanel({
   period,
   currency,
   comparison,
+  onEditTransaction,
 }: {
   /** "this-month" or "last-month": suffixes the test ids. */
   id: string;
@@ -37,6 +102,7 @@ export function PeriodPanel({
   period: SpendingPeriodDTO;
   currency: string;
   comparison?: ReactNode;
+  onEditTransaction: (transaction: SpendingTransactionDTO) => void;
 }) {
   const headingId = `spending-${id}-heading`;
   // TRANSFERS is never spending, so it never gets a row even if a response included it.
@@ -121,6 +187,10 @@ export function PeriodPanel({
                 </div>
               )}
             </>
+          )}
+
+          {period.transactions.length > 0 && (
+            <TransactionList id={id} transactions={period.transactions} currency={currency} onEdit={onEditTransaction} />
           )}
 
           {period.transfersCents > 0 && (

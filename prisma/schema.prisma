@@ -124,3 +124,28 @@ model BankTransaction {
 
   @@index([accountId, date])
 }
+
+// The user's own spend-analyzer category for one transaction. No relation to BankTransaction on
+// purpose: a sync deletes and re-inserts rows with the same id, which would cascade the choice away.
+// `date` is the transaction's date so rows can be pruned when it leaves the history window.
+model TransactionCategory {
+  transactionId String   @id
+  householdId   String   @default("local")
+  category      String // SpendingCategory, validated by Zod
+  date          String // YYYY-MM-DD
+  updatedAt     DateTime @updatedAt
+
+  @@index([householdId])
+}
+
+// What the analyzer has learned: every transaction whose merchant key (the first three words of its
+// cleaned-up name, see src/domain/spending.ts) matches gets this category. The latest choice wins.
+model MerchantCategoryRule {
+  id          String   @id @default(cuid())
+  householdId String   @default("local")
+  merchantKey String
+  category    String // SpendingCategory, validated by Zod
+  updatedAt   DateTime @updatedAt
+
+  @@unique([householdId, merchantKey])
+}
