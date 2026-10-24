@@ -148,7 +148,7 @@ export function Switch({
 
   return (
     <ShadcnField orientation="horizontal" className="items-start gap-3">
-      <span className="relative mt-0.5 inline-flex h-6 w-11 shrink-0">
+      <span className="relative mt-0.5 inline-flex h-11 w-11 shrink-0 items-center justify-center sm:h-6">
         <input
           id={id}
           type="checkbox"
