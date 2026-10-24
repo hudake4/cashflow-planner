@@ -140,9 +140,16 @@ function ScheduleForm({
   const oneTime = form.frequency === "ONE_TIME";
   const testPrefix = kind;
 
-  async function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    const formElement = e.currentTarget;
     setFormError(null);
+
+    const focusFirstInvalidField = () => {
+      requestAnimationFrame(() => {
+        formElement.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+      });
+    };
 
     const amountCents = parseMoneyToCents(form.amount);
     const clientErrors: FieldErrors = {};
@@ -165,11 +172,13 @@ function ScheduleForm({
       const zodErrors = zodFieldErrors(parsed.error.issues);
       // Keep the friendlier amount message from the parser when present.
       setErrors({ ...zodErrors, ...clientErrors });
+      focusFirstInvalidField();
       toast("Please fix the highlighted fields.", "error");
       return;
     }
     if (Object.keys(clientErrors).length) {
       setErrors(clientErrors);
+      focusFirstInvalidField();
       toast("Please fix the highlighted fields.", "error");
       return;
     }
@@ -195,6 +204,7 @@ function ScheduleForm({
           (mapped[key] ??= []).push(...messages);
         }
         setErrors(mapped);
+        focusFirstInvalidField();
         setFormError(err.message || "Please fix the highlighted fields.");
         toast(err.message || "Please fix the highlighted fields.", "error");
       } else {

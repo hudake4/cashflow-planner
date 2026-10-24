@@ -26,7 +26,6 @@ export function ConfirmDialog({
   tone?: "danger" | "primary";
   /** Should throw on failure; the error is shown inside the dialog. */
   onConfirm: () => Promise<void>;
-  /** Optional notification hook for callers that also announce failures. */
   onError?: (message: string) => void;
   /** Optional trigger to focus after the dialog closes. */
   restoreFocusTarget?: HTMLElement | null;

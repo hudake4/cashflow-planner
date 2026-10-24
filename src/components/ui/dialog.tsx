@@ -65,7 +65,7 @@ export function Dialog({
         data-testid={testId}
         showCloseButton={false}
         className={cn(
-          "grid w-full gap-0 overflow-hidden border border-border bg-popover p-0 text-popover-foreground shadow-xl",
+          "grid grid-rows-[auto_minmax(0,1fr)_auto] w-full gap-0 overflow-hidden border border-border bg-popover p-0 text-popover-foreground shadow-xl",
           panelPlacement,
           variant === "modal" && width,
         )}

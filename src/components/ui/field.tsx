@@ -84,7 +84,6 @@ export const MoneyInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLI
   },
 );
 
-/** Label, control, hint, and error wrapper retained for the current feature components. */
 export function Field({
   label,
   hint,
@@ -125,7 +124,6 @@ export function Field({
   );
 }
 
-/** Controlled switch adapter retained for current settings and form consumers. */
 export function Switch({
   checked,
   onChange,
@@ -159,7 +157,7 @@ export function Switch({
           aria-hidden="true"
           className="pointer-events-none flex h-6 w-11 items-center rounded-full border border-input bg-input p-0.5 transition-colors duration-150 peer-checked:border-primary peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-ring"
         >
-          <span className="size-5 rounded-full bg-background shadow-sm transition-transform peer-checked:translate-x-5" />
+          <span className={cn("size-5 rounded-full bg-background shadow-sm transition-transform", checked && "translate-x-5")} />
         </span>
       </span>
       <FieldContent className="gap-0.5">

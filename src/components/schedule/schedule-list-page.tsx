@@ -11,7 +11,6 @@ import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/app-shell";
 import { ScheduleFormDialog, type ScheduleKind } from "@/components/forms/schedule-form-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -39,7 +38,7 @@ const COPY = {
     add: "Add bill",
     emptyTitle: "No bills yet",
     emptyText: "Add your first bill, like rent or a phone plan, to see how it affects your weekly balance.",
-    dateLabel: "Next due",
+    dateLabel: "First due",
     noun: "bill",
   },
   income: {
@@ -48,7 +47,7 @@ const COPY = {
     add: "Add income",
     emptyTitle: "No income yet",
     emptyText: "Add your first paycheck so the calendar can project what you'll have left each week.",
-    dateLabel: "Next payday",
+    dateLabel: "First payday",
     noun: "income source",
   },
 } as const;
@@ -183,7 +182,7 @@ export function ScheduleListPage({ kind }: { kind: ScheduleKind }) {
                   <TableHead className="px-4">Ends</TableHead>
                   {kind === "bill" && <TableHead className="px-4">Category</TableHead>}
                   <TableHead className="px-4">Status</TableHead>
-                  <TableHead className="w-12 px-4 text-right">
+                  <TableHead className="relative w-12 px-4 text-right">
                     <span className="sr-only">Actions</span>
                   </TableHead>
                 </TableRow>
@@ -254,16 +253,8 @@ export function ScheduleListPage({ kind }: { kind: ScheduleKind }) {
                         </p>
                       </div>
 
-                      <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                      <dl className="mt-4 grid grid-cols-1 gap-3 text-sm">
                         <DataPoint label={copy.dateLabel} value={fmtShort(item.anchorDate)} />
-                        <DataPoint
-                          label="Status"
-                          value={
-                            <span className="flex items-center gap-1.5">
-                              <ActiveBadge active={item.active} />
-                            </span>
-                          }
-                        />
                       </dl>
 
                       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
@@ -348,10 +339,6 @@ export function ScheduleListPage({ kind }: { kind: ScheduleKind }) {
   );
 }
 
-function ActiveBadge({ active }: { active: boolean }) {
-  return active ? <Badge tone="positive">Active</Badge> : <Badge tone="neutral">Inactive</Badge>;
-}
-
 function DataPoint({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="min-w-0">
@@ -415,6 +402,7 @@ function RowActions({
           ref={triggerRef}
           size="icon"
           variant="ghost"
+          className="size-11 lg:size-9"
           aria-label={`Actions for ${item.name}`}
           data-testid={`actions-${kind}-${item.id}${suffix}`}
         >

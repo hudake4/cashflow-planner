@@ -6,7 +6,6 @@ import { cn } from "@/lib/utils";
 
 export type HaloToastTone = "success" | "error";
 
-/** Cult UI halo toast restyled as a quiet paper-and-ink notification. */
 export function HaloToast({
   toastId,
   message,

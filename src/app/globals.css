@@ -132,8 +132,8 @@
 }
 
 /*
- * Dark mode preserves the upstream cashflow-theme contract. The slate ramp is
- * monochrome; green and rose remain pale semantic inks for income and bills.
+ * The slate ramp is monochrome; green and rose remain pale semantic inks for
+ * income and bills.
  */
 .dark {
   color-scheme: dark;
@@ -300,10 +300,6 @@
     background: rgb(23 42 51 / 0.45);
   }
 
-  /* Keep visually hidden table-action headings within their horizontal scroll region. */
-  main table th:has(> .sr-only) {
-    position: relative;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

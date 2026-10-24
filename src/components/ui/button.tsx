@@ -17,7 +17,7 @@ export interface ButtonProps extends Omit<React.ComponentProps<typeof ShadcnButt
 const legacyVariants: Partial<Record<LegacyVariant, string>> = {
   primary: "bg-brand-600 text-on-accent hover:bg-brand-700",
   secondary: "border border-slate-300 bg-sheet text-slate-800 hover:border-slate-400 hover:bg-field",
-  danger: "bg-rose-700 text-on-accent hover:bg-rose-800",
+  danger: "bg-rose-700 text-on-accent hover:bg-rose-800 dark:bg-rose-700 dark:hover:bg-rose-800",
   success: "bg-emerald-700 text-on-accent hover:bg-emerald-800",
 };
 
