@@ -343,10 +343,85 @@ export interface DashboardResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Institutions (bank connections through Teller; read-only)
+// ---------------------------------------------------------------------------
+
+export const TELLER_ENVIRONMENTS = ["sandbox", "development", "production"] as const;
+export type TellerEnvironment = (typeof TELLER_ENVIRONMENTS)[number];
+
+/** `GET /api/institutions/config`. The Application ID is public; certificates and tokens never leave the server. */
+export interface InstitutionsConfigDTO {
+  configured: boolean;
+  applicationId: string | null;
+  environment: TellerEnvironment | null;
+}
+
+export interface BankAccountDTO {
+  id: string;
+  name: string;
+  type: string; // depository | credit
+  subtype: string;
+  lastFour: string;
+  currency: string;
+  status: string; // open | closed
+}
+
+/** A connected institution with its accounts. Never includes the access token. */
+export interface InstitutionDTO {
+  id: string; // Teller enrollment id
+  institutionId: string;
+  name: string;
+  connectedAt: string;
+  accounts: BankAccountDTO[];
+}
+
+/** Body of `POST /api/institutions`: the values Teller Connect returns in `onSuccess`. */
+export const connectInstitutionSchema = z.object({
+  accessToken: z.string().trim().min(1, "Access token is required"),
+  enrollmentId: z.string().trim().min(1, "Enrollment id is required"),
+  institutionName: z.string().trim().min(1, "Institution name is required").max(120, "Institution name is too long"),
+  institutionId: z.string().trim().max(120).optional(),
+});
+export type ConnectInstitutionInput = z.input<typeof connectInstitutionSchema>;
+
+export const BANK_TRANSACTIONS_PAGE_SIZE = 50;
+
+export const bankTransactionsQuerySchema = z.object({
+  accountId: z.string().trim().min(1, "Account is required"),
+  fromId: z.string().trim().min(1).optional(),
+});
+export type BankTransactionsQuery = z.infer<typeof bankTransactionsQuerySchema>;
+
+export interface BankTransactionDTO {
+  id: string;
+  accountId: string;
+  date: string; // YYYY-MM-DD
+  description: string;
+  /** Counterparty name when Teller provides one, otherwise null. */
+  counterparty: string | null;
+  category: string | null;
+  /** Signed cents from the account holder's point of view: money in is positive, money out is negative. */
+  amountCents: number;
+  pending: boolean;
+}
+
+export interface BankTransactionsResponse {
+  transactions: BankTransactionDTO[];
+  /** True when a full page came back, so older transactions may exist. */
+  hasMore: boolean;
+}
+
+// ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------
 
-export type ApiErrorCode = "VALIDATION_ERROR" | "NOT_FOUND" | "BAD_REQUEST" | "CONFLICT" | "INTERNAL_ERROR";
+export type ApiErrorCode =
+  | "VALIDATION_ERROR"
+  | "NOT_FOUND"
+  | "BAD_REQUEST"
+  | "CONFLICT"
+  | "UPSTREAM_ERROR"
+  | "INTERNAL_ERROR";
 
 export interface ApiErrorBody {
   error: {

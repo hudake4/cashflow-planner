@@ -94,7 +94,7 @@ The trigger exposes `aria-expanded` and supports Enter/Space. Keep it keyboard r
 
 ## Responsive layout and accessibility
 
-- Breakpoints follow Tailwind defaults: mobile below `lg` (1024px), desktop sidebar at `lg` and above. The bottom navigation has five labelled links and safe-area padding; keep each target at least 44px high and wide.
+- Breakpoints follow Tailwind defaults: mobile below `lg` (1024px), desktop sidebar at `lg` and above. The bottom navigation has six labelled links and safe-area padding; keep each target at least 44px high and wide.
 - Keep the skip link, visible keyboard focus, semantic headings, explicit labels, and `aria-current="page"` on active navigation. Icon-only controls need an accessible name.
 - Reflow content without page-level horizontal scrolling between 320px and 1440px. Tables may scroll inside their own labeled/contained region.
 - Use `role="alert"` only for actionable errors and `role="status"` for nonurgent updates. Do not make color the only status signal.

@@ -8,6 +8,7 @@ const PAGES = [
   { path: "/calendar", heading: "Calendar", nav: "nav-calendar" },
   { path: "/bills", heading: "Bills", nav: "nav-bills" },
   { path: "/income", heading: "Income", nav: "nav-income" },
+  { path: "/institutions", heading: "Institutions", nav: "nav-institutions" },
   { path: "/settings", heading: "Settings", nav: "nav-settings" },
 ];
 
