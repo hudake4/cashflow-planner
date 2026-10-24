@@ -111,51 +111,29 @@ SimpleFIN Bridge is the only bank-connection provider. It is read-only, paid by 
 
 ## 10. Domain module API (pure, unit-testable)
 
-Tests are written against these exact signatures. If one changes, update this section and notify QA and frontend.
+The domain modules are the contract that the tests are written against. Their exported signatures are the source of truth, so this file does not repeat them: read the module.
 
-```ts
-// src/domain/money.ts (exists): parseMoneyToCents, centsToDecimalString, centsToInputValue, formatCents, sumCents
+| Module | Owns |
+|---|---|
+| `src/domain/money.ts` | parsing input to cents, formatting cents, summing |
+| `src/domain/dates.ts` | `YYYY-MM-DD` arithmetic (add days or clamped months, diff, week start, clamp, machine-local today) |
+| `src/domain/recurrence.ts` | `Schedule` and anchored occurrence generation (section 4) |
+| `src/domain/projection.ts` | window and range resolution, `computeProjection`, same-day ordering (sections 3, 6, 7) |
+| `src/domain/dashboard.ts` | `buildDashboard` (section 8) |
+| `src/domain/starting-balance.ts` | `effectiveStartingBalanceCents` (section 3) |
+| `src/domain/recurring.ts` | `detectRecurring` and merchant-name normalisation (section 12) |
 
-// src/domain/dates.ts
-addDays(date: string, days: number): string
-addMonthsClamped(anchor: string, months: number): string   // day = min(anchorDay, daysInMonth)
-daysInMonth(year: number, month1to12: number): number
-diffDays(from: string, to: string): number                   // to - from, in days
-startOfWeek(date: string, weekStartsOn: number): string
-eachDay(from: string, to: string): string[]                  // inclusive
-todayLocal(now?: Date): string                               // machine-local YYYY-MM-DD
-minDate(a: string, b: string): string; maxDate(a: string, b: string): string
-
-// src/domain/recurrence.ts
-interface Schedule { frequency: IncomeFrequency | BillFrequency; anchorDate: string; endDate: string | null }
-generateOccurrences(schedule: Schedule, from: string, to: string): string[]   // ascending, inclusive window
-isScheduledOn(schedule: Schedule, date: string): boolean
-
-// src/domain/projection.ts
-interface ProjectionInput {
-  settings: Pick<SettingsDTO, "startingBalanceCents" | "projectionStartDate" | "forecastDays" | "weekStartsOn" | "currency">;
-  incomes: Pick<IncomeDTO, "id" | "name" | "amountCents" | "frequency" | "anchorDate" | "endDate" | "active">[];
-  bills: Pick<BillDTO, "id" | "name" | "amountCents" | "frequency" | "anchorDate" | "endDate" | "active" | "category">[];
-  occurrences: Pick<BillOccurrenceDTO, "billId" | "dueDate" | "status" | "amountOverrideCents">[];
-  from?: string; to?: string;
-}
-computeProjection(input: ProjectionInput): ProjectionResponse
-
-// src/domain/dashboard.ts
-buildDashboard(input: Omit<ProjectionInput, "from" | "to" | "settings"> & { settings: SettingsDTO; today: string }): DashboardResponse
-
-// src/domain/recurring.ts (section 12)
-detectRecurring(input: { transactions: { date; description; amountCents }[]; incomes: ExistingSchedule[]; bills: ExistingSchedule[]; today: string }): RecurringSuggestionDTO[]
-// ExistingSchedule = { name; amountCents; frequency; anchorDate; endDate }
-```
+Rules for every module: pure functions, no Prisma, no I/O, no `Date.now()` (today is passed in). If you change an exported signature, update its callers and tests in the same PR and mention it in the PR description.
 
 ## 11. Team workflow rules
 
-- Node.js **24 LTS** is the project standard. Use the version pinned in `.nvmrc` (currently **24.22.1**) for development, tests, builds and CI; `package.json` permits newer Node 24 releases but excludes other major versions. Keep `.nvmrc` current with Node 24 LTS patch releases. npm enforces this requirement through `.npmrc`.
-- Select that runtime before every shell command. With nvm, run `nvm install` and `nvm use` from the repository root. For portable Node on Windows, install the pinned release in `.tools/node` and prepend it: `$env:Path = "$PWD\.tools\node;$env:Path"`. On macOS/Linux with a portable distribution there, use `export PATH="$PWD/.tools/node/bin:$PATH"`. Verify with `node --version`.
-- **One shared dev server** runs at http://localhost:3000 (started by the lead; it hot-reloads). Do not start another `next dev` or `next build`, because they share `.next/` and corrupt each other. Only the lead runs `next build`.
-- Do not edit `package.json` or install packages. Ask the lead.
-- Prisma schema changes require stopping the dev server on Windows (the engine DLL is locked). Ask the lead.
+- Node.js **24 LTS** is the project standard. Use the version pinned in `.nvmrc` (currently **24.22.1**); `package.json` permits newer Node 24 releases but excludes other major versions, and npm enforces this through `.npmrc`. Keep `.nvmrc` current with Node 24 LTS patch releases. With nvm, run `nvm install` and `nvm use` from the repository root. With a portable Node in `.tools/node` (git-ignored), put it first on `PATH` (`$env:Path = "$PWD\.tools\node;$env:Path"` in PowerShell, `export PATH="$PWD/.tools/node/bin:$PATH"` on macOS/Linux). Verify with `node --version`.
+- **Port 3000 only.** `scripts/check-port.mjs` fails loudly if the port is taken. Do not start a second `next dev` on 3000, and do not run `next build` in a checkout where a dev server is running (they share `.next/`). Worktrees have their own `.next/` and their own `prisma/dev.db`.
+- **Protecting data.** Real data lives in the main checkout's `prisma/dev.db` and the desktop app's `cashflow.db`. Never run `db:reset`, `prisma migrate reset`, `prisma db push` or `prisma migrate dev` against either. Apply migrations with `npm run db:deploy`. The E2E suite resets the database behind port 3000 and requires `E2E_ALLOW_DATA_RESET=1`; run it only against a server you started from your branch.
+- **Migrations** are forward-only, additive and hand-reviewed SQL files. Create with `prisma migrate dev --create-only`, read the SQL, apply with `db:deploy`. Never edit a shipped migration. Dropping a table or column needs a data copy in the same migration and a note in the PR. The desktop app applies pending migrations on launch after backing up `cashflow.db` (`<userData>/backups/`). On Windows, schema changes need the dev server stopped (the engine DLL is locked).
+- **Dependencies.** Anyone may add a package with `npm install <pkg>` (the lockfile updates with it). Prefer releases at least two weeks old, run `npm audit`, keep the app offline-capable (no runtime network calls or telemetry beyond SimpleFIN), and justify the package in the PR.
+- **Version and commits.** Conventional Commits. One `npm version patch|minor --no-git-tag-version` per PR; CI rejects a PR whose version equals `main`. See [AGENTS.md](../AGENTS.md).
+- **Checks.** `npm run typecheck`, `npm run lint` and `npm test` must pass before a PR is opened. CI runs the same on every PR.
 
 ## 12. Recurring-payment scan
 
