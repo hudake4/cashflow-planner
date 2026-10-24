@@ -2,10 +2,13 @@
 
 import { useState } from "react";
 import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import type { DashboardResponse } from "@/contracts/api";
 import { fmtDate, fmtShort } from "@/lib/dates";
 import { money } from "@/lib/format";
 import { Balance } from "@/components/ui/money";
+import { Expandable, ExpandableContent, ExpandableTrigger } from "@/components/ui/expandable";
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type Point = { date: string; balanceCents: number };
 
@@ -97,37 +100,43 @@ export function TrendChart({ dashboard }: { dashboard: DashboardResponse }) {
       <figcaption className="text-sm text-slate-700" data-testid="trend-summary">
         {summary}
       </figcaption>
-      <button
-        type="button"
-        onClick={() => setShowTable((s) => !s)}
-        aria-expanded={showTable}
-        className="text-xs font-semibold text-brand-700 hover:underline focus-visible:outline-2 focus-visible:outline-brand-600"
-      >
-        {showTable ? "Hide" : "Show"} balances as a table
-      </button>
-      {showTable && (
-        <div className="max-h-64 overflow-y-auto rounded-control border border-slate-200">
-          <table className="w-full text-sm">
-            <caption className="sr-only">Projected end-of-day balance by date</caption>
-            <thead className="sticky top-0 bg-slate-50 text-left text-xs text-slate-600">
-              <tr>
-                <th scope="col" className="px-3 py-2">Date</th>
-                <th scope="col" className="px-3 py-2 text-right">End-of-day balance</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {trend.map((p) => (
-                <tr key={p.date}>
-                  <td className="px-3 py-1.5">{fmtDate(p.date, "EEE, MMM d")}</td>
-                  <td className="px-3 py-1.5 text-right">
-                    <Balance cents={p.balanceCents} currency={currency} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <Expandable expanded={showTable} onToggle={() => setShowTable((open) => !open)} transitionDuration={0.18}>
+        {({ isExpanded }) => (
+          <>
+            <ExpandableTrigger
+              aria-label={`${isExpanded ? "Hide" : "Show"} projected balances as a table`}
+              data-testid="trend-table-toggle"
+              className="inline-flex min-h-11 items-center gap-1.5 px-1 text-sm font-semibold text-brand-700 underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {isExpanded ? "Hide" : "Show"} balances as a table
+              {isExpanded ? <ChevronUp className="size-4" aria-hidden="true" /> : <ChevronDown className="size-4" aria-hidden="true" />}
+            </ExpandableTrigger>
+            <ExpandableContent preset="fade">
+              <div className="max-h-64 overflow-auto rounded-control border border-border">
+                <Table className="w-full text-sm">
+                  <TableCaption className="sr-only">Projected end-of-day balance by date</TableCaption>
+                  <TableHeader className="sticky top-0 bg-muted text-left text-xs text-muted-foreground">
+                    <TableRow>
+                      <TableHead scope="col">Date</TableHead>
+                      <TableHead scope="col" className="text-right">End-of-day balance</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {trend.map((p) => (
+                      <TableRow key={p.date}>
+                        <TableCell>{fmtDate(p.date, "EEE, MMM d")}</TableCell>
+                        <TableCell className="text-right">
+                          <Balance cents={p.balanceCents} currency={currency} />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </ExpandableContent>
+          </>
+        )}
+      </Expandable>
     </figure>
   );
 }

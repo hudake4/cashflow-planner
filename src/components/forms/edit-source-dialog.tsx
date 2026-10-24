@@ -49,12 +49,19 @@ export function EditSourceDialog({
       open
       onClose={onClose}
       title={target.kind === "bill" ? "Edit bill" : "Edit income"}
-      footer={<Button onClick={onClose}>Close</Button>}
+      description="Loading the current schedule before editing."
+      variant="drawer"
+      size="lg"
+      footer={
+        <Button className="w-full sm:w-auto" onClick={onClose}>
+          Close
+        </Button>
+      }
     >
       {error ? (
         <ErrorState message={error} onRetry={() => setAttempt((n) => n + 1)} />
       ) : (
-        <div role="status" className="space-y-3">
+        <div role="status" className="flex flex-col gap-3">
           <span className="sr-only">Loading…</span>
           <Skeleton className="h-10 w-full" />
           <Skeleton className="h-10 w-full" />

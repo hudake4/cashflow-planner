@@ -35,6 +35,7 @@ export function EventDetailDialog({
       onClose={onClose}
       title={event?.name ?? ""}
       description={event ? `${event.kind === "INCOME" ? "Income" : "Bill"} on ${fmtDayShort(event.date)}` : undefined}
+      variant="drawer"
       size="md"
       testId="event-detail"
     >
@@ -78,9 +79,11 @@ function EventDetailBody({
     try {
       await action();
       await onChanged();
-      toast(message);
+      toast(message, "success");
     } catch (err) {
-      setError(errorMessage(err));
+      const message = errorMessage(err);
+      setError(message);
+      toast(message, "error");
     } finally {
       setBusy(null);
     }
@@ -178,6 +181,7 @@ function EventDetailBody({
             <Button
               variant={status === "PAID" ? "success" : "secondary"}
               size="sm"
+              className="h-auto min-h-11"
               loading={busy === "PAID"}
               disabled={busy !== null || status === "PAID"}
               aria-pressed={status === "PAID"}
@@ -189,6 +193,7 @@ function EventDetailBody({
             <Button
               variant="secondary"
               size="sm"
+              className="h-auto min-h-11"
               loading={busy === "SKIPPED"}
               disabled={busy !== null || status === "SKIPPED"}
               aria-pressed={status === "SKIPPED"}
@@ -200,6 +205,7 @@ function EventDetailBody({
             <Button
               variant="secondary"
               size="sm"
+              className="h-auto min-h-11"
               loading={busy === "UPCOMING"}
               disabled={busy !== null || status === "UPCOMING"}
               onClick={() => void setStatus("UPCOMING")}
@@ -240,7 +246,7 @@ function EventDetailBody({
       )}
 
       <div className="border-t border-slate-200 pt-4">
-        <Button onClick={() => onEditSource(event)} data-testid={isBill ? "event-edit-bill" : "event-edit-income"} className="w-full sm:w-auto">
+        <Button onClick={() => onEditSource(event)} data-testid={isBill ? "event-edit-bill" : "event-edit-income"} className="min-h-11 w-full sm:w-auto">
           <Pencil className="h-4 w-4" aria-hidden="true" /> {isBill ? "Edit bill" : "Edit income"}
         </Button>
         <p className="mt-2 text-xs text-slate-500">Changes the {isBill ? "bill" : "income"} for every date, not just this one.</p>
