@@ -141,3 +141,10 @@ All data lives in `prisma/dev.db` on this computer. The only external network ca
 ## Known dependency advisories
 
 `npm audit` reports a high-severity advisory in `deepmerge-ts`, which is pulled in by Prisma 6's dev-time config loader. The only fix is the breaking Prisma 7 upgrade. The issue requires merging attacker-controlled recursive objects into Prisma config, which doesn't happen in this local app, so it is accepted for now. PostCSS is pinned to a patched version through `overrides` in `package.json`.
+
+Two more high advisories are accepted in `.github/scripts/audit.mjs`, which CI runs on every PR and release:
+
+- **electron 44.7.0** (GHSA-jr5w-w6x2-84p9, certificate mitigation). The desktop app only loads `127.0.0.1`. Fixed in Electron 44.9.1, released 2026-10-20. Bump Electron and drop the allowlist entry once that release is two weeks old (from 2026-11-04).
+- **zod 3** (GHSA-mrhx-c7xc-m3w5, memory exhaustion on oversized collections). Every request comes from the single local user. The fix is the breaking zod 4 upgrade, to be done as its own PR.
+
+Any other high or critical advisory fails CI until it is fixed or added here with a reason.

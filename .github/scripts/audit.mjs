@@ -8,6 +8,13 @@ const ACCEPTED = new Map([
   // deepmerge-ts via @prisma/config (Prisma 6 dev-time config loader). The only
   // fix is the breaking Prisma 7 upgrade.
   ["GHSA-ggr8-5vv4-36mx", "deepmerge-ts stack exhaustion, see README"],
+  // electron 44.7.0: eMudhra certificate mitigation, fixed in 44.9.1 (2026-10-20).
+  // The app only loads 127.0.0.1. Remove this entry when bumping Electron, due
+  // once 44.9.x is two weeks old (from 2026-11-04).
+  ["GHSA-jr5w-w6x2-84p9", "electron certificate mitigation, upgrade from 2026-11-04, see README"],
+  // zod 3: memory exhaustion on oversized collections. All input is the single
+  // local user's own; the fix is the breaking zod 4 upgrade, tracked separately.
+  ["GHSA-mrhx-c7xc-m3w5", "zod oversized-collection DoS, local single user, see README"],
 ]);
 
 const result = spawnSync("npm", ["audit", "--json"], {
