@@ -52,7 +52,7 @@ The app only runs on port 3000. If the port is busy, `npm run dev` and `npm star
 ## Desktop app (Windows)
 
 ```bash
-npm run desktop:dist     # builds dist-desktop/CashFlow Planner Setup.exe (NSIS installer)
+npm run desktop:dist     # builds dist-desktop/CashFlow Planner Setup <version>.exe (NSIS installer)
 npm run desktop:start    # builds and runs the desktop app from source (data: %APPDATA%\CashFlow Planner (dev))
 ```
 

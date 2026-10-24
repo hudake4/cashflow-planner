@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: windows-release
+  cancel-in-progress: false
+
 jobs:
   check-version:
     name: Check release version
@@ -75,9 +79,6 @@ jobs:
     runs-on: windows-latest
     permissions:
       contents: write
-    concurrency:
-      group: windows-nsis-release-${{ needs.check-version.outputs.version }}
-      cancel-in-progress: false
     steps:
       - name: Check out source
         uses: actions/checkout@v7.0.1
@@ -114,6 +115,30 @@ jobs:
           $installer = "dist-desktop/CashFlow Planner Setup $env:RELEASE_VERSION.exe"
           if (-not (Test-Path -LiteralPath $installer)) {
             throw "Expected NSIS installer was not created: $installer"
+          }
+
+          $releaseOutput = & gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName 2>&1
+          $releaseStatus = $LASTEXITCODE
+          if ($releaseStatus -eq 0) {
+            Write-Host "::notice::Release $tag now exists; skipping Windows release."
+            exit 0
+          }
+          $releaseMessage = $releaseOutput -join "`n"
+          if ($releaseMessage -notmatch '(?i)release not found') {
+            Write-Error $releaseMessage
+            exit $releaseStatus
+          }
+
+          $tagOutput = & gh api "repos/$env:GITHUB_REPOSITORY/git/ref/tags/$tag" --jq .ref 2>&1
+          $tagStatus = $LASTEXITCODE
+          if ($tagStatus -eq 0) {
+            Write-Host "::notice::Tag $tag now exists; skipping Windows release."
+            exit 0
+          }
+          $tagMessage = $tagOutput -join "`n"
+          if ($tagMessage -notmatch '(?i)HTTP 404') {
+            Write-Error $tagMessage
+            exit $tagStatus
           }
 
           gh release create $tag $installer --repo $env:GITHUB_REPOSITORY --target $env:RELEASE_SHA --title "CashFlow Planner $tag" --generate-notes

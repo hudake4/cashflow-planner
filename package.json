@@ -1,6 +1,6 @@
 {
   "name": "cashflow-planner",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "description": "CashFlow Planner — a local personal cash-flow projection app.",
   "author": "Ethan Hudak",
