@@ -8,13 +8,9 @@ import type {
   BillDTO,
   BillInput,
   BillOccurrenceDTO,
-  BankTransactionsResponse,
-  ConnectInstitutionInput,
   DashboardResponse,
   IncomeDTO,
   IncomeInput,
-  InstitutionDTO,
-  InstitutionsConfigDTO,
   OccurrenceUpdateInput,
   ProjectionResponse,
   SettingsDTO,
@@ -105,17 +101,6 @@ export const api = {
     request<BillOccurrenceDTO>(`/bills/${encodeURIComponent(billId)}/occurrences/${date}`, json("PUT", input)),
   resetOccurrence: (billId: string, date: string) =>
     request<void>(`/bills/${encodeURIComponent(billId)}/occurrences/${date}`, json("DELETE")),
-
-  getInstitutionsConfig: () => request<InstitutionsConfigDTO>("/institutions/config"),
-  listInstitutions: () => request<InstitutionDTO[]>("/institutions"),
-  getInstitution: (id: string) => request<InstitutionDTO>(`/institutions/${encodeURIComponent(id)}`),
-  connectInstitution: (input: ConnectInstitutionInput) => request<InstitutionDTO>("/institutions", json("POST", input)),
-  removeInstitution: (id: string) => request<void>(`/institutions/${encodeURIComponent(id)}`, json("DELETE")),
-  listBankTransactions: (id: string, query: { accountId: string; fromId?: string }) => {
-    const qs = new URLSearchParams({ accountId: query.accountId });
-    if (query.fromId) qs.set("fromId", query.fromId);
-    return request<BankTransactionsResponse>(`/institutions/${encodeURIComponent(id)}/transactions?${qs}`);
-  },
 
   getProjection: (range?: { from?: string; to?: string }) => {
     const qs = new URLSearchParams();

@@ -60,36 +60,6 @@ model Bill {
   @@index([householdId])
 }
 
-// A bank connection made through Teller Connect. `id` is Teller's enrollment id.
-// The access token stays on the server and is never exposed through the API.
-model BankEnrollment {
-  id              String        @id
-  householdId     String        @default("local")
-  institutionId   String
-  institutionName String
-  accessToken     String
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  accounts        BankAccount[]
-
-  @@index([householdId])
-}
-
-// Account metadata only. Transactions are fetched live from Teller and never stored.
-model BankAccount {
-  id           String         @id // Teller account id
-  enrollmentId String
-  name         String
-  type         String // depository | credit
-  subtype      String
-  lastFour     String
-  currency     String         @default("USD")
-  status       String // open | closed
-  enrollment   BankEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
-
-  @@index([enrollmentId])
-}
-
 // Per-occurrence status / amount override for a bill. Rows exist only when the user
 // has recorded something for a specific due date; absence means UPCOMING with the
 // bill's default amount. Keyed by the occurrence's scheduled due date.

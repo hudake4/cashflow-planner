@@ -88,16 +88,8 @@ The ledger is sorted by:
 - All input is validated with the Zod schemas in `src/contracts/api.ts`, shared by server and client.
 - Errors use the `ApiErrorBody` shape: `{ error: { code, message, fieldErrors? } }`.
 - The data access layer is scoped by `householdId` (always `"local"` in the MVP).
-- The only remote API is Teller (`api.teller.io`), used read-only to list a user's connected bank accounts and transactions. Only the server calls it; access tokens never reach the browser. There are no analytics and no other external services.
+- There are no remote APIs, analytics or other external services. If a bank-connection provider is added, document it here, keep credentials server-side and never expose tokens to the browser.
 - The app runs on port **3000** only. `scripts/check-port.mjs` fails loudly if the port is taken.
-
-### Teller (bank connections)
-
-- Only `src/server/teller.ts` touches the Teller certificate, private key and access tokens. DTOs and API responses never include `accessToken`.
-- Teller's `amount` is a signed decimal string. It is converted to integer cents by string parsing (`src/server/teller-mapping.ts`), never with floats.
-- Bank transaction amounts are signed from the account holder's point of view: **money in is positive, money out is negative**. This is the opposite of bills (positive magnitudes). The sign normalization lives in one function so it can be adjusted once Teller's convention is confirmed with sandbox data.
-- Transactions are **fetched live** from Teller on every request and are not stored in the database. Only enrollments (with their tokens) and account metadata are stored.
-- Settings come from the environment (`TELLER_APPLICATION_ID`, `TELLER_ENVIRONMENT`, `TELLER_CERT_PATH`, `TELLER_KEY_PATH`), not the UI. The desktop app maps an optional `teller.json` in its data folder onto the same variables.
 
 ## 10. Domain module API (pure, unit-testable)
 

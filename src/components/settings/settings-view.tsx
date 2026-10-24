@@ -104,8 +104,8 @@ export function SettingsView({ appVersion }: { appVersion: string }) {
           <span className="flex items-start gap-2">
             <Database className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden="true" />
             <span>
-              This permanently deletes all income, bills and paid/skipped marks, disconnects every bank institution (access is revoked at
-              Teller), and resets settings to their defaults. This can&apos;t be undone.
+              This permanently deletes all income, bills and paid/skipped marks, and resets settings to their defaults. This can&apos;t be
+              undone.
             </span>
           </span>
         }
@@ -126,7 +126,7 @@ function DataCard({ onConfirmDemo, onConfirmReset }: { onConfirmDemo: () => void
         <Alert role="status" className="flex items-start gap-2 rounded-control border-border bg-muted">
           <HardDrive className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           <AlertDescription className="text-sm text-muted-foreground">
-            All data stays on this computer. The only thing that goes online is the read-only bank connection to Teller, if you set one up.
+            All data stays on this computer. Nothing is sent over the internet.
           </AlertDescription>
         </Alert>
         <div className="flex flex-col gap-2">

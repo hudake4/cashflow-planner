@@ -83,7 +83,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </ul>
         </nav>
         <p className="mx-5 border-t border-slate-200 py-4 text-xs leading-relaxed text-slate-600">
-          Your data stays on this computer. Bank connections are read-only, through Teller.
+          Your data stays on this computer.
         </p>
       </aside>
 
