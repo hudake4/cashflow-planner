@@ -5,6 +5,11 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to rebuild (for example v0.14.0)
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -18,80 +23,46 @@ jobs:
     name: Checks
     uses: ./.github/workflows/checks.yml
 
-  check-version:
-    name: Check release version
+  release-please:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
+      pull-requests: write
     outputs:
-      version: ${{ steps.version.outputs.version }}
-      should_release: ${{ steps.check.outputs.should_release }}
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
     steps:
-      - name: Check out source
-        uses: actions/checkout@v7.0.1
+      - name: Create or update Release PR
+        id: release
+        uses: googleapis/release-please-action@v4
         with:
-          persist-credentials: true
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
 
-      - name: Set up Node.js 24 LTS
-        uses: actions/setup-node@v7.1.0
-        with:
-          node-version-file: .nvmrc
-
-      - name: Read package version
-        id: version
-        shell: bash
-        run: |
-          version="$(node -p "require('./package.json').version")"
-          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
-
-      - name: Skip versions already published or tagged
-        id: check
+      - name: Set GitHub Release title
+        if: steps.release.outputs.release_created == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: v${{ steps.version.outputs.version }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          set +e
-          release_output="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json tagName 2>&1)"
-          release_status=$?
-          set -e
-          if [[ "$release_status" -eq 0 ]]; then
-            echo "Release $RELEASE_TAG already exists; skipping Windows build."
-            printf 'should_release=false\n' >> "$GITHUB_OUTPUT"
-            exit 0
-          elif [[ "$release_output" != *"release not found"* ]]; then
-            printf '%s\n' "$release_output" >&2
-            exit "$release_status"
-          fi
-
-          set +e
-          tag_output="$(git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" 2>&1)"
-          tag_status=$?
-          set -e
-          if [[ "$tag_status" -eq 0 ]]; then
-            echo "Tag $RELEASE_TAG already exists; skipping Windows build."
-            printf 'should_release=false\n' >> "$GITHUB_OUTPUT"
-          elif [[ "$tag_status" -eq 2 ]]; then
-            echo "No release or tag found for $RELEASE_TAG; Windows build can run."
-            printf 'should_release=true\n' >> "$GITHUB_OUTPUT"
-          else
-            printf '%s\n' "$tag_output" >&2
-            exit "$tag_status"
-          fi
+          TAG: ${{ steps.release.outputs.tag_name }}
+        run: gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "CashFlow Planner $TAG"
 
   build-and-release:
     name: Build and publish Windows installer
-    needs: [check-version, checks]
-    if: needs.check-version.outputs.should_release == 'true' && github.ref == 'refs/heads/main'
+    needs: [checks, release-please]
+    if: >-
+      always() && needs.checks.result == 'success' &&
+      ((github.event_name == 'push' && needs.release-please.outputs.release_created == 'true') ||
+      github.event_name == 'workflow_dispatch')
     runs-on: windows-latest
     permissions:
       contents: write
     steps:
-      - name: Check out source
+      - name: Check out release source
         uses: actions/checkout@v7.0.1
         with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.sha }}
           persist-credentials: false
 
       - name: Set up Node.js 24 LTS
@@ -113,42 +84,18 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
-      - name: Create GitHub Release
+      - name: Upload installer to release
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_VERSION: ${{ needs.check-version.outputs.version }}
-          RELEASE_SHA: ${{ github.sha }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || needs.release-please.outputs.tag_name }}
+          RELEASE_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || needs.release-please.outputs.version }}
         shell: pwsh
         run: |
-          $tag = "v$env:RELEASE_VERSION"
-          $installer = "dist-desktop/CashFlow Planner Setup $env:RELEASE_VERSION.exe"
+          $version = $env:RELEASE_VERSION -replace '^v', ''
+          $installer = "dist-desktop/CashFlow Planner Setup $version.exe"
           if (-not (Test-Path -LiteralPath $installer)) {
             throw "Expected NSIS installer was not created: $installer"
           }
 
-          $releaseOutput = & gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName 2>&1
-          $releaseStatus = $LASTEXITCODE
-          if ($releaseStatus -eq 0) {
-            Write-Host "::notice::Release $tag now exists; skipping Windows release."
-            exit 0
-          }
-          $releaseMessage = $releaseOutput -join "`n"
-          if ($releaseMessage -notmatch '(?i)release not found') {
-            Write-Error $releaseMessage
-            exit $releaseStatus
-          }
-
-          $tagOutput = & gh api "repos/$env:GITHUB_REPOSITORY/git/ref/tags/$tag" --jq .ref 2>&1
-          $tagStatus = $LASTEXITCODE
-          if ($tagStatus -eq 0) {
-            Write-Host "::notice::Tag $tag now exists; skipping Windows release."
-            exit 0
-          }
-          $tagMessage = $tagOutput -join "`n"
-          if ($tagMessage -notmatch '(?i)HTTP 404') {
-            Write-Error $tagMessage
-            exit $tagStatus
-          }
-
-          gh release create $tag $installer --repo $env:GITHUB_REPOSITORY --target $env:RELEASE_SHA --title "CashFlow Planner $tag" --generate-notes
+          gh release upload $env:RELEASE_TAG $installer --repo $env:GITHUB_REPOSITORY --clobber
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

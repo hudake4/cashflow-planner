@@ -62,7 +62,7 @@ The installer adds Start menu and desktop shortcuts. The app opens in its own wi
 
 Before a new version applies a database update, the app copies `cashflow.db` (and any `-journal`, `-wal` or `-shm` file next to it) to `%APPDATA%\CashFlow Planner\backups\cashflow-<YYYYMMDD-HHmmss>-pre-<migration>.db` (with `-2`, `-3`… before `.db` if that name is taken). Once the update has applied, it keeps the newest 10 backups and deletes older ones. If the backup fails, the app shows an error and quits without changing the database. To restore, quit the app, delete `cashflow.db` and any `cashflow.db-journal`, `cashflow.db-wal` or `cashflow.db-shm` next to it, then copy the backup's `.db` file and any of its `-journal`, `-wal` or `-shm` files back, renamed to `cashflow.db`, `cashflow.db-journal`, `cashflow.db-wal` and `cashflow.db-shm`.
 
-On pushes to `main`, the workflow publishes the Windows NSIS installer as a GitHub Release tagged `v<package.json version>`, unless that tag or release already exists. `workflow_dispatch` can rerun it manually. The setup filename includes the app version.
+Conventional Commits: `fix` → patch release, `feat` → minor release, `!`/`BREAKING CHANGE` → minor while 0.x; other types release nothing. Don't edit the version by hand. Release-please opens a Release PR, and merging it publishes the GitHub Release titled `CashFlow Planner vX.Y.Z`. The Windows NSIS installer is attached to that release. `workflow_dispatch` can rebuild and attach the installer for an existing release tag.
 
 > If `ELECTRON_RUN_AS_NODE=1` is set in your shell (some IDE terminals set it), the exe silently runs as plain Node. Run `Remove-Item Env:ELECTRON_RUN_AS_NODE` first.
 
