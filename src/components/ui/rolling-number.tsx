@@ -27,6 +27,8 @@ export function RollingNumber({
   const reduceMotion = useReducedMotion()
   const spring = useSpring(value, { mass, stiffness, damping })
   const display: MotionValue<string> = useTransform(spring, (current) =>
+    // Animation frame of an already-formatted number, not money arithmetic.
+    // eslint-disable-next-line no-restricted-globals
     format(parseFloat(current.toFixed(precision)))
   )
 

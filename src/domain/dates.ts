@@ -79,6 +79,8 @@ export function eachDay(from: string, to: string): string[] {
 }
 
 /** The machine-local calendar date (CONVENTIONS section 2: "today" is server-local). */
+// The one place the domain touches the clock; callers pass `now` in tests.
+// eslint-disable-next-line no-restricted-syntax
 export function todayLocal(now: Date = new Date()): string {
   return formatIsoDate(now.getFullYear(), now.getMonth() + 1, now.getDate());
 }

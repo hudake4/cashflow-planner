@@ -123,7 +123,7 @@ The domain modules are the contract that the tests are written against. Their ex
 | `src/domain/starting-balance.ts` | `effectiveStartingBalanceCents` (section 3) |
 | `src/domain/recurring.ts` | `detectRecurring` and merchant-name normalisation (section 12) |
 
-Rules for every module: pure functions, no Prisma, no I/O, no `Date.now()` (today is passed in). If you change an exported signature, update its callers and tests in the same PR and mention it in the PR description.
+Rules for every module: pure functions, no Prisma, no I/O, no `Date.now()` (today is passed in). ESLint enforces this (`eslint.config.mjs`, the `src/domain` block), and bans `parseFloat` across `src/` because money is parsed from strings. If you change an exported signature, update its callers and tests in the same PR and mention it in the PR description.
 
 ## 11. Team workflow rules
 
