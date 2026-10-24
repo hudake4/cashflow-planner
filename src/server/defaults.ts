@@ -9,6 +9,9 @@ export const HOUSEHOLD_ID = "local";
 export function defaultSettings(today: string = todayLocal()): SettingsDTO {
   return {
     startingBalanceCents: 0,
+    startingBalanceSource: "MANUAL",
+    accountsBalanceCents: null,
+    accountCount: 0,
     projectionStartDate: today,
     currency: "USD",
     forecastDays: DEFAULT_FORECAST_DAYS,

@@ -1,6 +1,7 @@
 "use client";
 
 import { Database, HardDrive, Sparkles, Trash } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import {
   MAX_FORECAST_DAYS,
@@ -8,8 +9,9 @@ import {
   settingsInputSchema,
   type SettingsDTO,
   type SettingsInput,
+  type StartingBalanceSource,
 } from "@/contracts/api";
-import { centsToInputValue, parseMoneyToCents } from "@/domain/money";
+import { centsToInputValue, formatCents, parseMoneyToCents } from "@/domain/money";
 import { ApiError, api, errorMessage } from "@/lib/api-client";
 import { CURRENCIES } from "@/lib/format";
 import { applyTheme, currentTheme, type Theme } from "@/lib/theme";
@@ -175,6 +177,7 @@ function AppearanceCard() {
 function SettingsForm({ initial, onSaved }: { initial: SettingsDTO; onSaved: () => void }) {
   const toast = useToast();
   const [balance, setBalance] = useState(centsToInputValue(initial.startingBalanceCents));
+  const [source, setSource] = useState(initial.startingBalanceSource);
   const [startDate, setStartDate] = useState(initial.projectionStartDate);
   const [currency, setCurrency] = useState(initial.currency);
   const [forecastDays, setForecastDays] = useState(String(initial.forecastDays));
@@ -185,6 +188,7 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsDTO; onSaved: () 
   const [status, setStatus] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const manualCents = parseMoneyToCents(balance, { allowNegative: true });
   const currencyOptions = CURRENCIES.some((c) => c.code === initial.currency)
     ? CURRENCIES
     : [{ code: initial.currency, label: initial.currency }, ...CURRENCIES];
@@ -192,13 +196,15 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsDTO; onSaved: () 
   async function submit(e: FormEvent) {
     e.preventDefault();
     setStatus(null);
-    const cents = parseMoneyToCents(balance, { allowNegative: true });
+    // The typed balance is hidden (but kept) while the accounts' total is used, so don't block saving on it.
+    const cents = source === "ACCOUNTS" ? (manualCents ?? initial.startingBalanceCents) : manualCents;
     const clientErrors: Record<string, string[]> = {};
     if (cents === null) clientErrors.startingBalanceCents = ["Enter a balance like 1250.00 or -40.00 (up to 2 decimals)"];
     const days = /^\d+$/.test(forecastDays.trim()) ? Number(forecastDays) : Number.NaN;
 
     const payload: SettingsInput = {
       startingBalanceCents: cents ?? Number.NaN,
+      startingBalanceSource: source,
       projectionStartDate: startDate,
       currency,
       forecastDays: days,
@@ -247,18 +253,62 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsDTO; onSaved: () 
           <FieldGroup className="gap-5">
             <div className="grid gap-5 sm:grid-cols-2">
               <Field
-                label="Starting balance"
-                hint="Your actual balance before anything due on the projection start date. Can be negative."
-                error={errors.startingBalanceCents}
-                testId="settings-starting-balance"
+                label="Starting balance source"
+                hint="Type your balance yourself, or use the total of your connected bank accounts."
+                error={errors.startingBalanceSource}
+                testId="settings-balance-source"
               >
-                <MoneyInput
-                  value={balance}
-                  onChange={(e) => setBalance(e.target.value)}
-                  prefix={currency === "USD" ? "$" : currency}
-                  data-testid="settings-starting-balance"
-                />
+                <Select
+                  value={source}
+                  onChange={(e) => setSource(e.target.value as StartingBalanceSource)}
+                  data-testid="settings-balance-source"
+                >
+                  <option value="MANUAL">Enter it myself</option>
+                  <option value="ACCOUNTS">Sum of my bank accounts</option>
+                </Select>
               </Field>
+              {source === "ACCOUNTS" ? (
+                <div className="flex flex-col gap-1.5" data-testid="settings-accounts-balance">
+                  <span className="text-sm font-medium text-foreground">Starting balance</span>
+                  {initial.accountsBalanceCents === null ? (
+                    <p className="text-sm text-muted-foreground">
+                      No bank accounts are connected yet, so your typed balance of{" "}
+                      <span className="tabular-nums">{formatCents(manualCents ?? initial.startingBalanceCents, { currency })}</span> is used.{" "}
+                      <Link href="/institutions" className="font-semibold text-brand-700 underline">
+                        Connect a bank
+                      </Link>
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-lg font-semibold tabular-nums text-foreground">
+                        {formatCents(initial.accountsBalanceCents, { currency })}
+                      </p>
+                      <p className="text-xs leading-relaxed text-muted-foreground">
+                        Total of {initial.accountCount} connected {initial.accountCount === 1 ? "account" : "accounts"} as of the last
+                        refresh. Refresh your banks on the{" "}
+                        <Link href="/institutions" className="font-semibold text-brand-700 underline">
+                          Banks page
+                        </Link>{" "}
+                        to update it, and set the start date to today.
+                      </p>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <Field
+                  label="Starting balance"
+                  hint="Your actual balance before anything due on the projection start date. Can be negative."
+                  error={errors.startingBalanceCents}
+                  testId="settings-starting-balance"
+                >
+                  <MoneyInput
+                    value={balance}
+                    onChange={(e) => setBalance(e.target.value)}
+                    prefix={currency === "USD" ? "$" : currency}
+                    data-testid="settings-starting-balance"
+                  />
+                </Field>
+              )}
               <Field
                 label="Projection start date"
                 hint="Income and bills on or after this date are projected."

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { GET, PUT } from "@/app/api/settings/route";
+import { GET as projectionGET } from "@/app/api/projection/route";
+import type { ProjectionResponse } from "@/contracts/api";
 import { todayLocal } from "@/domain/dates";
 import { call, expectApiError } from "../helpers/api";
+import { testPrisma } from "../setup/integration-setup";
 
 const valid = {
   startingBalanceCents: 100000,
@@ -18,6 +21,9 @@ describe("/api/settings", () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
       startingBalanceCents: 0,
+      startingBalanceSource: "MANUAL",
+      accountsBalanceCents: null,
+      accountCount: 0,
       projectionStartDate: todayLocal(),
       currency: "USD",
       forecastDays: 90,
@@ -65,11 +71,54 @@ describe("/api/settings", () => {
     ["startingBalanceCents", { startingBalanceCents: "1000" }],
     ["startingBalanceCents", { startingBalanceCents: undefined }],
     ["defaultCalendarView", { defaultCalendarView: "year" }],
+    ["startingBalanceSource", { startingBalanceSource: "BANK" }],
   ])("400 VALIDATION_ERROR for bad %s (%j)", async (field, patch) => {
     const res = await call(PUT, "PUT", "/api/settings", { body: { ...valid, ...patch } });
     expectApiError(res, 400, "VALIDATION_ERROR", [field]);
     // nothing was saved
     expect((await call(GET, "GET", "/api/settings")).body.updatedAt).toBeNull();
+  });
+
+  describe("starting balance source", () => {
+    const addAccount = async (id: string, balanceCents: number) => {
+      const conn = await testPrisma.bankConnection.create({ data: { accessUrl: "https://u:p@bridge.simplefin.org/simplefin" } });
+      await testPrisma.bankAccount.create({
+        data: {
+          id: `${conn.id}:${id}`, connectionId: conn.id, providerAccountId: id, institutionName: "Bank", name: id,
+          currency: "USD", balanceCents, balanceDate: "2026-10-24",
+        },
+      });
+    };
+    const startingBalance = async () => (await call<ProjectionResponse>(projectionGET, "GET", "/api/projection")).body.startingBalanceCents;
+
+    it("defaults to manual and ignores connected accounts", async () => {
+      await addAccount("checking", 500000);
+      const put = await call(PUT, "PUT", "/api/settings", { body: valid });
+      expect(put.body).toMatchObject({ startingBalanceSource: "MANUAL", accountsBalanceCents: 500000, accountCount: 1 });
+      expect(await startingBalance()).toBe(100000);
+    });
+
+    it("ACCOUNTS projects from the sum of all accounts and keeps the typed balance", async () => {
+      await addAccount("checking", 500000);
+      await addAccount("card", -120050);
+      const put = await call(PUT, "PUT", "/api/settings", { body: { ...valid, startingBalanceSource: "ACCOUNTS" } });
+      expect(put.body).toMatchObject({
+        startingBalanceCents: 100000,
+        startingBalanceSource: "ACCOUNTS",
+        accountsBalanceCents: 379950,
+        accountCount: 2,
+      });
+      expect(await startingBalance()).toBe(379950);
+      // Switching back uses the typed balance again.
+      await call(PUT, "PUT", "/api/settings", { body: valid });
+      expect(await startingBalance()).toBe(100000);
+    });
+
+    it("ACCOUNTS falls back to the typed balance while no account is connected", async () => {
+      const put = await call(PUT, "PUT", "/api/settings", { body: { ...valid, startingBalanceSource: "ACCOUNTS" } });
+      expect(put.body).toMatchObject({ accountsBalanceCents: null, accountCount: 0 });
+      expect(await startingBalance()).toBe(100000);
+    });
   });
 
   it("accepts forecastDays at the 7 and 366 bounds", async () => {
