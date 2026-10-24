@@ -17,6 +17,7 @@ import type {
   InstitutionSyncDTO,
   OccurrenceUpdateInput,
   ProjectionResponse,
+  RecurringScanResponse,
   SettingsDTO,
   SettingsInput,
 } from "@/contracts/api";
@@ -124,6 +125,9 @@ export const api = {
     const qs = new URLSearchParams({ accountId, offset: String(offset) });
     return request<BankTransactionsResponse>(`/institutions/${encodeURIComponent(id)}/transactions?${qs.toString()}`);
   },
+
+  /** Finds repeating payments/deposits in the stored bank history. Reads local data only. */
+  scanRecurring: () => request<RecurringScanResponse>("/recurring"),
 
   loadDemoData: () => request<{ ok: true }>("/data/demo", json("POST")),
   resetAllData: () => request<{ ok: true }>("/data/reset", json("POST")),

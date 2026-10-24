@@ -4,7 +4,7 @@ A local, single-user personal cash-flow planner. It answers one question:
 
 > **How much money will I have left each week after accounting for my income and all my upcoming bills?**
 
-You enter a starting balance, your paychecks (weekly, biweekly or one-time) and your bills (one-time, weekly, biweekly, monthly, quarterly, yearly). CashFlow Planner projects your running balance day by day and week by week on a calendar, and explains every number with an event ledger.
+You enter a starting balance, your paychecks (weekly, biweekly, monthly or one-time) and your bills (one-time, weekly, biweekly, monthly, quarterly, yearly). CashFlow Planner projects your running balance day by day and week by week on a calendar, and explains every number with an event ledger.
 
 - Runs entirely on your machine at **http://localhost:3000**. There are no accounts and no analytics. The only external call is the optional [SimpleFIN Bridge](https://www.simplefin.org) bank connection, and only when you connect or refresh a bank.
 - Projections are estimates. They assume every scheduled paycheck arrives and every listed bill is paid on time.
@@ -15,6 +15,7 @@ You enter a starting balance, your paychecks (weekly, biweekly or one-time) and 
 - **Dashboard:** starting balance, next paycheck, projected end of this week and next week, lowest projected balance, totals, a negative-balance warning, upcoming bills and a balance trend chart.
 - **Income & Bills:** create, edit, delete and deactivate, with optional end dates, categories and notes.
 - **Institutions:** optionally connect a bank read-only through SimpleFIN Bridge, see its accounts and balances, browse the transactions saved from your last sync, refresh on demand, and remove it again.
+- **Find recurring:** on the Dashboard, Bills and Income pages, scan your saved bank transactions for repeating bills and paychecks, then add the ones you pick with frequency and next date filled in. It reads the local copy only and never uses a SimpleFIN request.
 - **Settings:** starting balance, projection start date, currency, forecast length (7–366 days), week start day and default calendar view. Also load demo data or clear everything.
 
 ## Prerequisites

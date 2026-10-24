@@ -9,6 +9,7 @@ import { FREQUENCY_LABELS, money } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/app-shell";
+import { RecurringScanButton } from "@/components/recurring/recurring-scan";
 import { ScheduleFormDialog, type ScheduleKind } from "@/components/forms/schedule-form-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -110,6 +111,8 @@ export function ScheduleListPage({ kind }: { kind: ScheduleKind }) {
     </Button>
   );
 
+  const scanButton = <RecurringScanButton onAdded={() => void list.reload()} className="w-full sm:w-auto" />;
+
   const items = list.data ?? [];
   const Icon = kind === "bill" ? Receipt : HandCoins;
 
@@ -132,7 +135,16 @@ export function ScheduleListPage({ kind }: { kind: ScheduleKind }) {
 
   return (
     <>
-      <PageHeader title={copy.title} description={copy.description} actions={items.length > 0 ? addButton : undefined} />
+      <PageHeader
+        title={copy.title}
+        description={copy.description}
+        actions={
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            {scanButton}
+            {items.length > 0 && addButton}
+          </div>
+        }
+      />
 
       {actionError && (
         <Alert variant="destructive" role="alert" className="mb-5 flex items-start gap-3">

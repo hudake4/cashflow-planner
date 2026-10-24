@@ -142,6 +142,10 @@ computeProjection(input: ProjectionInput): ProjectionResponse
 
 // src/domain/dashboard.ts
 buildDashboard(input: Omit<ProjectionInput, "from" | "to" | "settings"> & { settings: SettingsDTO; today: string }): DashboardResponse
+
+// src/domain/recurring.ts (section 12)
+detectRecurring(input: { transactions: { date; description; amountCents }[]; incomes: ExistingSchedule[]; bills: ExistingSchedule[]; today: string }): RecurringSuggestionDTO[]
+// ExistingSchedule = { name; amountCents; frequency; anchorDate; endDate }
 ```
 
 ## 11. Team workflow rules
@@ -151,3 +155,28 @@ buildDashboard(input: Omit<ProjectionInput, "from" | "to" | "settings"> & { sett
 - **One shared dev server** runs at http://localhost:3000 (started by the lead; it hot-reloads). Do not start another `next dev` or `next build`, because they share `.next/` and corrupt each other. Only the lead runs `next build`.
 - Do not edit `package.json` or install packages. Ask the lead.
 - Prisma schema changes require stopping the dev server on Windows (the engine DLL is locked). Ask the lead.
+
+## 12. Recurring-payment scan
+
+Finds repeating payments and deposits in the stored bank history (section 9, SimpleFIN) and suggests them as bills or income. Pure rules in `src/domain/recurring.ts`. The scan reads the local snapshot only and **never calls SimpleFIN**.
+
+- **Input:** settled (non-pending) transactions in the 89-day history window.
+- **Grouping:** by direction (money in = income, money out = bill) and a normalised merchant name. Reference numbers and bank boilerplate (`POS`, `DEBIT`, `ACH`, …) are dropped; the first 3 words form the key. Several charges on the same day are one sighting, with amounts summed.
+- **Cadences:**
+
+| Frequency | Gap between sightings | Min. sightings | Amount tolerance (vs. median) | Stopped if last sighting is older than |
+|---|---|---|---|---|
+| `WEEKLY` | 6–8 days | 3 | 15% | 14 days |
+| `BIWEEKLY` | 13–15 days | 3 | 15% | 28 days |
+| `MONTHLY` | 26–35 days | 2 | 10% (2 sightings), 40% (3+) | 45 days |
+
+- Quarterly and yearly payments are **not detectable**: they don't repeat inside 89 days.
+- **Amount:** the latest occurrence. `amountVaries` is true when amounts differ by more than 2% of the median.
+- **Next date:** the first expected date on or after today. Weekly and biweekly step 7 or 14 days from the last sighting. Monthly uses the usual day of month; a clamped month-end does not override a 31st (section 4).
+- **Already tracked (hidden):** an existing bill or income of the same kind that is not one-time and not ended (paused counts) when any of these hold:
+  1. one name's words (ignoring bank boilerplate) are all in the other name;
+  2. same first word (5+ letters) and amount within 25%;
+  3. same frequency, amount within 3%, and a scheduled date within 3 days (monthly) or 1 day (weekly, biweekly) of the suggested next date.
+- **Order:** next date, then income before bills, then name.
+- **Skip is per scan.** Nothing is stored, so skipped suggestions reappear on the next scan.
+- **Adding** a suggestion uses the normal `POST /api/bills` or `POST /api/income`, with the notes "Found in your bank history."

@@ -67,7 +67,7 @@ describe("/api/income validation (19)", () => {
     ["name", { name: undefined }],
     ["name", { name: "   " }],
     ["name", { name: "x".repeat(81) }],
-    ["frequency", { frequency: "MONTHLY" }], // income allows WEEKLY | BIWEEKLY | ONE_TIME only
+    ["frequency", { frequency: "QUARTERLY" }], // income allows WEEKLY | BIWEEKLY | MONTHLY | ONE_TIME only
     ["frequency", { frequency: "daily" }],
     ["anchorDate", { anchorDate: "2025-02-30" }],
     ["anchorDate", { anchorDate: "abc" }],
