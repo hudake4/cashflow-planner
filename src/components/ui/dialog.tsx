@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type ReactNode } from "react";
+import { useRef, type FocusEvent as ReactFocusEvent, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "./button";
@@ -35,6 +35,13 @@ export type DialogFocusTarget = HTMLElement | null | (() => HTMLElement | null);
 
 function resolveTarget(target?: DialogFocusTarget) {
   return typeof target === "function" ? target() : target;
+}
+
+function revealFocusedControl(event: ReactFocusEvent<HTMLDivElement>) {
+  const target = event.target;
+  if (target instanceof HTMLElement && typeof target.scrollIntoView === "function") {
+    target.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+  }
 }
 
 /** Each open cycle owns its opener; replacement dialogs retain control of focus. */
@@ -131,7 +138,7 @@ export function Dialog({
             </Button>
           </DialogClose>
         </ShadcnDialogHeader>
-        <div className="min-h-0 overflow-y-auto px-5 py-4">{children}</div>
+        <div className="min-h-0 overflow-y-auto scroll-py-2 px-5 py-4" onFocusCapture={revealFocusedControl}>{children}</div>
         {footer && (
           <ShadcnDialogFooter className="flex flex-wrap justify-end gap-2 border-t border-border bg-muted px-5 py-3">
             {footer}

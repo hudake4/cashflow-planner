@@ -70,6 +70,36 @@ it("does not confuse a closed row menu with a closed dialog", async () => {
   await waitFor(() => expect(screen.getByText("Row actions")).toHaveFocus());
 });
 
+it("scrolls a focused control into the dialog body without smooth motion", async () => {
+  const scrollIntoView = vi.fn();
+  const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollIntoView");
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scrollIntoView });
+
+  function FocusableDialog() {
+    const [open, setOpen] = useState(false);
+    return <><button onClick={() => setOpen(true)}>Open focus dialog</button>
+      <Dialog open={open} onClose={() => setOpen(false)} title="Focus" description="Focused field">
+        <button data-testid="dialog-focus-target">Focused field</button>
+      </Dialog>
+    </>;
+  }
+
+  try {
+    const user = userEvent.setup();
+    render(<FocusableDialog />);
+    await user.click(screen.getByText("Open focus dialog"));
+    const target = screen.getByTestId("dialog-focus-target");
+    act(() => target.focus());
+
+    expect(target).toHaveFocus();
+    expect(target.closest(".overflow-y-auto")).toHaveClass("scroll-py-2");
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", inline: "nearest", behavior: "instant" });
+  } finally {
+    if (original) Object.defineProperty(HTMLElement.prototype, "scrollIntoView", original);
+    else Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+  }
+});
+
 it.each(["Escape", "Cancel"])("keeps the same source-edit dialog through async loading and restores after %s", async (close) => {
   let resolve!: (response: Response) => void;
   vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((done) => { resolve = done; })));
