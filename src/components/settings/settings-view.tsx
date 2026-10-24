@@ -1,7 +1,7 @@
 "use client";
 
 import { Database, HardDrive, Sparkles, Trash } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import {
   MAX_FORECAST_DAYS,
   MIN_FORECAST_DAYS,
@@ -12,12 +12,13 @@ import {
 import { centsToInputValue, parseMoneyToCents } from "@/domain/money";
 import { ApiError, api, errorMessage } from "@/lib/api-client";
 import { CURRENCIES } from "@/lib/format";
+import { applyTheme, currentTheme, type Theme } from "@/lib/theme";
 import { useApi } from "@/lib/use-api";
 import { PageHeader } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Field, Input, MoneyInput, Select } from "@/components/ui/field";
+import { Field, Input, MoneyInput, Select, Switch } from "@/components/ui/field";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, InlineStatus } from "@/components/ui/states";
 import { useToast } from "@/components/ui/toast";
@@ -62,6 +63,7 @@ export function SettingsView({ appVersion }: { appVersion: string }) {
         </div>
 
         <div className="space-y-6">
+          <AppearanceCard />
           <Card>
             <CardHeader title="Data" description="Manage what's stored in this app." />
             <CardBody className="space-y-4">
@@ -136,6 +138,31 @@ export function SettingsView({ appVersion }: { appVersion: string }) {
         }}
       />
     </>
+  );
+}
+
+function AppearanceCard() {
+  // Starts at the server default; synced to the class the boot script left on <html>.
+  const [theme, setTheme] = useState<Theme>("dark");
+  useEffect(() => setTheme(currentTheme()), []);
+
+  return (
+    <Card>
+      <CardHeader title="Appearance" description="Saved on this computer only." />
+      <CardBody>
+        <Switch
+          checked={theme === "dark"}
+          onChange={(on) => {
+            const next: Theme = on ? "dark" : "light";
+            applyTheme(next);
+            setTheme(next);
+          }}
+          label="Dark mode"
+          description="Light text on a dark background. Turn off for the paper look."
+          testId="settings-dark-mode"
+        />
+      </CardBody>
+    </Card>
   );
 }
 

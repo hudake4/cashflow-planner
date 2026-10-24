@@ -84,8 +84,8 @@ export function EventChip({
         skipped
           ? "border-dashed border-slate-300 border-l-slate-300 bg-slate-50 text-slate-500 hover:bg-slate-100"
           : event.kind === "INCOME"
-            ? "border-slate-200 border-l-emerald-700 bg-white hover:bg-emerald-50"
-            : "border-slate-200 border-l-rose-700 bg-white hover:bg-rose-50",
+            ? "border-slate-200 border-l-emerald-700 bg-field hover:bg-emerald-50"
+            : "border-slate-200 border-l-rose-700 bg-field hover:bg-rose-50",
       )}
     >
       <Icon

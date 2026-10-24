@@ -233,7 +233,7 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
                 data-testid={`calendar-view-${v}`}
                 className={clsx(
                   "rounded-chip px-3 py-1 text-sm font-semibold capitalize focus-visible:outline-2 focus-visible:outline-brand-600",
-                  view === v ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100",
+                  view === v ? "bg-slate-900 text-on-accent" : "text-slate-700 hover:bg-slate-100",
                 )}
               >
                 {v}

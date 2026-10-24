@@ -36,22 +36,22 @@ export function TrendChart({ dashboard }: { dashboard: DashboardResponse }) {
           <AreaChart data={trend} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
             <defs>
               <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#2c49a6" stopOpacity={0.16} />
-                <stop offset="100%" stopColor="#2c49a6" stopOpacity={0} />
+                <stop offset="0%" stopColor="var(--color-brand-600)" stopOpacity={0.16} />
+                <stop offset="100%" stopColor="var(--color-brand-600)" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid stroke="#d8e1dc" vertical={false} />
+            <CartesianGrid stroke="var(--color-slate-200)" vertical={false} />
             <XAxis
               dataKey="date"
               tickFormatter={(d: string) => fmtDate(d, "MMM d")}
-              tick={{ fontSize: 11, fill: "#4b5d58" }}
+              tick={{ fontSize: 11, fill: "var(--color-slate-600)" }}
               tickLine={false}
-              axisLine={{ stroke: "#bfcdc6" }}
+              axisLine={{ stroke: "var(--color-slate-300)" }}
               minTickGap={32}
             />
             <YAxis
               tickFormatter={tick}
-              tick={{ fontSize: 11, fill: "#4b5d58" }}
+              tick={{ fontSize: 11, fill: "var(--color-slate-600)" }}
               tickLine={false}
               axisLine={false}
               width={56}
@@ -62,13 +62,13 @@ export function TrendChart({ dashboard }: { dashboard: DashboardResponse }) {
             <ReferenceLine
               y={0}
               ifOverflow="extendDomain"
-              stroke="#a82a20"
+              stroke="var(--color-rose-700)"
               strokeDasharray="4 3"
               strokeWidth={1.5}
-              label={{ value: "Zero", position: "insideBottomRight", fill: "#a82a20", fontSize: 11 }}
+              label={{ value: "Zero", position: "insideBottomRight", fill: "var(--color-rose-700)", fontSize: 11 }}
             />
             <Tooltip
-              cursor={{ stroke: "#93a49d", strokeWidth: 1 }}
+              cursor={{ stroke: "var(--color-slate-400)", strokeWidth: 1 }}
               content={({ active, payload }) => {
                 const p = active && payload?.[0]?.payload as Point | undefined;
                 if (!p) return null;
@@ -85,10 +85,10 @@ export function TrendChart({ dashboard }: { dashboard: DashboardResponse }) {
             <Area
               type="stepAfter"
               dataKey="balanceCents"
-              stroke="#2c49a6"
+              stroke="var(--color-brand-600)"
               strokeWidth={2}
               fill="url(#trendFill)"
-              activeDot={{ r: 4, strokeWidth: 2, stroke: "#fbfcfa" }}
+              activeDot={{ r: 4, strokeWidth: 2, stroke: "var(--color-sheet)" }}
               isAnimationActive={false}
             />
           </AreaChart>

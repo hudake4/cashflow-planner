@@ -1,16 +1,15 @@
-// Generates the simple desktop app icon (build/icon.png, 512x512) from inline SVG.
+// Generates the desktop app icon (build/icon.png, 512x512) from inline SVG.
 // electron-builder converts it to .ico. Re-run only if the design changes.
+// Mirrors RegisterMark in src/components/app-shell.tsx, in the default (dark) theme colors.
 import fs from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
 
 const svg = `
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <rect x="16" y="16" width="480" height="480" rx="96" fill="#0f766e"/>
-  <polyline points="96,352 192,256 272,304 416,160" fill="none" stroke="#ffffff"
-            stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/>
-  <polyline points="336,160 416,160 416,240" fill="none" stroke="#ffffff"
-            stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 28 28">
+  <rect width="28" height="28" rx="6" fill="#e0e0e0"/>
+  <path d="M5 9.5h18M5 14h18M5 18.5h18" stroke="#9c9c9c" stroke-width="1"/>
+  <path d="M5 20.5h5v-6h5v3h4V7.5h4" fill="none" stroke="#444444" stroke-width="2" stroke-linejoin="round"/>
 </svg>`;
 
 const out = path.resolve(import.meta.dirname, "..", "build", "icon.png");

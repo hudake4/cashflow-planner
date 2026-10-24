@@ -31,7 +31,7 @@ export function DashboardView() {
         title="Dashboard"
         description="How much you'll have left each week after income and upcoming bills."
         actions={
-          <Link href="/calendar" className={clsx(linkButton, "bg-brand-600 text-white hover:bg-brand-700")} data-testid="dashboard-open-calendar">
+          <Link href="/calendar" className={clsx(linkButton, "bg-brand-600 text-on-accent hover:bg-brand-700")} data-testid="dashboard-open-calendar">
             <CalendarDays className="h-4 w-4" aria-hidden="true" /> Open calendar
           </Link>
         }
@@ -147,7 +147,7 @@ function DashboardContent({ d }: { d: DashboardResponse }) {
           testId="dashboard-empty"
           action={
             <div className="flex flex-wrap justify-center gap-2">
-              <Link href="/income" className={clsx(linkButton, "bg-brand-600 text-white hover:bg-brand-700")}>
+              <Link href="/income" className={clsx(linkButton, "bg-brand-600 text-on-accent hover:bg-brand-700")}>
                 <HandCoins className="h-4 w-4" aria-hidden="true" /> Add your first paycheck
               </Link>
               <Link href="/bills" className={clsx(linkButton, "border border-slate-300 bg-sheet text-slate-800 hover:border-slate-400")}>

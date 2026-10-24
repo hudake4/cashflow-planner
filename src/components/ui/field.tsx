@@ -14,7 +14,7 @@ import {
 } from "react";
 
 const controlBase =
-  "block w-full rounded-control border bg-white px-3 text-sm text-slate-900 placeholder:text-slate-400 " +
+  "block w-full rounded-control border bg-field px-3 text-sm text-slate-900 placeholder:text-slate-400 " +
   "focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/30 " +
   "disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500";
 
@@ -151,7 +151,7 @@ export function Switch({
             checked ? "bg-brand-600" : "bg-slate-300",
           )}
         >
-          <span className={clsx("h-5 w-5 rounded-full bg-white shadow transition-transform", checked && "translate-x-5")} />
+          <span className={clsx("h-5 w-5 rounded-full bg-on-accent shadow transition-transform", checked && "translate-x-5")} />
         </span>
       </span>
       <span>
