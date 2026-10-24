@@ -182,7 +182,7 @@ export function HeatmapCalendar({
     <section aria-label="Balance calendar" className="@container rounded-sheet border border-slate-300 bg-sheet p-2 sm:p-3" data-testid="calendar-heatmap">
       <div className="grid grid-cols-7 gap-1" aria-hidden="true">
         {headerDays.map((d) => (
-          <div key={d} className="pb-1 text-center text-[11px] font-semibold text-slate-600">
+          <div key={d} className="pb-1 text-center text-xs font-semibold text-slate-600">
             {d}
           </div>
         ))}

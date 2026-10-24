@@ -114,6 +114,8 @@
   --destructive-foreground: #ffffff;
   --border: #d8e1dc;
   --input: #d8e1dc;
+  --field-boundary: #5f726c;
+  --field-placeholder: #4b5d58;
   --ring: #2c49a6;
   --chart-1: #2c49a6;
   --chart-2: #1c6b43;
@@ -194,6 +196,8 @@
   --destructive-foreground: #121212;
   --border: #444444;
   --input: #444444;
+  --field-boundary: #6a6a6a;
+  --field-placeholder: #9c9c9c;
   --ring: #e0e0e0;
   --chart-1: #e0e0e0;
   --chart-2: #7fcf9f;
@@ -231,6 +235,8 @@
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
+  --color-field-boundary: var(--field-boundary);
+  --color-field-placeholder: var(--field-placeholder);
   --color-ring: var(--ring);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);

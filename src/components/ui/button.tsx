@@ -1,5 +1,6 @@
 import { forwardRef, type ReactNode } from "react";
 import { LoaderCircle } from "lucide-react";
+import { Slot } from "radix-ui";
 import { cn } from "@/lib/utils";
 import { Button as ShadcnButton, buttonVariants } from "./primitives/button";
 
@@ -28,9 +29,22 @@ const legacySizes: Partial<Record<"sm" | "md" | "icon", string>> = {
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { variant = "secondary", size = "md", loading = false, className, children, disabled, type = "button", ...props },
+  {
+    variant = "secondary",
+    size = "md",
+    loading = false,
+    className,
+    children,
+    disabled,
+    type = "button",
+    asChild = false,
+    onClickCapture,
+    onKeyDownCapture,
+    ...props
+  },
   ref,
 ) {
+  const unavailable = disabled || loading;
   const baseVariant =
     variant === "primary" || variant === "success"
       ? "default"
@@ -46,10 +60,28 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       type={type}
       variant={baseVariant}
       size={size === "md" ? "lg" : size}
-      disabled={disabled || loading}
+      disabled={asChild ? undefined : unavailable}
+      asChild={asChild}
       aria-busy={loading || undefined}
+      aria-disabled={unavailable || undefined}
+      onClickCapture={(event) => {
+        if (asChild && unavailable) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+        onClickCapture?.(event);
+      }}
+      onKeyDownCapture={(event) => {
+        if (asChild && unavailable && (event.key === "Enter" || event.key === " ")) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+        onKeyDownCapture?.(event);
+      }}
       className={cn(
-        "rounded-control font-semibold transition-colors focus-visible:outline-none",
+        "min-h-11 rounded-control font-semibold transition-colors focus-visible:outline-none sm:min-h-0",
         size === "default" && "h-10 px-4",
         legacySizes[size as keyof typeof legacySizes],
         legacyVariants[variant as LegacyVariant],
@@ -59,7 +91,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       {...props}
     >
       {loading && <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />}
-      {children}
+      {asChild ? <Slot.Slottable>{children}</Slot.Slottable> : children}
     </ShadcnButton>
   );
 });

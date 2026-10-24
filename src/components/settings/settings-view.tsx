@@ -1,6 +1,6 @@
 "use client";
 
-import { Database, Download, HardDrive, Sparkles, Trash } from "lucide-react";
+import { Database, Download, HardDrive, Trash } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import {
@@ -174,8 +174,8 @@ function DataCard({ onConfirmDemo, onConfirmReset }: { onConfirmDemo: () => void
           </p>
         </div>
         <div className="flex flex-col gap-2">
-          <Button className="w-full" variant="primary" onClick={onConfirmDemo} data-testid="load-demo-button">
-            <Sparkles aria-hidden="true" data-icon="inline-start" /> Load demo data
+          <Button className="w-full" variant="secondary" onClick={onConfirmDemo} data-testid="load-demo-button">
+            <Database aria-hidden="true" data-icon="inline-start" /> Load demo data
           </Button>
           <p className="text-xs leading-relaxed text-muted-foreground">
             Replaces your current income, bills and paid/skipped marks with sample data.

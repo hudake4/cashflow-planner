@@ -4,19 +4,21 @@ import { useEffect, useState } from "react";
 import type { BillDTO, IncomeDTO } from "@/contracts/api";
 import { api, errorMessage } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
-import { Dialog } from "@/components/ui/dialog";
+import { Dialog, type DialogFocusTarget } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/ui/states";
-import { ScheduleFormDialog, type ScheduleKind } from "./schedule-form-dialog";
+import { ScheduleForm, type ScheduleKind } from "./schedule-form-dialog";
 
 /** Loads a bill or income source by id, then opens the shared edit form. */
 export function EditSourceDialog({
   target,
   onClose,
+  restoreFocusTarget,
   onSaved,
 }: {
   target: { kind: ScheduleKind; id: string } | null;
   onClose: () => void;
+  restoreFocusTarget?: DialogFocusTarget;
   onSaved: () => void;
 }) {
   const [item, setItem] = useState<BillDTO | IncomeDTO | null>(null);
@@ -38,27 +40,25 @@ export function EditSourceDialog({
     };
   }, [target, attempt]);
 
-  if (!target) return null;
-
-  if (item) {
-    return <ScheduleFormDialog kind={target.kind} open item={item} onClose={onClose} onSaved={onSaved} />;
-  }
-
   return (
     <Dialog
-      open
+      restoreFocusTarget={restoreFocusTarget}
+      open={target !== null}
       onClose={onClose}
-      title={target.kind === "bill" ? "Edit bill" : "Edit income"}
-      description="Loading the current schedule before editing."
+      title={target?.kind === "bill" ? "Edit bill" : "Edit income"}
+      description={item ? (target?.kind === "bill" ? "Recurring or one-time expenses that will leave your account." : "Paychecks and other money you expect to receive.") : "Loading the current schedule before editing."}
+      testId={target && item ? `${target.kind}-form-dialog` : undefined}
       variant="drawer"
       size="lg"
-      footer={
+      footer={!item && (
         <Button className="w-full sm:w-auto" onClick={onClose}>
           Close
         </Button>
-      }
+      )}
     >
-      {error ? (
+      {item && target ? (
+        <ScheduleForm key={item.id} kind={target.kind} item={item} onClose={onClose} onSaved={onSaved} />
+      ) : error ? (
         <ErrorState message={error} onRetry={() => setAttempt((n) => n + 1)} />
       ) : (
         <div role="status" className="flex flex-col gap-3">

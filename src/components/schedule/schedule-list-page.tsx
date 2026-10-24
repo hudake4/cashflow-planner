@@ -1,11 +1,24 @@
 "use client";
 
-import { ChevronDown, CircleAlert, HandCoins, MoreHorizontal, Pencil, Plus, Receipt, Trash } from "lucide-react";
-import { useRef, useState, type ReactNode } from "react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronDown,
+  ChevronsUpDown,
+  CircleAlert,
+  HandCoins,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Receipt,
+  Trash,
+} from "lucide-react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import type { BillDTO, BillInput, IncomeDTO, IncomeInput, SettingsDTO } from "@/contracts/api";
 import { api, errorMessage } from "@/lib/api-client";
 import { fmtShort } from "@/lib/dates";
 import { FREQUENCY_LABELS, money } from "@/lib/format";
+import { nextSort, sortScheduleItems, type SortKey, type SortState } from "@/lib/sort-schedule";
 import { useApi } from "@/lib/use-api";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/app-shell";
@@ -88,6 +101,8 @@ export function ScheduleListPage({ kind }: { kind: ScheduleKind }) {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Item | null>(null);
   const [deleting, setDeleting] = useState<Item | null>(null);
+  const addFocusTarget = useRef<HTMLButtonElement | null>(null);
+  const editFocusTarget = useRef<HTMLButtonElement | null>(null);
   const deleteFocusTarget = useRef<HTMLButtonElement | null>(null);
   const [pendingToggle, setPendingToggle] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -96,7 +111,8 @@ export function ScheduleListPage({ kind }: { kind: ScheduleKind }) {
     setEditing(null);
     setFormOpen(true);
   };
-  const openEdit = (item: Item) => {
+  const openEdit = (item: Item, trigger: HTMLButtonElement | null) => {
+    editFocusTarget.current = trigger;
     setEditing(item);
     setFormOpen(true);
   };
@@ -106,14 +122,24 @@ export function ScheduleListPage({ kind }: { kind: ScheduleKind }) {
   };
 
   const addButton = (
-    <Button variant="primary" className="w-full sm:w-auto" onClick={openAdd} data-testid={`add-${kind}-button`}>
+    <Button ref={addFocusTarget} variant="primary" className="w-full sm:w-auto" onClick={openAdd} data-testid={`add-${kind}-button`}>
       <Plus aria-hidden="true" data-icon="inline-start" /> {copy.add}
     </Button>
   );
 
   const scanButton = <RecurringScanButton onAdded={() => void list.reload()} className="w-full sm:w-auto" />;
 
-  const items = list.data ?? [];
+  const [sort, setSort] = useState<SortState | null>(null);
+  const items = useMemo(() => sortScheduleItems(list.data ?? [], sort), [list.data, sort]);
+  const sortHeader = (key: SortKey, label: string, className?: string) => (
+    <SortableHead
+      label={label}
+      direction={sort?.key === key ? sort.direction : null}
+      onSort={() => setSort((current) => nextSort(current, key))}
+      className={className}
+      testId={`${kind}-sort-${key}`}
+    />
+  );
   const Icon = kind === "bill" ? Receipt : HandCoins;
 
   async function toggleActive(item: Item, active: boolean) {
@@ -187,12 +213,12 @@ export function ScheduleListPage({ kind }: { kind: ScheduleKind }) {
               <TableCaption className="sr-only">{copy.title}</TableCaption>
               <TableHeader className="bg-muted/60 text-left text-xs font-semibold text-muted-foreground">
                 <TableRow>
-                  <TableHead className="px-4">Name</TableHead>
-                  <TableHead className="px-4 text-right">Amount</TableHead>
-                  <TableHead className="px-4">Frequency</TableHead>
-                  <TableHead className="px-4">{copy.dateLabel}</TableHead>
-                  <TableHead className="px-4">Ends</TableHead>
-                  {kind === "bill" && <TableHead className="px-4">Category</TableHead>}
+                  {sortHeader("name", "Name")}
+                  {sortHeader("amount", "Amount", "text-right")}
+                  {sortHeader("frequency", "Frequency")}
+                  {sortHeader("anchorDate", copy.dateLabel)}
+                  {sortHeader("endDate", "Ends")}
+                  {kind === "bill" && sortHeader("category", "Category")}
                   <TableHead className="px-4">Status</TableHead>
                   <TableHead className="relative w-12 px-4 text-right">
                     <span className="sr-only">Actions</span>
@@ -318,6 +344,8 @@ export function ScheduleListPage({ kind }: { kind: ScheduleKind }) {
 
       <ScheduleFormDialog
         kind={kind}
+        restoreFocusTarget={() => editing ? editFocusTarget.current : addFocusTarget.current}
+        fallbackFocusTarget={() => addFocusTarget.current}
         open={formOpen}
         item={editing}
         onClose={() => setFormOpen(false)}
@@ -327,7 +355,8 @@ export function ScheduleListPage({ kind }: { kind: ScheduleKind }) {
       <ConfirmDialog
         open={deleting !== null}
         onClose={() => setDeleting(null)}
-        restoreFocusTarget={deleteFocusTarget.current}
+        restoreFocusTarget={() => deleteFocusTarget.current}
+        fallbackFocusTarget={() => addFocusTarget.current}
         title={`Delete ${kind === "bill" ? "bill" : "income source"}?`}
         description={
           <span className="block">
@@ -348,6 +377,41 @@ export function ScheduleListPage({ kind }: { kind: ScheduleKind }) {
         onError={(message) => toast(message, "error")}
       />
     </>
+  );
+}
+
+function SortableHead({
+  label,
+  direction,
+  onSort,
+  className,
+  testId,
+}: {
+  label: string;
+  direction: SortState["direction"] | null;
+  onSort: () => void;
+  className?: string;
+  testId: string;
+}) {
+  const SortIcon = direction === "asc" ? ArrowUp : direction === "desc" ? ArrowDown : ChevronsUpDown;
+  return (
+    <TableHead
+      className={cn("px-4", className)}
+      aria-sort={direction === "asc" ? "ascending" : direction === "desc" ? "descending" : undefined}
+    >
+      <button
+        type="button"
+        onClick={onSort}
+        data-testid={testId}
+        className={cn(
+          "-mx-2 inline-flex min-h-9 items-center gap-1.5 rounded-md px-2 font-semibold hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+          direction && "text-foreground",
+        )}
+      >
+        {label}
+        <SortIcon className={cn("size-3.5", !direction && "opacity-50")} aria-hidden="true" />
+      </button>
+    </TableHead>
   );
 }
 
@@ -402,7 +466,7 @@ function RowActions({
   suffix?: string;
   item: Item;
   kind: ScheduleKind;
-  onEdit: (item: Item) => void;
+  onEdit: (item: Item, trigger: HTMLButtonElement | null) => void;
   onDelete: (item: Item, trigger: HTMLButtonElement | null) => void;
 }) {
   const triggerRef = useRef<HTMLButtonElement | null>(null);
@@ -426,7 +490,7 @@ function RowActions({
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="min-h-9"
-          onSelect={() => onEdit(item)}
+          onSelect={() => onEdit(item, triggerRef.current)}
           data-testid={`edit-${kind}-${item.id}${suffix}`}
         >
           <Pencil aria-hidden="true" />

@@ -22,12 +22,11 @@ export function HaloToast({
     <div
       role={tone === "error" ? "alert" : "status"}
       data-testid={`toast-${tone}`}
-      className="relative flex w-full max-w-sm items-start gap-3 overflow-hidden rounded-sheet border border-border bg-popover px-4 py-3 text-sm text-popover-foreground shadow-lg"
+      className={cn(
+        "relative flex w-full max-w-sm items-start gap-3 overflow-hidden rounded-sheet border border-border bg-popover px-4 py-3 text-sm text-popover-foreground shadow-lg",
+        tone === "success" ? "border-t-emerald-700" : "border-t-rose-700",
+      )}
     >
-      <span
-        aria-hidden="true"
-        className={cn("absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent", tone === "success" ? "via-emerald-700" : "via-rose-700", "to-transparent")}
-      />
       <Icon className={cn("mt-0.5 size-4 shrink-0", tone === "success" ? "text-emerald-700" : "text-rose-700")} aria-hidden="true" />
       <p className="min-w-0 flex-1 text-foreground">{message}</p>
       <span className="sr-only">{accent === "emerald" ? "Saved" : "Error"}</span>

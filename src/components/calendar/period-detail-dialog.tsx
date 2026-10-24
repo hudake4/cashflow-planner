@@ -32,12 +32,14 @@ export function PeriodDetailDialog({
   eventsById,
   currency,
   onClose,
+  restoreFocusOnClose,
   onSelectEvent,
 }: {
   detail: PeriodDetail | null;
   eventsById: Map<string, LedgerEvent>;
   currency: string;
   onClose: () => void;
+  restoreFocusOnClose?: boolean;
   onSelectEvent: (event: LedgerEvent) => void;
 }) {
   const events = detail ? detail.eventIds.map((id) => eventsById.get(id)).filter((e): e is LedgerEvent => !!e) : [];
@@ -45,6 +47,7 @@ export function PeriodDetailDialog({
 
   return (
     <Dialog
+      restoreFocusOnClose={restoreFocusOnClose}
       open={detail !== null}
       onClose={onClose}
       variant="drawer"
@@ -103,28 +106,28 @@ export function PeriodDetailDialog({
             })}
           </ol>
 
-          <dl className="grid grid-cols-2 gap-3 rounded-sheet border border-slate-200 bg-slate-50 p-4 text-sm">
-            <div>
-              <dt className="text-slate-500">Income</dt>
-              <dd className="font-medium">
+          <dl className="divide-y divide-border border-t border-border text-sm">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-2.5">
+              <dt className="font-medium text-muted-foreground">Income</dt>
+              <dd className="text-right tabular-nums">
                 <EventAmount kind="INCOME" amountCents={detail.incomeCents} currency={currency} />
               </dd>
             </div>
-            <div>
-              <dt className="text-slate-500">Bills</dt>
-              <dd className="font-medium">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-2.5">
+              <dt className="font-medium text-muted-foreground">Bills</dt>
+              <dd className="text-right tabular-nums">
                 <EventAmount kind="BILL" amountCents={detail.billsCents} currency={currency} />
               </dd>
             </div>
-            <div>
-              <dt className="text-slate-500">Net change</dt>
-              <dd className={clsx("font-medium tabular-nums", detail.netCents < 0 ? "text-rose-700" : detail.netCents > 0 ? "text-emerald-700" : "")}>
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-2.5">
+              <dt className="font-medium text-muted-foreground">Net change</dt>
+              <dd className={clsx("text-right font-medium tabular-nums", detail.netCents < 0 ? "text-rose-700" : detail.netCents > 0 ? "text-emerald-700" : "text-foreground")}>
                 {signedMoney(detail.netCents, currency)}
               </dd>
             </div>
-            <div>
-              <dt className="font-semibold text-slate-700">Closing balance</dt>
-              <dd className="text-lg font-semibold">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-3">
+              <dt className="font-semibold text-foreground">Closing balance</dt>
+              <dd className="text-right text-lg font-semibold tabular-nums">
                 <Balance cents={detail.closingBalanceCents} currency={currency} iconClassName="h-4 w-4" testId="detail-closing" />
               </dd>
             </div>

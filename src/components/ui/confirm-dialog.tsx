@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { errorMessage } from "@/lib/api-client";
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "./alert-dialog";
+import { useDialogFocus, type DialogFocusTarget } from "./dialog";
 import { Button } from "./button";
 import { InlineStatus } from "./states";
 
@@ -16,6 +17,7 @@ export function ConfirmDialog({
   onConfirm,
   onError,
   restoreFocusTarget,
+  fallbackFocusTarget,
   testId = "confirm-dialog",
 }: {
   open: boolean;
@@ -28,9 +30,11 @@ export function ConfirmDialog({
   onConfirm: () => Promise<void>;
   onError?: (message: string) => void;
   /** Optional trigger to focus after the dialog closes. */
-  restoreFocusTarget?: HTMLElement | null;
+  restoreFocusTarget?: DialogFocusTarget;
+  fallbackFocusTarget?: DialogFocusTarget;
   testId?: string;
 }) {
+  const restoreFocus = useDialogFocus(open, restoreFocusTarget, fallbackFocusTarget);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,11 +49,7 @@ export function ConfirmDialog({
     <AlertDialog open={open} onOpenChange={handleOpenChange}>
       <AlertDialogContent
         data-testid={testId}
-        onCloseAutoFocus={(event) => {
-          if (!restoreFocusTarget?.isConnected) return;
-          event.preventDefault();
-          restoreFocusTarget.focus();
-        }}
+        onCloseAutoFocus={restoreFocus}
       >
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
