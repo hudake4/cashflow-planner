@@ -3,12 +3,12 @@
 import { clsx } from "clsx";
 import { ChevronRight, TriangleAlert } from "lucide-react";
 import type { LedgerEvent } from "@/contracts/api";
-import { fmtDayShort, fmtRange } from "@/lib/dates";
+import { fmtDate, fmtDayShort, fmtRange } from "@/lib/dates";
 import { money, signedMoney } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Dialog } from "@/components/ui/dialog";
 import { Balance, EventAmount } from "@/components/ui/money";
-import { eventAriaLabel } from "./week-row";
+import { eventAriaLabel } from "./event-labels";
 
 /** Everything needed to show a week or a day; all values come straight from the API. */
 export interface PeriodDetail {
@@ -41,7 +41,7 @@ export function PeriodDetailDialog({
   onSelectEvent: (event: LedgerEvent) => void;
 }) {
   const events = detail ? detail.eventIds.map((id) => eventsById.get(id)).filter((e): e is LedgerEvent => !!e) : [];
-  const title = detail ? (detail.kind === "week" ? `Week of ${fmtRange(detail.from, detail.to)}` : fmtDayShort(detail.from)) : "";
+  const title = detail ? (detail.kind === "week" ? `Week of ${fmtRange(detail.from, detail.to)}` : fmtDate(detail.from, "EEEE, MMMM d, yyyy")) : "";
 
   return (
     <Dialog
