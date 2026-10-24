@@ -41,6 +41,13 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
+      - name: Set GitHub Release title
+        if: steps.release.outputs.release_created == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag_name }}
+        run: gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "CashFlow Planner $TAG"
+
   build-and-release:
     name: Build and publish Windows installer
     needs: [checks, release-please]
