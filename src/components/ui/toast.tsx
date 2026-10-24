@@ -1,75 +1,43 @@
 "use client";
 
-import { clsx } from "clsx";
-import { CircleAlert, CircleCheck, X } from "lucide-react";
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { toast as sonnerToast } from "sonner";
+import { HaloToast } from "./halo-toast";
+import { Toaster } from "./sonner";
+import { currentTheme, type Theme } from "@/lib/theme";
 
 type ToastTone = "success" | "error";
-interface ToastItem {
-  id: number;
-  tone: ToastTone;
-  message: string;
-}
+type ToastFunction = (message: string, tone?: ToastTone) => void;
 
-const ToastContext = createContext<((message: string, tone?: ToastTone) => void) | null>(null);
+const ToastContext = createContext<ToastFunction | null>(null);
 
 export function ToastProvider({ children }: { children: ReactNode }) {
-  const [items, setItems] = useState<ToastItem[]>([]);
-  const nextId = useRef(1);
+  const [theme, setTheme] = useState<Theme>("dark");
 
-  const dismiss = useCallback((id: number) => setItems((all) => all.filter((t) => t.id !== id)), []);
+  useEffect(() => {
+    const syncTheme = () => setTheme(currentTheme());
+    syncTheme();
+    const observer = new MutationObserver(syncTheme);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
 
-  const push = useCallback(
-    (message: string, tone: ToastTone = "success") => {
-      const id = nextId.current++;
-      setItems((all) => [...all.slice(-2), { id, tone, message }]);
-      window.setTimeout(() => dismiss(id), tone === "error" ? 8000 : 4000);
-    },
-    [dismiss],
-  );
-
-  const value = useMemo(() => push, [push]);
+  const push = useCallback((message: string, tone: ToastTone = "success") => {
+    sonnerToast.custom((id) => <HaloToast toastId={id} message={message} tone={tone} />, {
+      duration: tone === "error" ? 8000 : 4000,
+    });
+  }, []);
 
   return (
-    <ToastContext.Provider value={value}>
+    <ToastContext.Provider value={push}>
       {children}
-      <div
-        aria-live="polite"
-        className="pointer-events-none fixed inset-x-0 bottom-20 z-[60] flex flex-col items-center gap-2 px-4 lg:bottom-6 lg:items-end lg:pr-6"
-      >
-        {items.map((t) => (
-          <div
-            key={t.id}
-            role={t.tone === "error" ? "alert" : "status"}
-            data-testid={`toast-${t.tone}`}
-            className={clsx(
-              "pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-sheet border border-slate-200 border-l-4 bg-sheet px-4 py-3 text-sm shadow-[0_12px_32px_-12px_rgb(23_42_51/0.35)]",
-              t.tone === "success" ? "border-l-emerald-700" : "border-l-rose-700",
-            )}
-          >
-            {t.tone === "success" ? (
-              <CircleCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
-            ) : (
-              <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-rose-700" aria-hidden="true" />
-            )}
-            <p className="flex-1 text-slate-800">{t.message}</p>
-            <button
-              type="button"
-              onClick={() => dismiss(t.id)}
-              className="rounded p-0.5 text-slate-500 hover:text-slate-800"
-              aria-label="Dismiss notification"
-            >
-              <X className="h-4 w-4" aria-hidden="true" />
-            </button>
-          </div>
-        ))}
-      </div>
+      <Toaster theme={theme} position="bottom-right" offset={96} visibleToasts={3} closeButton={false} />
     </ToastContext.Provider>
   );
 }
 
 export function useToast() {
-  const ctx = useContext(ToastContext);
-  if (!ctx) throw new Error("useToast must be used inside <ToastProvider>");
-  return ctx;
+  const context = useContext(ToastContext);
+  if (!context) throw new Error("useToast must be used inside <ToastProvider>");
+  return context;
 }

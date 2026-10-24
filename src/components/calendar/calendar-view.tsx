@@ -1,9 +1,8 @@
 "use client";
 
-import { clsx } from "clsx";
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, LoaderCircle, TriangleAlert } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { CalendarView, LedgerEvent, ProjectionResponse, SettingsDTO, WeekSummary } from "@/contracts/api";
 import { api } from "@/lib/api-client";
 import {
@@ -25,6 +24,7 @@ import type { ScheduleKind } from "@/components/forms/schedule-form-dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/field";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/ui/states";
 import { EventDetailDialog } from "./event-detail-dialog";
@@ -79,6 +79,23 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [period, setPeriod] = useState<PeriodDetail | null>(null);
   const [editTarget, setEditTarget] = useState<{ kind: ScheduleKind; id: string } | null>(null);
+  const lastEventTrigger = useRef<HTMLElement | null>(null);
+
+  const selectEvent = (event: LedgerEvent) => {
+    const active = document.activeElement;
+    lastEventTrigger.current = active instanceof HTMLElement ? active : null;
+    setSelectedEventId(event.id);
+  };
+
+  const closeEvent = () => {
+    setSelectedEventId(null);
+    const target = lastEventTrigger.current;
+    if (target) {
+      requestAnimationFrame(() => {
+        if (target.isConnected) target.focus();
+      });
+    }
+  };
 
   // Visible grid (always whole weeks so the API returns full week summaries).
   const grid = useMemo(() => {
@@ -202,46 +219,57 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <Card className="flex flex-col gap-3 p-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-center gap-2">
+      <Card className="p-3">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex min-w-0 items-center gap-2">
           <div className="flex items-center gap-1">
-            <Button size="icon" variant="ghost" onClick={() => step(-1)} aria-label={view === "month" ? "Previous month" : "Previous week"} data-testid="calendar-prev">
+            <Button size="icon" variant="ghost" className="size-11" onClick={() => step(-1)} aria-label={view === "month" ? "Previous month" : "Previous week"} data-testid="calendar-prev">
               <ChevronLeft className="h-5 w-5" aria-hidden="true" />
             </Button>
-            <Button size="icon" variant="ghost" onClick={() => step(1)} aria-label={view === "month" ? "Next month" : "Next week"} data-testid="calendar-next">
+            <Button size="icon" variant="ghost" className="size-11" onClick={() => step(1)} aria-label={view === "month" ? "Next month" : "Next week"} data-testid="calendar-next">
               <ChevronRight className="h-5 w-5" aria-hidden="true" />
             </Button>
           </div>
-          <h2 className="font-semiwide min-w-0 truncate text-xl font-bold text-slate-900" aria-live="polite" data-testid="calendar-title">
+          <h2 className="font-semiwide min-w-0 flex-1 truncate text-xl font-bold text-foreground" aria-live="polite" data-testid="calendar-title">
             {title}
           </h2>
           {projection.refreshing && (
-            <LoaderCircle className="h-4 w-4 animate-spin text-slate-400" aria-label="Updating" data-testid="calendar-refreshing" />
+            <span className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground" role="status" data-testid="calendar-refreshing">
+              <LoaderCircle className="h-4 w-4" aria-hidden="true" /> Updating
+            </span>
           )}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" onClick={() => setCursor(today)} data-testid="calendar-today">
-            Today
-          </Button>
-          <div role="group" aria-label="Calendar view" className="inline-flex rounded-control border border-slate-300 bg-sheet p-0.5">
-            {(["month", "week"] as const).map((v) => (
-              <button
-                key={v}
-                type="button"
-                aria-pressed={view === v}
-                onClick={() => setView(v)}
-                data-testid={`calendar-view-${v}`}
-                className={clsx(
-                  "rounded-chip px-3 py-1 text-sm font-semibold capitalize focus-visible:outline-2 focus-visible:outline-brand-600",
-                  view === v ? "bg-slate-900 text-on-accent" : "text-slate-700 hover:bg-slate-100",
-                )}
-              >
-                {v}
-              </button>
-            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" className="min-h-11 flex-1 xl:flex-none" onClick={() => setCursor(today)} data-testid="calendar-today">
+              Today
+            </Button>
+            <ToggleGroup
+            type="single"
+            value={view}
+            onValueChange={(value) => {
+              if (value === "month" || value === "week") setView(value);
+            }}
+            aria-label="Calendar view"
+            variant="outline"
+            spacing={0}
+            className="rounded-control border border-border bg-card p-0.5"
+            >
+              <ToggleGroupItem
+              value="month"
+              aria-label="Month view"
+              data-testid="calendar-view-month"
+              className="h-11 min-w-20 rounded-chip px-3 capitalize data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+              >Month</ToggleGroupItem>
+              <ToggleGroupItem
+              value="week"
+              aria-label="Week view"
+              data-testid="calendar-view-week"
+              className="h-11 min-w-20 rounded-chip px-3 capitalize data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+              >Week</ToggleGroupItem>
+            </ToggleGroup>
           </div>
           <form
-            className="flex items-center gap-1.5"
+            className="flex w-full items-center gap-1.5 sm:max-w-md xl:w-auto"
             onSubmit={(e) => {
               e.preventDefault();
               if (/^\d{4}-\d{2}-\d{2}$/.test(jump)) setCursor(jump);
@@ -258,10 +286,10 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
                 setJump(e.target.value);
                 if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value)) setCursor(e.target.value);
               }}
-              className="h-8 w-[9.5rem]"
+              className="h-11 min-w-0 flex-1 xl:w-[9.5rem] xl:flex-none"
               data-testid="calendar-jump"
             />
-            <Button type="submit" size="sm" variant="ghost" data-testid="calendar-jump-go">
+            <Button type="submit" size="sm" variant="ghost" className="min-h-11" data-testid="calendar-jump-go">
               Go
             </Button>
           </form>
@@ -269,7 +297,7 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
       </Card>
 
       {visibleNegative && (
-        <p role="alert" className="flex items-start gap-2 rounded-sheet border border-rose-200 border-l-4 border-l-rose-700 bg-rose-50 px-4 py-3 text-sm text-rose-900" data-testid="calendar-negative-warning">
+        <p role="alert" className="flex items-start gap-2 rounded-sheet border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900" data-testid="calendar-negative-warning">
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-rose-700" aria-hidden="true" />
           <span>
             <strong className="font-semibold">Heads up:</strong> your projected balance dips below zero in the week of{" "}
@@ -278,51 +306,52 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
         </p>
       )}
 
-      {canFetch && projection.error && !fresh ? (
-        <ErrorState message={projection.error} onRetry={projection.reload} />
-      ) : (
-        <div
-          className={clsx(
-            "md:overflow-hidden md:rounded-sheet md:border md:border-slate-300 md:bg-sheet",
-            canFetch && !fresh && "opacity-60",
-          )}
-          aria-busy={canFetch && !fresh}
-          data-testid={`calendar-${view}`}
-        >
-          <div className="hidden grid-cols-7 border-b border-slate-300 bg-slate-50 md:grid" aria-hidden="true">
-            {headerDays.map((d) => (
-              <div key={d} className="px-2.5 py-2 text-xs font-semibold text-slate-600">
-                {d.slice(0, 3)}
+      <div
+        className="xl:overflow-hidden xl:rounded-sheet xl:border xl:border-slate-300 xl:bg-sheet"
+        aria-busy={canFetch && !fresh && !projection.error}
+        data-testid={`calendar-${view}`}
+      >
+          {canFetch && projection.error && !fresh ? (
+            <ErrorState message={projection.error} onRetry={projection.reload} className="m-3" />
+          ) : canFetch && !fresh ? (
+            <CalendarRangeSkeleton />
+          ) : (
+            <>
+              {!canFetch && (
+                <p className="rounded-sheet bg-card p-4 text-sm text-muted-foreground xl:rounded-none xl:border-b xl:border-border">
+                  {grid.to < projectionStart
+                    ? "These dates are before your projection start date, so there's no projected balance yet."
+                    : "These dates are beyond the 12-month forecast limit."}{" "}
+                  <Link href="/settings" className="font-medium text-brand-700 underline">
+                    Change projection settings
+                  </Link>
+                </p>
+              )}
+              <div className="hidden grid-cols-7 border-b border-slate-300 bg-slate-50 xl:grid" aria-hidden="true">
+                {headerDays.map((d) => (
+                  <div key={d} className="px-2.5 py-2 text-xs font-semibold text-slate-600">
+                    {d.slice(0, 3)}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          <div className="space-y-3 md:space-y-0">
-            {!canFetch && (
-              <p className="rounded-sheet bg-sheet p-4 text-sm text-slate-600 md:rounded-none md:border-b md:border-slate-200">
-                {grid.to < projectionStart
-                  ? "These dates are before your projection start date, so there's no projected balance yet."
-                  : "These dates are beyond the 12-month forecast limit."}{" "}
-                <Link href="/settings" className="font-medium text-brand-700 underline">
-                  Change projection settings
-                </Link>
-              </p>
-            )}
-            {weeks.map((w) => (
-              <WeekRow
-                key={w.weekStart}
-                weekStart={w.weekStart}
-                days={w.days}
-                week={weeksByStart.get(w.weekStart)}
-                currency={currency}
-                expanded={view === "week"}
-                onSelectEvent={(e) => setSelectedEventId(e.id)}
-                onSelectDay={openDay}
-                onSelectWeek={openWeek}
-              />
-            ))}
-          </div>
-        </div>
-      )}
+              <div className="space-y-3 xl:space-y-0">
+                {weeks.map((w) => (
+                  <WeekRow
+                    key={w.weekStart}
+                    weekStart={w.weekStart}
+                    days={w.days}
+                    week={weeksByStart.get(w.weekStart)}
+                    currency={currency}
+                    expanded={view === "week"}
+                    onSelectEvent={selectEvent}
+                    onSelectDay={openDay}
+                    onSelectWeek={openWeek}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+      </div>
 
       <Legend />
 
@@ -331,12 +360,12 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
         eventsById={eventsById}
         currency={currency}
         onClose={() => setPeriod(null)}
-        onSelectEvent={(e) => setSelectedEventId(e.id)}
+        onSelectEvent={selectEvent}
       />
       <EventDetailDialog
         event={selectedEvent}
         currency={currency}
-        onClose={() => setSelectedEventId(null)}
+        onClose={closeEvent}
         onChanged={projection.reload}
         onEditSource={(e) => {
           setSelectedEventId(null);
@@ -346,6 +375,21 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
       />
       <EditSourceDialog target={editTarget} onClose={() => setEditTarget(null)} onSaved={() => void projection.reload()} />
     </div>
+  );
+}
+
+function CalendarRangeSkeleton() {
+  return (
+    <LoadingRegion label="Loading projected calendar">
+      <div className="space-y-3 p-3 xl:space-y-0 xl:p-0">
+        {[0, 1, 2, 3, 4].map((week) => (
+          <Card key={week} className="space-y-2 p-3 xl:rounded-none xl:border-x-0 xl:border-t-0">
+            <Skeleton className="h-4 w-40" />
+            {[0, 1].map((day) => <Skeleton key={day} className="h-11 w-full" />)}
+          </Card>
+        ))}
+      </div>
+    </LoadingRegion>
   );
 }
 

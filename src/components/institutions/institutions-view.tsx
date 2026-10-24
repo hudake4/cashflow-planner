@@ -87,7 +87,7 @@ export function InstitutionsView() {
                 enrollmentId: auth.enrollment.id,
                 institutionName: auth.enrollment.institution.name,
               });
-              toast(`Connected ${saved.name}.`);
+              toast(`Connected ${saved.name}.`, "success");
               await list.reload();
             } catch (err) {
               setConnectError(errorMessage(err));
@@ -112,8 +112,14 @@ export function InstitutionsView() {
   }
 
   const addButton = configured ? (
-    <Button variant="primary" onClick={() => void startConnect()} loading={connecting} data-testid="add-institution-button">
-      <Plus className="h-4 w-4" aria-hidden="true" /> Add institution
+    <Button
+      variant="primary"
+      className="w-full sm:w-auto"
+      onClick={() => void startConnect()}
+      loading={connecting}
+      data-testid="add-institution-button"
+    >
+      <Plus aria-hidden="true" data-icon="inline-start" /> Add institution
     </Button>
   ) : undefined;
 
@@ -131,7 +137,7 @@ export function InstitutionsView() {
         <ErrorState message={config.error} onRetry={config.reload} />
       ) : config.loading || list.loading ? (
         <LoadingRegion label="Loading institutions">
-          <Card className="space-y-3 p-5">
+          <Card className="flex flex-col gap-3 p-5">
             {[0, 1].map((i) => (
               <Skeleton key={i} className="h-16 w-full" />
             ))}
@@ -169,18 +175,19 @@ export function InstitutionsView() {
         confirmLabel="Remove"
         testId="confirm-remove-institution"
         description={
-          <p>
-            <strong className="font-semibold text-slate-900">{removing?.name}</strong> will be disconnected. Access is revoked at Teller and
-            removed from this app. Your bank account itself is not affected. You can add it again later.
-          </p>
+          <span className="block">
+            <strong className="font-semibold text-foreground">{removing?.name}</strong> will be disconnected. Access is revoked at Teller
+            and removed from this app. Your bank account itself is not affected. You can add it again later.
+          </span>
         }
         onConfirm={async () => {
           if (!removing) return;
           const name = removing.name;
           await api.removeInstitution(removing.id);
-          toast(`Removed “${name}”.`);
+          toast(`Removed “${name}”.`, "success");
           await list.reload();
         }}
+        onError={(message) => toast(message, "error")}
       />
     </>
   );
@@ -191,35 +198,35 @@ function InstitutionCard({ institution, onRemove }: { institution: InstitutionDT
     <Card className="p-5" data-testid={`institution-card-${institution.id}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="font-semiwide truncate text-base font-bold text-slate-900">
+          <h2 className="font-semiwide truncate text-base font-bold text-foreground">
             <Link
               href={`/institutions/${encodeURIComponent(institution.id)}`}
-              className="rounded-control hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+              className="rounded-control hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               data-testid={`institution-link-${institution.id}`}
             >
               {institution.name}
             </Link>
           </h2>
-          <p className="text-xs text-slate-600">Connected {fmtShort(institution.connectedAt.slice(0, 10))}</p>
+          <p className="text-xs text-muted-foreground">Connected {fmtShort(institution.connectedAt.slice(0, 10))}</p>
         </div>
         <Button
           size="sm"
           variant="ghost"
-          className="text-rose-700 hover:bg-rose-50"
+          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
           onClick={() => onRemove(institution)}
           aria-label={`Remove ${institution.name}`}
           data-testid={`remove-institution-${institution.id}`}
         >
-          <Trash className="h-4 w-4" aria-hidden="true" />
+          <Trash aria-hidden="true" data-icon="inline-start" />
           Remove
         </Button>
       </div>
-      <ul className="mt-4 divide-y divide-slate-200 border-t border-slate-200 text-sm">
-        {institution.accounts.length === 0 && <li className="py-2 text-slate-600">No accounts were shared.</li>}
+      <ul className="mt-4 divide-y divide-border border-t border-border text-sm">
+        {institution.accounts.length === 0 && <li className="py-2 text-muted-foreground">No accounts were shared.</li>}
         {institution.accounts.map((a) => (
           <li key={a.id} className="flex items-center justify-between gap-3 py-2">
-            <span className="min-w-0 truncate text-slate-900">
-              {a.name} <span className="text-slate-600 tabular-nums">••{a.lastFour}</span>
+            <span className="min-w-0 truncate text-foreground">
+              {a.name} <span className="text-muted-foreground tabular-nums">••{a.lastFour}</span>
             </span>
             <span className="flex shrink-0 items-center gap-1.5">
               <Badge>{a.subtype.replace(/_/g, " ")}</Badge>
@@ -235,8 +242,8 @@ function InstitutionCard({ institution, onRemove }: { institution: InstitutionDT
 function NotConfigured({ className }: { className?: string }) {
   return (
     <Card className={className} data-testid="institutions-not-configured">
-      <div className="space-y-3 p-5 text-sm text-slate-700">
-        <h2 className="font-semiwide text-base font-bold text-slate-900">Set up Teller to connect a bank</h2>
+      <div className="flex flex-col gap-3 p-5 text-sm text-foreground">
+        <h2 className="font-semiwide text-base font-bold text-foreground">Set up Teller to connect a bank</h2>
         <p>Bank connections go through Teller. The settings live in a file, not on this page:</p>
         <ol className="list-decimal space-y-1 pl-5">
           <li>Create a free developer account at teller.io and copy your Application ID.</li>

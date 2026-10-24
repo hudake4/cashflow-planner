@@ -15,6 +15,7 @@ import { Select } from "@/components/ui/field";
 import { EventAmount } from "@/components/ui/money";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/ui/states";
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 function Amount({ tx, currency }: { tx: BankTransactionDTO; currency: string }) {
   // Money in is green, money out is red (see EventAmount); the sign is already normalized by the server.
@@ -33,10 +34,10 @@ export function TransactionHistory({ institutionId }: { institutionId: string })
     <>
       <Link
         href="/institutions"
-        className="mb-3 inline-flex items-center gap-1.5 rounded-control text-sm font-medium text-slate-600 hover:text-slate-900"
+        className="mb-3 inline-flex items-center gap-1.5 rounded-control text-sm font-medium text-muted-foreground hover:text-foreground"
         data-testid="institution-back"
       >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" /> All institutions
+        <ArrowLeft className="size-4" aria-hidden="true" /> All institutions
       </Link>
       <PageHeader
         title={institution.data?.name ?? "Institution"}
@@ -63,7 +64,7 @@ export function TransactionHistory({ institutionId }: { institutionId: string })
         <ErrorState message={institution.error} onRetry={institution.reload} />
       ) : !institution.data ? (
         <LoadingRegion label="Loading institution">
-          <Card className="space-y-3 p-5">
+          <Card className="flex flex-col gap-3 p-5">
             {[0, 1, 2].map((i) => (
               <Skeleton key={i} className="h-10 w-full" />
             ))}
@@ -109,7 +110,7 @@ function Transactions({ institutionId, accountId, currency }: { institutionId: s
   if (loading && rows.length === 0) {
     return (
       <LoadingRegion label="Loading transactions">
-        <Card className="space-y-3 p-5">
+        <Card className="flex flex-col gap-3 p-5">
           {[0, 1, 2, 3, 4].map((i) => (
             <Skeleton key={i} className="h-10 w-full" />
           ))}
@@ -123,42 +124,42 @@ function Transactions({ institutionId, accountId, currency }: { institutionId: s
 
   return (
     <>
-      <Card className="overflow-x-auto">
-        <table className="w-full text-sm" data-testid="transactions-table">
-          <caption className="sr-only">Transactions</caption>
-          <thead className="border-b border-slate-300 bg-slate-50 text-left text-xs font-semibold text-slate-600">
-            <tr>
-              <th scope="col" className="px-4 py-3">Date</th>
-              <th scope="col" className="px-4 py-3">Description</th>
-              <th scope="col" className="hidden px-4 py-3 sm:table-cell">Category</th>
-              <th scope="col" className="px-4 py-3 text-right">Amount</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200">
+      <Card className="overflow-hidden">
+        <Table data-testid="transactions-table" aria-label="Transactions">
+          <TableCaption className="sr-only">Transactions</TableCaption>
+          <TableHeader className="bg-muted/60 text-left text-xs font-semibold text-muted-foreground">
+            <TableRow>
+              <TableHead className="px-4">Date</TableHead>
+              <TableHead className="px-4">Description</TableHead>
+              <TableHead className="hidden px-4 sm:table-cell">Category</TableHead>
+              <TableHead className="px-4 text-right">Amount</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {rows.map((tx) => (
-              <tr key={tx.id} data-testid={`transaction-row-${tx.id}`}>
-                <td className="px-4 py-3 whitespace-nowrap">{fmtShort(tx.date)}</td>
-                <td className="px-4 py-3">
-                  <span className="font-medium text-slate-900">{tx.counterparty ?? tx.description}</span>
+              <TableRow key={tx.id} data-testid={`transaction-row-${tx.id}`}>
+                <TableCell className="whitespace-nowrap px-4">{fmtShort(tx.date)}</TableCell>
+                <TableCell className="whitespace-normal px-4">
+                  <span className="font-medium text-foreground">{tx.counterparty ?? tx.description}</span>
                   {tx.pending && (
                     <Badge tone="warning" className="ml-2">
                       Pending
                     </Badge>
                   )}
                   {tx.counterparty && tx.counterparty !== tx.description && (
-                    <div className="max-w-[28rem] truncate text-xs text-slate-600" title={tx.description}>
+                    <div className="max-w-[28rem] truncate text-xs text-muted-foreground" title={tx.description}>
                       {tx.description}
                     </div>
                   )}
-                </td>
-                <td className="hidden px-4 py-3 capitalize sm:table-cell">{tx.category?.replace(/_/g, " ") ?? "—"}</td>
-                <td className="px-4 py-3 text-right">
+                </TableCell>
+                <TableCell className="hidden px-4 capitalize sm:table-cell">{tx.category?.replace(/_/g, " ") ?? "—"}</TableCell>
+                <TableCell className="px-4 text-right">
                   <Amount tx={tx} currency={currency} />
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </Card>
 
       {error && <ErrorState className="mt-4" title="Couldn't load more" message={error} />}

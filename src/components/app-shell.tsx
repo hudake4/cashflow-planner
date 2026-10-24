@@ -1,6 +1,6 @@
 "use client";
 
-import { clsx } from "clsx";
+import { cn } from "@/lib/utils";
 import { CalendarDays, HandCoins, Landmark, LayoutDashboard, Receipt, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -57,7 +57,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Logo />
         </div>
         <nav aria-label="Main" className="flex-1 px-3 py-3">
-          <ul className="space-y-0.5">
+          <ul className="flex flex-col gap-0.5">
             {NAV.map(({ href, label, icon: Icon, testId }) => {
               const active = isActive(pathname, href);
               return (
@@ -66,7 +66,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     href={href}
                     data-testid={testId}
                     aria-current={active ? "page" : undefined}
-                    className={clsx(
+                    className={cn(
                       "relative flex items-center gap-3 rounded-control px-3 py-2 text-sm transition-colors",
                       active
                         ? "bg-sheet font-semibold text-slate-900 ring-1 ring-slate-200"
@@ -74,7 +74,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     )}
                   >
                     {active && <span className="absolute inset-y-2 left-0 w-0.5 bg-brand-600" aria-hidden="true" />}
-                    <Icon className={clsx("h-4.5 w-4.5", active ? "text-brand-600" : "text-slate-500")} aria-hidden="true" />
+                    <Icon className={cn("h-4.5 w-4.5", active ? "text-brand-600" : "text-slate-500")} aria-hidden="true" />
                     {label}
                   </Link>
                 </li>
@@ -92,7 +92,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <Logo />
       </header>
 
-      <main id="main" className="pb-24 lg:pb-12 lg:pl-60">
+      <main id="main" className="overflow-x-clip pb-24 lg:pb-12 lg:pl-60">
         <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-10 lg:py-10">{children}</div>
       </main>
 
@@ -110,14 +110,14 @@ export function AppShell({ children }: { children: ReactNode }) {
                   href={href}
                   data-testid={`${testId}-mobile`}
                   aria-current={active ? "page" : undefined}
-                  className={clsx(
-                    "relative flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium",
+                  className={cn(
+                    "relative flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 px-0.5 py-1 text-[10px] leading-3 font-medium",
                     active ? "text-brand-700" : "text-slate-600 hover:text-slate-900",
                   )}
                 >
                   {active && <span className="absolute inset-x-5 top-0 h-0.5 rounded-b bg-brand-600" aria-hidden="true" />}
-                  <Icon className="h-5 w-5" aria-hidden="true" />
-                  {label}
+                  <Icon className="size-5 shrink-0" aria-hidden="true" />
+                  <span className="max-w-full truncate">{label}</span>
                 </Link>
               </li>
             );
