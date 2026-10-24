@@ -46,12 +46,64 @@
   --color-rose-900: #6c1a13;
 
   --color-sheet: #fbfcfa;
+  /* Input and chip surfaces, a touch brighter than the sheet. */
+  --color-field: #ffffff;
+  /* Text on filled brand/emerald/rose/slate-900 surfaces. */
+  --color-on-accent: #ffffff;
   --color-highlight: #f3df6e;
 
   --radius-chip: 4px;
   --radius-control: 6px;
   --radius-sheet: 8px;
   --radius-dialog: 12px;
+}
+
+/*
+ * Dark mode: monochrome. Built around #121212 (background), #444444 (lines), #888888
+ * (muted), #b0b0b0 (secondary text) and #e0e0e0 (text). The blue pen becomes light gray,
+ * so filled buttons take dark `on-accent` text. Green and red stay, as pale inks, because
+ * they carry meaning (income vs. bills). Toggled by the `dark` class on <html>.
+ */
+.dark {
+  color-scheme: dark;
+
+  --color-slate-50: #181818;
+  --color-slate-100: #121212;
+  --color-slate-200: #333333;
+  --color-slate-300: #444444;
+  --color-slate-400: #6a6a6a;
+  --color-slate-500: #888888;
+  --color-slate-600: #9c9c9c;
+  --color-slate-700: #b0b0b0;
+  --color-slate-800: #c8c8c8;
+  --color-slate-900: #e0e0e0;
+  --color-slate-950: #f0f0f0;
+
+  --color-brand-50: #262626;
+  --color-brand-100: #333333;
+  --color-brand-500: #b0b0b0;
+  --color-brand-600: #e0e0e0;
+  --color-brand-700: #f5f5f5;
+
+  --color-emerald-50: #15201a;
+  --color-emerald-100: #1a2a20;
+  --color-emerald-200: #2a4234;
+  --color-emerald-700: #7fcf9f;
+  --color-emerald-800: #a3dcb9;
+
+  --color-rose-50: #241717;
+  --color-rose-100: #301c1c;
+  --color-rose-200: #4a2a2a;
+  --color-rose-300: #6a3a3a;
+  --color-rose-600: #e57b70;
+  --color-rose-700: #ee948a;
+  --color-rose-800: #f4ada5;
+  --color-rose-900: #f8c7c1;
+
+  --color-sheet: #1c1c1c;
+  --color-field: #242424;
+  --color-on-accent: #121212;
+  --color-highlight: #444444;
 }
 
 /* Archivo's width axis carries the hierarchy: wider = more important figure. */
