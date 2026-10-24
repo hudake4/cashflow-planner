@@ -343,6 +343,75 @@ export interface DashboardResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Institutions (SimpleFIN Bridge bank connections, read-only)
+// ---------------------------------------------------------------------------
+// Only src/server/simplefin.ts ever sees a setup token or access URL. No DTO below
+// carries an access URL. Bank amounts are SIGNED like SimpleFIN: money in is positive,
+// money out is negative (the opposite of bills, which are positive magnitudes).
+
+/** Transactions returned per page by GET /api/institutions/:id/transactions. */
+export const BANK_TRANSACTIONS_PAGE_SIZE = 50;
+
+/** Minimum time between two syncs of one connection (SimpleFIN allows 24 requests/day). */
+export const MIN_SYNC_INTERVAL_MINUTES = 15;
+
+export const connectInstitutionSchema = z.object({
+  setupToken: z
+    .string({ required_error: "Paste your SimpleFIN setup token", invalid_type_error: "Paste your SimpleFIN setup token" })
+    .trim()
+    .min(1, "Paste your SimpleFIN setup token")
+    .max(2000, "That doesn't look like a setup token (too long)"),
+});
+export type ConnectInstitutionInput = z.input<typeof connectInstitutionSchema>;
+
+export const bankTransactionsQuerySchema = z.object({
+  accountId: z.string({ required_error: "accountId is required" }).trim().min(1, "accountId is required"),
+  offset: z.coerce.number().int("offset must be a whole number").min(0, "offset must be 0 or more").default(0),
+});
+export type BankTransactionsQuery = z.output<typeof bankTransactionsQuerySchema>;
+
+export interface BankAccountDTO {
+  id: string;
+  name: string;
+  institutionName: string;
+  /** 3-letter currency code. */
+  currency: string;
+  balanceCents: number;
+  availableBalanceCents: number | null;
+  /** YYYY-MM-DD: when the bank reported this balance (UTC date). */
+  balanceDate: string;
+}
+
+export interface InstitutionDTO {
+  id: string;
+  /** The bank name(s) reported by SimpleFIN, or "SimpleFIN connection" before any account is known. */
+  name: string;
+  connectedAt: string;
+  /** ISO timestamp of the last successful sync; null if no sync has succeeded yet. */
+  lastSyncedAt: string | null;
+  accounts: BankAccountDTO[];
+}
+
+/** Returned by connect and sync: the connection plus any notices SimpleFIN reported. */
+export interface InstitutionSyncDTO extends InstitutionDTO {
+  warnings: string[];
+}
+
+export interface BankTransactionDTO {
+  id: string;
+  accountId: string;
+  date: string;
+  description: string;
+  /** Signed: money in positive, money out negative. */
+  amountCents: number;
+  pending: boolean;
+}
+
+export interface BankTransactionsResponse {
+  transactions: BankTransactionDTO[];
+  hasMore: boolean;
+}
+// ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------
 
@@ -351,6 +420,7 @@ export type ApiErrorCode =
   | "NOT_FOUND"
   | "BAD_REQUEST"
   | "CONFLICT"
+  | "UPSTREAM_ERROR"
   | "INTERNAL_ERROR";
 
 export interface ApiErrorBody {

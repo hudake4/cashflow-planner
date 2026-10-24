@@ -6,7 +6,7 @@ A local, single-user personal cash-flow planner. It answers one question:
 
 You enter a starting balance, your paychecks (weekly, biweekly or one-time) and your bills (one-time, weekly, biweekly, monthly, quarterly, yearly). CashFlow Planner projects your running balance day by day and week by week on a calendar, and explains every number with an event ledger.
 
-- Runs entirely on your machine at **http://localhost:3000**. There are no accounts and no analytics, and the app makes no external network calls.
+- Runs entirely on your machine at **http://localhost:3000**. There are no accounts and no analytics. The only external call is the optional [SimpleFIN Bridge](https://www.simplefin.org) bank connection, and only when you connect or refresh a bank.
 - Projections are estimates. They assume every scheduled paycheck arrives and every listed bill is paid on time.
 
 ## Features
@@ -14,7 +14,7 @@ You enter a starting balance, your paychecks (weekly, biweekly or one-time) and 
 - **Calendar (main screen):** month and week views. Every week shows the opening balance, income, bills, net change and **projected closing balance**. Every day shows its paychecks and bills, and the end-of-day balance. Select a week to see the ordered breakdown with the running balance after each event. Select an event to mark a bill occurrence paid or skipped, override this occurrence's amount, or edit the underlying bill or income.
 - **Dashboard:** starting balance, next paycheck, projected end of this week and next week, lowest projected balance, totals, a negative-balance warning, upcoming bills and a balance trend chart.
 - **Income & Bills:** create, edit, delete and deactivate, with optional end dates, categories and notes.
-- **Institutions:** a blank placeholder page for now. Bank connections aren't available yet.
+- **Institutions:** optionally connect a bank read-only through SimpleFIN Bridge, see its accounts and balances, browse the transactions saved from your last sync, refresh on demand, and remove it again.
 - **Settings:** starting balance, projection start date, currency, forecast length (7–366 days), week start day and default calendar view. Also load demo data or clear everything.
 
 ## Prerequisites
@@ -62,6 +62,22 @@ The installer adds Start menu and desktop shortcuts. The app opens in its own wi
 On pushes to `main`, the workflow publishes the Windows NSIS installer as a GitHub Release tagged `v<package.json version>`, unless that tag or release already exists. `workflow_dispatch` can rerun it manually. The setup filename includes the app version.
 
 > If `ELECTRON_RUN_AS_NODE=1` is set in your shell (some IDE terminals set it), the exe silently runs as plain Node. Run `Remove-Item Env:ELECTRON_RUN_AS_NODE` first.
+
+## Bank connections (optional, SimpleFIN Bridge)
+
+The **Institutions** page connects your bank read-only through [SimpleFIN Bridge](https://beta-bridge.simplefin.org). SimpleFIN is a paid service run by SimpleFIN, not by this app: **$1.50 per month or $15 per year**, paid to SimpleFIN.
+
+1. Make an account at SimpleFIN Bridge and link your bank there. Your bank login stays with SimpleFIN and never touches this app.
+2. Create a **Setup Token** at <https://bridge.simplefin.org/simplefin/create>. It is shown once and can be claimed only once.
+3. In the app, open **Institutions**, choose **Connect a bank**, and paste the token.
+
+The app claims the token on the server, saves the connection and loads your accounts, balances and recent transactions (up to the last 90 days on the first sync).
+
+- **Sync is explicit.** SimpleFIN allows about 24 requests per day and refreshes bank data roughly once a day, and a token that goes over the limit can be disabled. So the app never fetches while you browse: it fetches when you connect and when you press **Refresh**, and refuses a second refresh within 15 minutes.
+- **Transactions are stored locally this time.** Because live fetching isn't practical, the accounts, balances and transactions from the last sync are saved in the local database (`prisma/dev.db`) so the pages work offline and don't spend your daily requests. Each refresh re-reads the last week or so and replaces what it covers; older history stays.
+- **The Access URL is a secret.** SimpleFIN's Access URL contains the credentials for your connection. It is stored unencrypted in the local database, like the rest of your data, is used only by the server, and is never sent to the browser or included in any API response or log.
+- **Removing a connection** deletes it, its accounts and its stored transactions from this app only. SimpleFIN has no revoke call, so to fully revoke access also disable the token in your SimpleFIN Bridge account.
+- Bank data never changes your projection.
 
 ## Test & quality checks
 
@@ -113,7 +129,7 @@ The UI never calculates balances itself. It renders what the projection engine r
 
 ## Privacy
 
-All data lives in `prisma/dev.db` on this computer. The app makes no external network calls, and Next.js telemetry is disabled through `NEXT_TELEMETRY_DISABLED=1` in `.env`.
+All data lives in `prisma/dev.db` on this computer. The only external network call is the optional SimpleFIN Bridge bank connection (when you connect or refresh a bank on the Institutions page), and Next.js telemetry is disabled through `NEXT_TELEMETRY_DISABLED=1` in `.env`.
 
 ## Known dependency advisories
 

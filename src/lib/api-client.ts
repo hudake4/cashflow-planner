@@ -7,10 +7,14 @@ import type {
   ApiErrorCode,
   BillDTO,
   BillInput,
+  BankTransactionsResponse,
   BillOccurrenceDTO,
+  ConnectInstitutionInput,
   DashboardResponse,
   IncomeDTO,
   IncomeInput,
+  InstitutionDTO,
+  InstitutionSyncDTO,
   OccurrenceUpdateInput,
   ProjectionResponse,
   SettingsDTO,
@@ -110,6 +114,16 @@ export const api = {
     return request<ProjectionResponse>(`/projection${q ? `?${q}` : ""}`);
   },
   getDashboard: () => request<DashboardResponse>("/dashboard"),
+
+  listInstitutions: () => request<InstitutionDTO[]>("/institutions"),
+  /** Claims a SimpleFIN setup token (one use only) and runs the first sync. */
+  connectInstitution: (input: ConnectInstitutionInput) => request<InstitutionSyncDTO>("/institutions", json("POST", input)),
+  syncInstitution: (id: string) => request<InstitutionSyncDTO>(`/institutions/${encodeURIComponent(id)}/sync`, json("POST")),
+  removeInstitution: (id: string) => request<void>(`/institutions/${encodeURIComponent(id)}`, json("DELETE")),
+  listBankTransactions: (id: string, { accountId, offset = 0 }: { accountId: string; offset?: number }) => {
+    const qs = new URLSearchParams({ accountId, offset: String(offset) });
+    return request<BankTransactionsResponse>(`/institutions/${encodeURIComponent(id)}/transactions?${qs.toString()}`);
+  },
 
   loadDemoData: () => request<{ ok: true }>("/data/demo", json("POST")),
   resetAllData: () => request<{ ok: true }>("/data/reset", json("POST")),

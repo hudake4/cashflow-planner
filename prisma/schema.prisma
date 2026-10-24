@@ -76,3 +76,50 @@ model BillOccurrence {
 
   @@unique([billId, dueDate])
 }
+
+// A SimpleFIN Bridge connection. `accessUrl` embeds the credentials (user:password in the
+// URL), so it is server-only: only src/server/simplefin.ts and the institutions repository
+// read it, and no DTO ever includes it. Stored unencrypted, like the rest of the data.
+model BankConnection {
+  id           String        @id @default(cuid())
+  householdId  String        @default("local")
+  accessUrl    String
+  lastSyncedAt DateTime? // last successful sync; drives the 15-minute minimum between syncs
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  accounts     BankAccount[]
+
+  @@index([householdId])
+}
+
+// Latest snapshot of one bank account. id = `${connectionId}:${simplefinAccountId}`.
+model BankAccount {
+  id                    String            @id
+  connectionId          String
+  providerAccountId     String // SimpleFIN account id
+  institutionName       String // the SimpleFIN connection (bank) name
+  name                  String
+  currency              String // 3-letter code, "USD" when SimpleFIN gives a non-ISO currency
+  balanceCents          Int
+  availableBalanceCents Int?
+  balanceDate           String // YYYY-MM-DD (UTC date of SimpleFIN's balance-date)
+  connection            BankConnection    @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  transactions          BankTransaction[]
+
+  @@index([connectionId])
+}
+
+// Stored transactions. id = `${accountId}:${simplefinTransactionId}`.
+// amountCents is SIGNED like SimpleFIN: money in positive, money out negative
+// (the opposite of bills, which are positive magnitudes).
+model BankTransaction {
+  id          String      @id
+  accountId   String
+  date        String // YYYY-MM-DD (UTC date of the posted timestamp)
+  amountCents Int
+  description String
+  pending     Boolean
+  account     BankAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, date])
+}

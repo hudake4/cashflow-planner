@@ -91,6 +91,8 @@ export async function resetAllData(prisma: PrismaClient): Promise<void> {
     await tx.billOccurrence.deleteMany({ where: { bill: { householdId: HOUSEHOLD_ID } } });
     await tx.bill.deleteMany({ where: { householdId: HOUSEHOLD_ID } });
     await tx.incomeSource.deleteMany({ where: { householdId: HOUSEHOLD_ID } });
+    // Accounts and their transactions cascade. SimpleFIN has no revoke API, so the user disables the token there.
+    await tx.bankConnection.deleteMany({ where: { householdId: HOUSEHOLD_ID } });
     await tx.settings.deleteMany({ where: { householdId: HOUSEHOLD_ID } });
   });
 }

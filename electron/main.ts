@@ -3,9 +3,10 @@
  *  - One instance only; a second launch focuses the existing window.
  *  - Closing the window quits the app, which stops the in-process server (see server.ts).
  *  - The window can only show the local app: external navigation and new windows are blocked.
+ *    The one exception: links to SimpleFIN Bridge (to create a setup token) open in the user's browser.
  */
 import path from "node:path";
-import { app, BrowserWindow, dialog, Menu, session } from "electron";
+import { app, BrowserWindow, dialog, Menu, session, shell } from "electron";
 import { startServer, type RunningServer } from "./server";
 
 const APP_NAME = "CashFlow Planner";
@@ -58,6 +59,16 @@ if (!app.requestSingleInstanceLock()) {
   });
 }
 
+/** True only for https://bridge.simplefin.org and https://beta-bridge.simplefin.org. */
+function isSimplefinBridgeUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" && (u.hostname === "bridge.simplefin.org" || u.hostname === "beta-bridge.simplefin.org");
+  } catch {
+    return false;
+  }
+}
+
 async function launch(): Promise<void> {
   Menu.setApplicationMenu(null);
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
@@ -80,7 +91,11 @@ async function launch(): Promise<void> {
   });
 
   // Only the local app may be shown: block pop-ups and navigation to other origins.
-  mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  // SimpleFIN Bridge links open in the user's own browser, never in this window.
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (isSimplefinBridgeUrl(url)) void shell.openExternal(url);
+    return { action: "deny" };
+  });
   mainWindow.webContents.on("will-navigate", (event, url) => {
     if (new URL(url).origin !== origin) event.preventDefault();
   });

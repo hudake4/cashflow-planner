@@ -1,0 +1,206 @@
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { BankTransactionDTO, InstitutionDTO } from "@/contracts/api";
+import { InstitutionsView } from "@/components/institutions/institutions-view";
+import { TransactionHistory } from "@/components/institutions/transaction-history";
+import { ToastProvider } from "@/components/ui/toast";
+
+const fetchMock = vi.fn();
+
+beforeEach(() => {
+  fetchMock.mockReset();
+  vi.stubGlobal("fetch", fetchMock);
+});
+afterEach(() => vi.unstubAllGlobals());
+
+const json = (status: number, body: unknown) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+
+const INSTITUTION: InstitutionDTO = {
+  id: "conn1",
+  name: "Demo Bank",
+  connectedAt: "2026-10-01T10:00:00.000Z",
+  lastSyncedAt: null,
+  accounts: [
+    {
+      id: "conn1:a1",
+      name: "Checking",
+      institutionName: "Demo Bank",
+      currency: "USD",
+      balanceCents: 123456,
+      availableBalanceCents: 100000,
+      balanceDate: "2026-10-24",
+    },
+    {
+      id: "conn1:a2",
+      name: "Card",
+      institutionName: "Demo Bank",
+      currency: "USD",
+      balanceCents: -5000,
+      availableBalanceCents: null,
+      balanceDate: "2026-10-23",
+    },
+  ],
+};
+
+/** Routes fetch calls by "METHOD path" so each test only declares what it needs. */
+function route(handlers: Record<string, () => Response>) {
+  fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+    const key = `${init?.method ?? "GET"} ${String(url).replace(/^\/api/, "")}`;
+    const handler = handlers[key];
+    if (!handler) throw new Error(`unexpected request: ${key}`);
+    return handler();
+  });
+}
+
+const renderView = () =>
+  render(
+    <ToastProvider>
+      <InstitutionsView />
+    </ToastProvider>,
+  );
+
+describe("InstitutionsView", () => {
+  it("shows the empty state and opens the connect dialog, rejecting an empty token client-side", async () => {
+    route({ "GET /institutions": () => json(200, []) });
+    const user = userEvent.setup();
+    renderView();
+
+    expect(await screen.findByTestId("institutions-empty")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Institutions" })).toBeInTheDocument();
+
+    await user.click(screen.getAllByTestId("add-institution-button")[0]);
+    const dialog = await screen.findByTestId("connect-dialog");
+    expect(within(dialog).getByTestId("simplefin-link")).toHaveAttribute("href", "https://bridge.simplefin.org/simplefin/create");
+
+    await user.click(within(dialog).getByTestId("connect-submit"));
+    expect(await within(dialog).findByTestId("setup-token-error")).toHaveTextContent(/paste your simplefin setup token/i);
+    expect(fetchMock).toHaveBeenCalledTimes(1); // only the initial list request
+  });
+
+  it("connects with a pasted token and shows SimpleFIN warnings as text", async () => {
+    let connected = false;
+    route({
+      "GET /institutions": () => json(200, connected ? [INSTITUTION] : []),
+      "POST /institutions": () => {
+        connected = true;
+        return json(201, { ...INSTITUTION, warnings: ["<img src=x> Please re-login"] });
+      },
+    });
+    const user = userEvent.setup();
+    renderView();
+    await user.click((await screen.findAllByTestId("add-institution-button"))[0]);
+    await user.type(await screen.findByTestId("setup-token"), "  TOKEN123  ");
+    await user.click(screen.getByTestId("connect-submit"));
+
+    expect(await screen.findByTestId("institution-card-conn1")).toBeInTheDocument();
+    const post = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
+    expect(JSON.parse(post![1].body)).toEqual({ setupToken: "TOKEN123" });
+    const notice = await screen.findByTestId("institutions-notice");
+    expect(notice).toHaveTextContent("<img src=x> Please re-login");
+    expect(notice.querySelector("img")).toBeNull(); // rendered as text, not markup
+  });
+
+  it("shows a server error inside the dialog and keeps the token for correction", async () => {
+    route({
+      "GET /institutions": () => json(200, []),
+      "POST /institutions": () => json(400, { error: { code: "BAD_REQUEST", message: "That setup token is invalid or has already been used." } }),
+    });
+    const user = userEvent.setup();
+    renderView();
+    await user.click((await screen.findAllByTestId("add-institution-button"))[0]);
+    await user.type(await screen.findByTestId("setup-token"), "BADTOKEN");
+    await user.click(screen.getByTestId("connect-submit"));
+    expect(await screen.findByTestId("form-error")).toHaveTextContent(/already been used/);
+    expect(screen.getByTestId("setup-token")).toHaveValue("BADTOKEN");
+  });
+
+  it("renders accounts with balances, links to transactions, and refreshes on demand", async () => {
+    const synced = { ...INSTITUTION, lastSyncedAt: "2026-10-24T12:00:00.000Z" };
+    let didSync = false;
+    route({
+      "GET /institutions": () => json(200, [didSync ? synced : INSTITUTION]),
+      "POST /institutions/conn1/sync": () => {
+        didSync = true;
+        return json(200, { ...synced, warnings: [] });
+      },
+    });
+    const user = userEvent.setup();
+    renderView();
+
+    const card = await screen.findByTestId("institution-card-conn1");
+    expect(within(card).getByText("Demo Bank")).toBeInTheDocument();
+    expect(within(card).getByText(/not synced yet/i)).toBeInTheDocument();
+    expect(within(card).getByText("$1,234.56")).toBeInTheDocument();
+    expect(within(card).getByText("$1,000.00")).toBeInTheDocument(); // available balance
+    expect(within(card).getByText(/negative balance/i)).toBeInTheDocument();
+    expect(within(card).getByTestId("account-link-conn1:a1")).toHaveAttribute("href", "/institutions/conn1?account=conn1%3Aa1");
+
+    await user.click(within(card).getByTestId("sync-institution-conn1"));
+    await waitFor(() => expect(within(card).getByText(/last synced/i)).toBeInTheDocument());
+    expect(fetchMock.mock.calls.some(([url, init]) => url === "/api/institutions/conn1/sync" && init?.method === "POST")).toBe(true);
+  });
+
+  it("explains that removing is local only before deleting", async () => {
+    route({
+      "GET /institutions": () => json(200, [INSTITUTION]),
+      "DELETE /institutions/conn1": () => new Response(null, { status: 204 }),
+    });
+    const user = userEvent.setup();
+    renderView();
+    await user.click(await screen.findByTestId("remove-institution-conn1"));
+    const dialog = await screen.findByTestId("confirm-remove-institution");
+    expect(dialog).toHaveTextContent(/removed from this app only/i);
+    expect(dialog).toHaveTextContent(/disable the token in your SimpleFIN/i);
+    await user.click(within(dialog).getByTestId("confirm-submit"));
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some(([url, init]) => url === "/api/institutions/conn1" && init?.method === "DELETE")).toBe(true),
+    );
+  });
+});
+
+describe("TransactionHistory", () => {
+  const txs = (from: number, to: number): BankTransactionDTO[] =>
+    Array.from({ length: to - from }, (_, i) => ({
+      id: `conn1:a1:t${from + i}`,
+      accountId: "conn1:a1",
+      date: "2026-10-20",
+      description: `Purchase ${from + i}`,
+      amountCents: (from + i) % 2 ? -1234 : 250000,
+      pending: from + i === 1,
+    }));
+
+  it("shows signed amounts, a pending badge, and loads more with an offset", async () => {
+    route({
+      "GET /institutions": () => json(200, [INSTITUTION]),
+      "GET /institutions/conn1/transactions?accountId=conn1%3Aa1&offset=0": () =>
+        json(200, { transactions: txs(0, 3), hasMore: true }),
+      "GET /institutions/conn1/transactions?accountId=conn1%3Aa1&offset=3": () =>
+        json(200, { transactions: txs(3, 5), hasMore: false }),
+    });
+    const user = userEvent.setup();
+    render(<TransactionHistory institutionId="conn1" initialAccountId="conn1:a1" />);
+
+    const table = await screen.findByTestId("transactions-table");
+    expect(within(table).getAllByRole("row")).toHaveLength(4); // header + 3
+    const row0 = screen.getByTestId("transaction-row-conn1:a1:t0");
+    expect(row0).toHaveTextContent("+$2,500.00");
+    expect(row0).toHaveTextContent(/money in/i);
+    const row1 = screen.getByTestId("transaction-row-conn1:a1:t1");
+    expect(row1).toHaveTextContent("−$12.34");
+    expect(row1).toHaveTextContent(/money out/i);
+    expect(row1).toHaveTextContent("Pending");
+    expect(screen.getByTestId("account-picker")).toBeInTheDocument(); // two accounts
+
+    await user.click(screen.getByTestId("load-more"));
+    await waitFor(() => expect(within(screen.getByTestId("transactions-table")).getAllByRole("row")).toHaveLength(6));
+    expect(screen.queryByTestId("load-more")).toBeNull();
+  });
+
+  it("says so when the connection no longer exists", async () => {
+    route({ "GET /institutions": () => json(200, []) });
+    render(<TransactionHistory institutionId="gone" />);
+    expect(await screen.findByTestId("institution-not-found")).toBeInTheDocument();
+  });
+});
