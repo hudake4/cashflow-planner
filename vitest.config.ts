@@ -16,7 +16,7 @@ export default defineConfig({
   plugins: [tsconfigPaths(), react()],
   test: {
     globals: true,
-    exclude: ["**/node_modules/**", "**/.next/**", "**/.tools/**", "tests/e2e/**"],
+    exclude: ["**/node_modules/**", "**/.next/**", "**/.tools/**", "**/dist-desktop/**", "tests/e2e/**"],
     projects: [
       {
         extends: true,

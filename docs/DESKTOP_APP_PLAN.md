@@ -1,6 +1,7 @@
 # Desktop App Plan — CashFlow Planner as a Windows .exe
 
-**Status:** agreed, not started. Planned for 2026-10-24 (morning).
+**Status:** done (2026-10-23). All step 7 checks passed; see the README's "Desktop app" section.
+Deviations from the plan: the standalone server ships unpacked under `resources/server` (via `extraResources`) instead of `asarUnpack`, and is started through Next's `next()` API on an `http.Server` we own (not `server.js`). Electron is pinned to 44.7.0; `npm audit` flags it for GHSA-jr5w-w6x2-84p9 (fixed in 44.9.1, released 2026-10-20). Upgrade once that release is two weeks old.
 **Decision:** Option 1, an Electron desktop app with a real installer (`CashFlow Planner Setup.exe`), keeping the internal Next.js server *hidden inside the app process*. The server-less IPC rewrite was considered and not chosen.
 
 ## Requirements agreed with the user

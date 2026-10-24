@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "description": "CashFlow Planner — a local personal cash-flow projection app.",
+  "author": "Ethan Hudak",
+  "main": "electron/dist/main.js",
   "engines": {
     "node": ">=20.9.0"
   },
@@ -21,6 +23,10 @@
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "db:reset": "prisma migrate reset --force --skip-seed",
+    "desktop:build": "next build && node scripts/prepare-desktop.mjs && tsc -p electron/tsconfig.json",
+    "desktop:start": "npm run desktop:build && electron .",
+    "desktop:dist": "npm run desktop:build && electron-builder --win nsis",
+    "desktop:icon": "node scripts/generate-icon.mjs",
     "postinstall": "prisma generate"
   },
   "dependencies": {
@@ -45,6 +51,8 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^4.7.0",
+    "electron": "44.7.0",
+    "electron-builder": "26.17.0",
     "eslint": "^9.39.5",
     "eslint-config-next": "^15.5.28",
     "jsdom": "^26.1.0",
