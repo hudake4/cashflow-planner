@@ -36,6 +36,6 @@ nsis:
   createDesktopShortcut: always
   createStartMenuShortcut: true
   shortcutName: CashFlow Planner
-  artifactName: CashFlow Planner Setup.${ext}
+  artifactName: "CashFlow Planner Setup ${version}.${ext}"
   # Keep the user's data in %APPDATA% when uninstalling.
   deleteAppDataOnUninstall: false
