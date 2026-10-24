@@ -39,6 +39,7 @@ describe("ScheduleFormDialog (bill)", () => {
     expect(await screen.findByTestId("bill-name-error")).toHaveTextContent(/name is required/i);
     expect(screen.getByTestId("bill-amount-error")).toHaveTextContent(/amount is required/i);
     expect(screen.getByTestId("bill-name")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.queryByTestId("toast-error")).not.toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -48,6 +49,7 @@ describe("ScheduleFormDialog (bill)", () => {
     await fill(user, "bill-amount", amount);
     await user.click(screen.getByTestId("bill-form-submit"));
     expect(await screen.findByTestId("bill-amount-error")).toBeInTheDocument();
+    expect(screen.queryByTestId("toast-error")).not.toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -111,7 +113,21 @@ describe("ScheduleFormDialog (bill)", () => {
     await fill(user, "bill-amount", "12.99");
     await user.click(screen.getByTestId("bill-form-submit"));
     expect(await screen.findByTestId("bill-name-error")).toHaveTextContent("Server says no");
+    expect(screen.queryByTestId("toast-error")).not.toBeInTheDocument();
     expect(onSaved).not.toHaveBeenCalled();
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).amountCents).toBe(1299);
+  });
+
+  it("keeps the toast for non-field request failures", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(503, {
+        error: { code: "INTERNAL_ERROR", message: "The bill service is unavailable." },
+      }),
+    );
+    const { user } = renderBillForm();
+    await fill(user, "bill-name", "Rent");
+    await fill(user, "bill-amount", "12.99");
+    await user.click(screen.getByTestId("bill-form-submit"));
+    expect(await screen.findByTestId("toast-error")).toHaveTextContent("The bill service is unavailable.");
   });
 });

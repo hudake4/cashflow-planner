@@ -173,13 +173,11 @@ function ScheduleForm({
       // Keep the friendlier amount message from the parser when present.
       setErrors({ ...zodErrors, ...clientErrors });
       focusFirstInvalidField();
-      toast("Please fix the highlighted fields.", "error");
       return;
     }
     if (Object.keys(clientErrors).length) {
       setErrors(clientErrors);
       focusFirstInvalidField();
-      toast("Please fix the highlighted fields.", "error");
       return;
     }
 
@@ -206,7 +204,6 @@ function ScheduleForm({
         setErrors(mapped);
         focusFirstInvalidField();
         setFormError(err.message || "Please fix the highlighted fields.");
-        toast(err.message || "Please fix the highlighted fields.", "error");
       } else {
         const message = errorMessage(err);
         setFormError(message);
