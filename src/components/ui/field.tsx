@@ -1,34 +1,36 @@
 "use client";
 
-import { clsx } from "clsx";
+import { cloneElement, forwardRef, isValidElement, useId, type ComponentProps, type InputHTMLAttributes, type ReactElement, type ReactNode, type SelectHTMLAttributes } from "react";
+import { cn } from "@/lib/utils";
+import { Input as ShadcnInput } from "./input";
+import { Textarea as ShadcnTextarea } from "./textarea";
 import {
-  cloneElement,
-  forwardRef,
-  isValidElement,
-  useId,
-  type InputHTMLAttributes,
-  type ReactElement,
-  type ReactNode,
-  type SelectHTMLAttributes,
-  type TextareaHTMLAttributes,
-} from "react";
-
-const controlBase =
-  "block w-full rounded-control border bg-field px-3 text-sm text-slate-900 placeholder:text-slate-400 " +
-  "focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/30 " +
-  "disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500";
-
-function controlClass(invalid?: boolean, extra?: string) {
-  return clsx(controlBase, invalid ? "border-rose-600" : "border-slate-300", extra);
-}
+  Field as ShadcnField,
+  FieldContent,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSeparator,
+  FieldSet,
+  FieldTitle,
+} from "./primitives/field";
 
 type ControlProps = { invalid?: boolean };
 
-export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & ControlProps>(function Input(
+export const Input = forwardRef<HTMLInputElement, ComponentProps<typeof ShadcnInput> & ControlProps>(function Input(
   { invalid, className, ...props },
   ref,
 ) {
-  return <input ref={ref} aria-invalid={invalid || undefined} className={controlClass(invalid, clsx("h-10", className))} {...props} />;
+  return (
+    <ShadcnInput
+      ref={ref}
+      className={cn("h-10 rounded-control bg-field px-3 text-base text-foreground placeholder:text-slate-400 sm:text-sm", className)}
+      {...props}
+      aria-invalid={invalid || props["aria-invalid"] || undefined}
+    />
+  );
 });
 
 export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement> & ControlProps>(function Select(
@@ -36,17 +38,32 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
   ref,
 ) {
   return (
-    <select ref={ref} aria-invalid={invalid || undefined} className={controlClass(invalid, clsx("h-10 pr-8", className))} {...props} />
+    <select
+      ref={ref}
+      className={cn(
+        "block h-10 w-full rounded-control border border-input bg-field px-3 pr-8 text-base text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/30 aria-invalid:border-destructive aria-invalid:focus:border-destructive disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 sm:text-sm",
+        className,
+      )}
+      {...props}
+      aria-invalid={invalid || props["aria-invalid"] || undefined}
+    />
   );
 });
 
-export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement> & ControlProps>(
+export const Textarea = forwardRef<HTMLTextAreaElement, ComponentProps<typeof ShadcnTextarea> & ControlProps>(
   function Textarea({ invalid, className, ...props }, ref) {
-    return <textarea ref={ref} aria-invalid={invalid || undefined} className={controlClass(invalid, clsx("py-2", className))} {...props} />;
+    return (
+      <ShadcnTextarea
+        ref={ref}
+        className={cn("min-h-24 rounded-control bg-field px-3 py-2 text-base text-foreground placeholder:text-slate-400 sm:text-sm", className)}
+        {...props}
+        aria-invalid={invalid || props["aria-invalid"] || undefined}
+      />
+    );
   },
 );
 
-/** Money input with a currency prefix; value is the raw string (parsed with parseMoneyToCents on submit). */
+/** Money input stays a raw decimal string; callers parse it to integer cents on submit. */
 export const MoneyInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & ControlProps & { prefix?: string }>(
   function MoneyInput({ invalid, className, prefix = "$", ...props }, ref) {
     return (
@@ -54,12 +71,12 @@ export const MoneyInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLI
         <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-slate-500" aria-hidden="true">
           {prefix}
         </span>
-        <input
+        <Input
           ref={ref}
           inputMode="decimal"
           autoComplete="off"
-          aria-invalid={invalid || undefined}
-          className={controlClass(invalid, clsx("h-10 tabular-nums", prefix.length > 1 ? "pl-12" : "pl-7", className))}
+          invalid={invalid}
+          className={cn("h-10 tabular-nums", prefix.length > 1 ? "pl-12" : "pl-7", className)}
           {...props}
         />
       </div>
@@ -67,10 +84,7 @@ export const MoneyInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLI
   },
 );
 
-/**
- * Label + control + hint + error. The child control receives id,
- * aria-describedby and invalid automatically.
- */
+/** Label, control, hint, and error wrapper retained for the current feature components. */
 export function Field({
   label,
   hint,
@@ -95,27 +109,23 @@ export function Field({
   const describedBy = [hint ? hintId : null, errorText ? errorId : null].filter(Boolean).join(" ") || undefined;
 
   return (
-    <div className={clsx("space-y-1.5", className)}>
-      <label htmlFor={id} className="block text-sm font-semibold text-slate-800">
+    <ShadcnField data-invalid={!!errorText} className={cn("gap-1.5", className)}>
+      <FieldLabel htmlFor={id} className="text-sm font-semibold text-foreground">
         {label}
-        {optional && <span className="ml-1 font-normal text-slate-500">(optional)</span>}
-      </label>
+        {optional && <span className="ml-1 font-normal text-muted-foreground">(optional)</span>}
+      </FieldLabel>
       {isValidElement(children) ? cloneElement(children, { id, "aria-describedby": describedBy, invalid: !!errorText }) : children}
-      {hint && (
-        <p id={hintId} className="text-xs text-slate-600">
-          {hint}
-        </p>
-      )}
+      {hint && <FieldDescription id={hintId} className="text-xs">{hint}</FieldDescription>}
       {errorText && (
-        <p id={errorId} className="text-xs font-medium text-rose-700" data-testid={testId ? `${testId}-error` : undefined}>
+        <FieldError id={errorId} data-testid={testId ? `${testId}-error` : undefined} className="text-xs font-medium">
           {errorText}
-        </p>
+        </FieldError>
       )}
-    </div>
+    </ShadcnField>
   );
 }
 
-/** Accessible on/off switch (a checkbox with role="switch"). */
+/** Controlled switch adapter retained for current settings and form consumers. */
 export function Switch({
   checked,
   onChange,
@@ -130,40 +140,45 @@ export function Switch({
   testId?: string;
 }) {
   const id = useId();
+  const descriptionId = `${id}-description`;
+
   return (
-    <div className="flex items-start gap-3">
-      <span className="relative mt-0.5 inline-flex shrink-0">
+    <ShadcnField orientation="horizontal" className="items-start gap-3">
+      <span className="relative mt-0.5 inline-flex h-6 w-11 shrink-0">
         <input
           id={id}
           type="checkbox"
           role="switch"
           checked={checked}
-          onChange={(e) => onChange(e.target.checked)}
-          className="peer absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          onChange={(event) => onChange(event.target.checked)}
+          className="peer absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
           data-testid={testId}
-          aria-describedby={description ? `${id}-desc` : undefined}
+          aria-describedby={description ? descriptionId : undefined}
         />
         <span
           aria-hidden="true"
-          className={clsx(
-            // pointer-events-none: the translated knob would otherwise sit above the checkbox and eat clicks.
-            "pointer-events-none flex h-6 w-11 items-center rounded-full p-0.5 transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-brand-600",
-            checked ? "bg-brand-600" : "bg-slate-300",
-          )}
+          className="pointer-events-none flex h-6 w-11 items-center rounded-full border border-input bg-input p-0.5 transition-colors duration-150 peer-checked:border-primary peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-ring"
         >
-          <span className={clsx("h-5 w-5 rounded-full bg-on-accent shadow transition-transform", checked && "translate-x-5")} />
+          <span className="size-5 rounded-full bg-background shadow-sm transition-transform peer-checked:translate-x-5" />
         </span>
       </span>
-      <span>
-        <label htmlFor={id} className="block cursor-pointer text-sm font-medium text-slate-800">
-          {label}
-        </label>
-        {description && (
-          <span id={`${id}-desc`} className="block text-xs text-slate-600">
-            {description}
-          </span>
-        )}
-      </span>
-    </div>
+      <FieldContent className="gap-0.5">
+        <FieldLabel htmlFor={id} className="cursor-pointer text-sm font-medium text-foreground">{label}</FieldLabel>
+        {description && <FieldDescription id={descriptionId} className="text-xs">{description}</FieldDescription>}
+      </FieldContent>
+    </ShadcnField>
   );
 }
+
+export {
+  ShadcnField as FieldPrimitive,
+  ShadcnField as FieldRoot,
+  FieldContent,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLegend,
+  FieldSeparator,
+  FieldSet,
+  FieldTitle,
+};

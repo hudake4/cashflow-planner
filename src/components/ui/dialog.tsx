@@ -1,14 +1,36 @@
 "use client";
 
-import { clsx } from "clsx";
+import type { ReactNode } from "react";
 import { X } from "lucide-react";
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { cn } from "@/lib/utils";
+import { Button } from "./button";
+import {
+  Dialog as DialogRoot,
+  DialogClose,
+  DialogPortal,
+  DialogOverlay,
+  DialogContent as ShadcnDialogContent,
+  DialogDescription,
+  DialogFooter as ShadcnDialogFooter,
+  DialogHeader as ShadcnDialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "./primitives/dialog";
 
-/**
- * Accessible modal built on the native <dialog> element. `showModal()` makes the
- * rest of the page inert (focus is contained), Escape closes it, and focus
- * returns to the previously focused element on close.
- */
+export {
+  DialogRoot,
+  DialogClose,
+  DialogPortal,
+  DialogOverlay,
+  DialogDescription,
+  DialogTitle,
+  DialogTrigger,
+};
+
+export const DialogContent = ShadcnDialogContent;
+export const DialogHeader = ShadcnDialogHeader;
+export const DialogFooter = ShadcnDialogFooter;
+
 export function Dialog({
   open,
   onClose,
@@ -26,98 +48,46 @@ export function Dialog({
   description?: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
-  /** "drawer" slides in from the right on wide screens (bottom sheet on mobile). */
+  /** Drawer mode is a bottom sheet on mobile and a right-side sheet on desktop. */
   variant?: "modal" | "drawer";
   size?: "sm" | "md" | "lg";
   testId?: string;
 }) {
-  const ref = useRef<HTMLDialogElement>(null);
-  const titleId = useId();
-  const descId = useId();
-  const onCloseRef = useRef(onClose);
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  });
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    if (open && !el.open) {
-      const previouslyFocused = document.activeElement as HTMLElement | null;
-      el.showModal();
-      return () => {
-        if (el.open) el.close();
-        if (previouslyFocused && document.contains(previouslyFocused)) previouslyFocused.focus();
-      };
-    }
-  }, [open]);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const handleCancel = (e: Event) => {
-      e.preventDefault();
-      onCloseRef.current();
-    };
-    el.addEventListener("cancel", handleCancel);
-    return () => el.removeEventListener("cancel", handleCancel);
-  }, []);
-
-  const widths = { sm: "sm:max-w-md", md: "sm:max-w-lg", lg: "sm:max-w-2xl" };
+  const width = size === "sm" ? "sm:max-w-md" : size === "lg" ? "sm:max-w-2xl" : "sm:max-w-lg";
+  const panelPlacement =
+    variant === "drawer"
+      ? "top-auto right-0 bottom-0 left-0 h-auto max-h-[92dvh] max-w-full translate-x-0 translate-y-0 rounded-t-dialog sm:top-0 sm:right-0 sm:bottom-0 sm:left-auto sm:h-dvh sm:max-h-none sm:max-w-md sm:translate-x-0 sm:translate-y-0 sm:rounded-none sm:rounded-l-dialog"
+      : "top-auto bottom-0 left-0 max-h-[92dvh] max-w-full translate-x-0 translate-y-0 rounded-t-dialog sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:max-h-[88dvh] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-dialog";
 
   return (
-    <dialog
-      ref={ref}
-      aria-labelledby={titleId}
-      aria-describedby={description ? descId : undefined}
-      data-testid={testId}
-      onClick={(e) => {
-        // Click on the backdrop (the dialog element itself) closes.
-        if (e.target === ref.current) onCloseRef.current();
-      }}
-      className={clsx(
-        "fixed inset-0 m-0 h-full max-h-none w-full max-w-none bg-transparent p-0 text-slate-900 open:flex",
-        variant === "modal" ? "items-end justify-center sm:items-center sm:p-4" : "items-end justify-end sm:items-stretch",
-      )}
-    >
-      {open && (
-        <div
-          className={clsx(
-            "flex w-full flex-col bg-sheet shadow-[0_24px_60px_-20px_rgb(23_42_51/0.45)]",
-            variant === "modal"
-              ? clsx("max-h-[92dvh] rounded-t-dialog sm:max-h-[88dvh] sm:rounded-dialog", widths[size])
-              : "max-h-[92dvh] rounded-t-dialog sm:h-full sm:max-h-none sm:max-w-md sm:rounded-none sm:rounded-l-dialog",
-          )}
-        >
-          <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
-            <div className="min-w-0">
-              <h2 id={titleId} className="font-semiwide text-lg font-bold text-slate-900">
-                {title}
-              </h2>
-              {description && (
-                <div id={descId} className="mt-0.5 text-sm text-slate-600">
-                  {description}
-                </div>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={() => onCloseRef.current()}
-              className="-mr-1 rounded-control p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-              aria-label="Close"
-              data-testid="dialog-close"
-            >
-              <X className="h-5 w-5" aria-hidden="true" />
-            </button>
+    <DialogRoot open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
+      <ShadcnDialogContent
+        data-testid={testId}
+        showCloseButton={false}
+        className={cn(
+          "grid w-full gap-0 overflow-hidden border border-border bg-popover p-0 text-popover-foreground shadow-xl",
+          panelPlacement,
+          variant === "modal" && width,
+        )}
+      >
+        <ShadcnDialogHeader className="flex flex-row items-start justify-between gap-4 border-b border-border px-5 py-4">
+          <div className="min-w-0">
+            <DialogTitle className="font-semiwide text-lg font-bold text-foreground">{title}</DialogTitle>
+            {description && <DialogDescription className="mt-0.5 text-sm text-muted-foreground">{description}</DialogDescription>}
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
-          {footer && (
-            <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3 sm:rounded-b-dialog">
-              {footer}
-            </div>
-          )}
-        </div>
-      )}
-    </dialog>
+          <DialogClose asChild>
+            <Button variant="ghost" size="icon" aria-label="Close" data-testid="dialog-close">
+              <X aria-hidden="true" />
+            </Button>
+          </DialogClose>
+        </ShadcnDialogHeader>
+        <div className="min-h-0 overflow-y-auto px-5 py-4">{children}</div>
+        {footer && (
+          <ShadcnDialogFooter className="flex flex-wrap justify-end gap-2 border-t border-border bg-muted px-5 py-3">
+            {footer}
+          </ShadcnDialogFooter>
+        )}
+      </ShadcnDialogContent>
+    </DialogRoot>
   );
 }

@@ -1,52 +1,67 @@
-import { clsx } from "clsx";
+import { forwardRef, type ReactNode } from "react";
 import { LoaderCircle } from "lucide-react";
-import { forwardRef, type ButtonHTMLAttributes } from "react";
+import { cn } from "@/lib/utils";
+import { Button as ShadcnButton, buttonVariants } from "./primitives/button";
 
-type Variant = "primary" | "secondary" | "ghost" | "danger" | "success";
-type Size = "sm" | "md" | "icon";
+type LegacyVariant = "primary" | "secondary" | "danger" | "success";
+type Variant = NonNullable<React.ComponentProps<typeof ShadcnButton>["variant"]> | LegacyVariant;
+type Size = NonNullable<React.ComponentProps<typeof ShadcnButton>["size"]> | "md";
 
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+export interface ButtonProps extends Omit<React.ComponentProps<typeof ShadcnButton>, "variant" | "size" | "children"> {
   variant?: Variant;
   size?: Size;
   loading?: boolean;
+  children?: ReactNode;
 }
 
-const variants: Record<Variant, string> = {
+const legacyVariants: Partial<Record<LegacyVariant, string>> = {
   primary: "bg-brand-600 text-on-accent hover:bg-brand-700",
-  secondary: "bg-sheet text-slate-800 border border-slate-300 hover:border-slate-400 hover:bg-field",
-  ghost: "text-slate-700 hover:bg-slate-200/60",
+  secondary: "border border-slate-300 bg-sheet text-slate-800 hover:border-slate-400 hover:bg-field",
   danger: "bg-rose-700 text-on-accent hover:bg-rose-800",
   success: "bg-emerald-700 text-on-accent hover:bg-emerald-800",
 };
 
-const sizes: Record<Size, string> = {
-  sm: "h-8 px-3 text-sm gap-1.5",
-  md: "h-10 px-4 text-sm gap-2",
-  icon: "h-9 w-9 justify-center",
+const legacySizes: Partial<Record<"sm" | "md" | "icon", string>> = {
+  sm: "h-8 gap-1.5 px-3 text-sm",
+  md: "h-10 gap-2 px-4 text-sm",
+  icon: "size-9",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   { variant = "secondary", size = "md", loading = false, className, children, disabled, type = "button", ...props },
   ref,
 ) {
+  const baseVariant =
+    variant === "primary" || variant === "success"
+      ? "default"
+      : variant === "secondary"
+        ? "outline"
+        : variant === "danger"
+          ? "destructive"
+          : variant;
+
   return (
-    <button
+    <ShadcnButton
       ref={ref}
       type={type}
+      variant={baseVariant}
+      size={size === "md" ? "lg" : size}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
-      className={clsx(
-        "inline-flex shrink-0 items-center justify-center rounded-control font-semibold transition-colors",
-        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600",
-        "disabled:cursor-not-allowed disabled:opacity-60",
-        variants[variant],
-        sizes[size],
+      className={cn(
+        "rounded-control font-semibold transition-colors focus-visible:outline-none",
+        size === "default" && "h-10 px-4",
+        legacySizes[size as keyof typeof legacySizes],
+        legacyVariants[variant as LegacyVariant],
+        variant === "destructive" && "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         className,
       )}
       {...props}
     >
-      {loading && <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />}
+      {loading && <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />}
       {children}
-    </button>
+    </ShadcnButton>
   );
 });
+
+export { buttonVariants };

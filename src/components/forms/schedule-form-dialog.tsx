@@ -16,9 +16,10 @@ import { centsToInputValue, parseMoneyToCents } from "@/domain/money";
 import { ApiError, api, errorMessage } from "@/lib/api-client";
 import { todayLocal } from "@/lib/dates";
 import { FREQUENCY_LABELS } from "@/lib/format";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import { Field, Input, MoneyInput, Select, Switch, Textarea } from "@/components/ui/field";
+import { Field, FieldGroup, Input, MoneyInput, Select, Switch, Textarea } from "@/components/ui/field";
 import { InlineStatus } from "@/components/ui/states";
 import { useToast } from "@/components/ui/toast";
 
@@ -98,6 +99,8 @@ export function ScheduleFormDialog({
           ? "Recurring or one-time expenses that will leave your account."
           : "Paychecks and other money you expect to receive."
       }
+      variant="drawer"
+      size="lg"
       testId={`${kind}-form-dialog`}
     >
       {open && <ScheduleForm key={item?.id ?? "new"} kind={kind} item={item} onClose={onClose} onSaved={onSaved} />}
@@ -162,10 +165,12 @@ function ScheduleForm({
       const zodErrors = zodFieldErrors(parsed.error.issues);
       // Keep the friendlier amount message from the parser when present.
       setErrors({ ...zodErrors, ...clientErrors });
+      toast("Please fix the highlighted fields.", "error");
       return;
     }
     if (Object.keys(clientErrors).length) {
       setErrors(clientErrors);
+      toast("Please fix the highlighted fields.", "error");
       return;
     }
 
@@ -179,7 +184,7 @@ function ScheduleForm({
         const input = payload as IncomeInput;
         saved = item ? await api.updateIncome(item.id, input) : await api.createIncome(input);
       }
-      toast(`${kind === "bill" ? "Bill" : "Income"} “${saved.name}” ${item ? "updated" : "added"}.`);
+      toast(`${kind === "bill" ? "Bill" : "Income"} “${saved.name}” ${item ? "updated" : "added"}.`, "success");
       onSaved?.(saved);
       onClose();
     } catch (err) {
@@ -191,8 +196,11 @@ function ScheduleForm({
         }
         setErrors(mapped);
         setFormError(err.message || "Please fix the highlighted fields.");
+        toast(err.message || "Please fix the highlighted fields.", "error");
       } else {
-        setFormError(errorMessage(err));
+        const message = errorMessage(err);
+        setFormError(message);
+        toast(message, "error");
       }
     } finally {
       setSaving(false);
@@ -204,9 +212,16 @@ function ScheduleForm({
     .flatMap(([, v]) => v ?? []);
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-4" data-testid={`${testPrefix}-form`}>
-      {formError && <InlineStatus tone="error">{formError}</InlineStatus>}
-      {unknownErrors.length > 0 && <InlineStatus tone="error">{unknownErrors.join(" ")}</InlineStatus>}
+    <form
+      onSubmit={handleSubmit}
+      noValidate
+      className="flex flex-col gap-4"
+      aria-busy={saving}
+      data-testid={`${testPrefix}-form`}
+    >
+      <FieldGroup className="gap-4">
+        {formError && <InlineStatus tone="error">{formError}</InlineStatus>}
+        {unknownErrors.length > 0 && <InlineStatus tone="error">{unknownErrors.join(" ")}</InlineStatus>}
 
       <Field label="Name" error={errors.name} testId={`${testPrefix}-name`}>
         <Input
@@ -326,12 +341,19 @@ function ScheduleForm({
         }
         testId={`${testPrefix}-active`}
       />
+      </FieldGroup>
 
-      <div className="sticky bottom-0 -mx-5 -mb-4 flex flex-wrap justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3">
-        <Button onClick={onClose} disabled={saving} data-testid={`${testPrefix}-form-cancel`}>
+      <div className="sticky bottom-0 -mx-5 -mb-4 flex flex-col-reverse gap-2 border-t border-border bg-muted px-5 py-3 sm:flex-row sm:justify-end">
+        <Button className="w-full sm:w-auto" onClick={onClose} disabled={saving} data-testid={`${testPrefix}-form-cancel`}>
           Cancel
         </Button>
-        <Button type="submit" variant="primary" loading={saving} data-testid={`${testPrefix}-form-submit`}>
+        <Button
+          className="w-full sm:w-auto"
+          type="submit"
+          variant="primary"
+          loading={saving}
+          data-testid={`${testPrefix}-form-submit`}
+        >
           {item ? "Save changes" : kind === "bill" ? "Add bill" : "Add income"}
         </Button>
       </div>
@@ -350,9 +372,11 @@ function FrequencyHelp({ kind, frequency }: { kind: ScheduleKind; frequency: str
   else if (frequency === "ONE_TIME") text = "Happens once, on the date below.";
   if (!text) return null;
   return (
-    <p className="-mt-1 flex items-start gap-2 rounded-control bg-slate-100 px-3 py-2 text-xs text-slate-700" data-testid="frequency-help">
-      <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden="true" />
-      {text}
-    </p>
+    <Alert role="status" className="-mt-1 flex items-start gap-2 rounded-control border-border bg-muted px-3 py-2 text-xs">
+      <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+      <AlertDescription className="text-xs text-muted-foreground" data-testid="frequency-help">
+        {text}
+      </AlertDescription>
+    </Alert>
   );
 }

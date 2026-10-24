@@ -2,8 +2,8 @@
 
 import { useState, type ReactNode } from "react";
 import { errorMessage } from "@/lib/api-client";
+import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "./alert-dialog";
 import { Button } from "./button";
-import { Dialog } from "./dialog";
 import { InlineStatus } from "./states";
 
 export function ConfirmDialog({
@@ -14,6 +14,8 @@ export function ConfirmDialog({
   confirmLabel,
   tone = "danger",
   onConfirm,
+  onError,
+  restoreFocusTarget,
   testId = "confirm-dialog",
 }: {
   open: boolean;
@@ -24,29 +26,39 @@ export function ConfirmDialog({
   tone?: "danger" | "primary";
   /** Should throw on failure; the error is shown inside the dialog. */
   onConfirm: () => Promise<void>;
+  /** Optional notification hook for callers that also announce failures. */
+  onError?: (message: string) => void;
+  /** Optional trigger to focus after the dialog closes. */
+  restoreFocusTarget?: HTMLElement | null;
   testId?: string;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const close = () => {
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (nextOpen) return;
     if (busy) return;
     setError(null);
     onClose();
   };
 
   return (
-    <Dialog
-      open={open}
-      onClose={close}
-      title={title}
-      size="sm"
-      testId={testId}
-      footer={
-        <>
-          <Button onClick={close} disabled={busy} data-testid="confirm-cancel">
-            Cancel
-          </Button>
+    <AlertDialog open={open} onOpenChange={handleOpenChange}>
+      <AlertDialogContent
+        data-testid={testId}
+        onCloseAutoFocus={(event) => {
+          if (!restoreFocusTarget?.isConnected) return;
+          event.preventDefault();
+          restoreFocusTarget.focus();
+        }}
+      >
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        {error && <InlineStatus tone="error">{error}</InlineStatus>}
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={busy} data-testid="confirm-cancel">Cancel</AlertDialogCancel>
           <Button
             variant={tone}
             loading={busy}
@@ -60,19 +72,16 @@ export function ConfirmDialog({
                 onClose();
               } catch (err) {
                 setBusy(false);
-                setError(errorMessage(err));
+                const message = errorMessage(err);
+                setError(message);
+                onError?.(message);
               }
             }}
           >
             {confirmLabel}
           </Button>
-        </>
-      }
-    >
-      <div className="space-y-3 text-sm text-slate-700">
-        {description}
-        {error && <InlineStatus tone="error">{error}</InlineStatus>}
-      </div>
-    </Dialog>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

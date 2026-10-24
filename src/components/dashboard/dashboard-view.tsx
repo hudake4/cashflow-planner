@@ -1,7 +1,7 @@
 "use client";
 
 import { clsx } from "clsx";
-import { CalendarDays, HandCoins, Info, Receipt, TriangleAlert, Wallet } from "lucide-react";
+import { CalendarDays, HandCoins, Info, Receipt, RefreshCw, TriangleAlert, Wallet } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { DashboardResponse } from "@/contracts/api";
@@ -10,9 +10,11 @@ import { fmtDate, fmtDayShort, fmtRange, fmtShort } from "@/lib/dates";
 import { money } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
 import { PageHeader } from "@/components/app-shell";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { Balance, EventAmount } from "@/components/ui/money";
+import { AnimatedBalance, Balance, EventAmount } from "@/components/ui/money";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/ui/states";
 import { TrendChart } from "./trend-chart";
@@ -20,7 +22,7 @@ import { TrendChart } from "./trend-chart";
 const DISCLAIMER = "Projected balance assumes all scheduled income arrives and all listed bills are paid on time.";
 
 const linkButton =
-  "inline-flex h-10 items-center justify-center gap-2 rounded-control px-4 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600";
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-control px-4 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600";
 
 export function DashboardView() {
   const dash = useApi<DashboardResponse>("dashboard", api.getDashboard);
@@ -31,17 +33,36 @@ export function DashboardView() {
         title="Dashboard"
         description="How much you'll have left each week after income and upcoming bills."
         actions={
-          <Link href="/calendar" className={clsx(linkButton, "bg-brand-600 text-on-accent hover:bg-brand-700")} data-testid="dashboard-open-calendar">
-            <CalendarDays className="h-4 w-4" aria-hidden="true" /> Open calendar
-          </Link>
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+            <Button
+              size="sm"
+              loading={dash.refreshing}
+              onClick={() => void dash.reload()}
+              className="min-h-11 flex-1 sm:flex-none"
+              data-testid="dashboard-refresh"
+            >
+              <RefreshCw className="h-4 w-4" aria-hidden="true" /> Refresh
+            </Button>
+            <Link href="/calendar" className={clsx(linkButton, "flex-1 bg-brand-600 text-on-accent hover:bg-brand-700 sm:flex-none")} data-testid="dashboard-open-calendar">
+              <CalendarDays className="h-4 w-4" aria-hidden="true" /> Open calendar
+            </Link>
+          </div>
         }
       />
-      {dash.error && !dash.data ? (
-        <ErrorState message={dash.error} onRetry={dash.reload} />
-      ) : !dash.data ? (
+      {dash.error && (
+        <ErrorState
+          message={dash.error}
+          onRetry={dash.reload}
+          title={dash.data ? "Dashboard refresh failed" : "Couldn't load the dashboard"}
+          className="mb-6"
+        />
+      )}
+      {dash.data ? (
+        <div aria-busy={dash.refreshing || undefined}>
+          <DashboardContent d={dash.data} />
+        </div>
+      ) : dash.error ? null : (
         <DashboardSkeleton />
-      ) : (
-        <DashboardContent d={dash.data} />
       )}
       <p className="mt-10 flex max-w-[80ch] items-start gap-2 text-xs leading-relaxed text-slate-600" data-testid="disclaimer">
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -54,26 +75,26 @@ export function DashboardView() {
 function DashboardSkeleton() {
   return (
     <LoadingRegion label="Loading dashboard">
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,25rem)]">
         <div className="space-y-4">
-          <Skeleton className="h-5 w-56" />
-          <Skeleton className="h-20 w-80 max-w-full" />
-          <Skeleton className="h-4 w-72" />
-          <div className="grid grid-cols-3 gap-4 pt-6">
+          <Card>
+            <CardBody className="space-y-4">
+              <Skeleton className="h-5 w-56" />
+              <Skeleton className="h-16 w-80 max-w-full" />
+              <Skeleton className="h-4 w-72 max-w-full" />
+            </CardBody>
+          </Card>
+          <div className="grid gap-3 sm:grid-cols-3">
             {[0, 1, 2].map((i) => (
-              <Skeleton key={i} className="h-14" />
+              <Card key={i}><CardBody className="space-y-2"><Skeleton className="h-4 w-28" /><Skeleton className="h-7 w-32" /><Skeleton className="h-3 w-24" /></CardBody></Card>
             ))}
           </div>
         </div>
-        <Card className="space-y-4 p-5">
-          {[0, 1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-8 w-full" />
-          ))}
-        </Card>
+        <Card><CardBody className="space-y-4">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-8 w-full" />)}</CardBody></Card>
       </div>
-      <Card className="mt-8 p-5">
-        <Skeleton className="h-64 w-full" />
-      </Card>
+      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,25rem)]">
+        {[0, 1].map((i) => <Card key={i}><CardBody><Skeleton className="h-64 w-full" /></CardBody></Card>)}
+      </div>
     </LoadingRegion>
   );
 }
@@ -81,15 +102,15 @@ function DashboardSkeleton() {
 /** A secondary figure under the hero: label, value, one line of context. */
 function Figure({ id, label, children, sub }: { id: string; label: string; children: ReactNode; sub: ReactNode }) {
   return (
-    <div data-testid={`summary-card-${id}`} className="min-w-0 border-t border-slate-300 pt-3">
-      <h2 className="text-sm font-semibold text-slate-600">
-        {label}
-      </h2>
-      <div className="font-semiwide mt-1 text-xl font-bold tracking-tight text-slate-900" data-testid={`summary-value-${id}`}>
-        {children}
-      </div>
-      <div className="mt-0.5 text-xs text-slate-600">{sub}</div>
-    </div>
+    <Card data-testid={`summary-card-${id}`} className="min-w-0">
+      <CardBody className="flex h-full min-h-28 flex-col justify-between gap-2 p-4">
+        <h2 className="text-sm font-semibold text-muted-foreground">{label}</h2>
+        <div className="font-semiwide text-xl font-bold tracking-tight text-foreground" data-testid={`summary-value-${id}`}>
+          {children}
+        </div>
+        <div className="text-xs text-muted-foreground">{sub}</div>
+      </CardBody>
+    </Card>
   );
 }
 
@@ -169,45 +190,47 @@ function DashboardContent({ d }: { d: DashboardResponse }) {
   return (
     <div className="space-y-8">
       {t.firstNegativeDate && (
-        <div role="alert" className="flex items-start gap-3 rounded-sheet border border-rose-200 border-l-4 border-l-rose-700 bg-rose-50 p-4" data-testid="negative-warning">
+        <Alert variant="destructive" role="alert" className="flex items-start gap-3 border-rose-200 bg-rose-50 p-4 text-rose-900" data-testid="negative-warning">
           <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0 text-rose-700" aria-hidden="true" />
-          <div className="text-sm text-rose-900">
-            <p className="font-bold">Your balance is projected to go negative on {fmtDayShort(t.firstNegativeDate)}.</p>
-            <p className="mt-0.5">
+          <div>
+            <AlertTitle className="font-bold">Your balance is projected to go negative on {fmtDayShort(t.firstNegativeDate)}.</AlertTitle>
+            <AlertDescription className="mt-0.5 text-sm text-rose-900">
               Lowest point: {money(t.lowestBalanceCents, currency)} on {fmtShort(t.lowestBalanceDate)}
               {t.negativeDayCount > 0 && `, with ${t.negativeDayCount} day${t.negativeDayCount === 1 ? "" : "s"} below zero in the forecast`}.{" "}
               <Link href="/calendar" className="font-semibold underline">
                 Review in calendar
               </Link>
-            </p>
+            </AlertDescription>
           </div>
-        </div>
+        </Alert>
       )}
 
       <div className="grid items-start gap-x-12 gap-y-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,25rem)]">
         {/* Hero: the one number the app exists to answer. */}
         <section aria-labelledby="this-week-heading" className="flex min-w-0 flex-col">
-          <div data-testid="summary-card-end-of-this-week">
-            <h2 id="this-week-heading" className="text-lg font-semibold text-slate-700">
-              {week ? <>By {fmtDate(week.rangeEnd, "EEEE, MMM d")}, you&apos;ll have</> : "Projected end of this week"}
-            </h2>
-            <div
-              className={clsx(
-                "font-wide mt-2 text-[clamp(2.75rem,7vw,5.25rem)] leading-[0.95] font-extrabold tracking-[-0.03em]",
-                weekNegative ? "text-rose-700" : "text-slate-900",
-              )}
-              data-testid="summary-value-end-of-this-week"
-            >
-              {week ? <Balance cents={week.closingBalanceCents} currency={currency} iconClassName="h-[0.7em] w-[0.7em]" /> : "—"}
-            </div>
-            <p className="mt-3 text-sm text-slate-600">
-              {week
-                ? `Closing balance for ${fmtRange(week.rangeStart, week.rangeEnd)}, after every bill due this week.`
-                : "Today is outside the forecast window."}
-            </p>
-          </div>
+          <Card data-testid="summary-card-end-of-this-week" className="min-w-0">
+            <CardBody className="p-5 sm:p-6">
+              <h2 id="this-week-heading" className="text-lg font-semibold text-foreground">
+                {week ? <>By {fmtDate(week.rangeEnd, "EEEE, MMM d")}, you&apos;ll have</> : "Projected end of this week"}
+              </h2>
+              <div
+                className={clsx(
+                  "font-wide mt-3 min-w-0 text-[clamp(2.25rem,10vw,4.75rem)] leading-[1.05] font-extrabold tracking-[-0.03em] tabular-nums",
+                  weekNegative ? "text-rose-700" : "text-foreground",
+                )}
+                data-testid="summary-value-end-of-this-week"
+              >
+                {week ? <AnimatedBalance cents={week.closingBalanceCents} currency={currency} iconClassName="h-[0.7em] w-[0.7em]" /> : "—"}
+              </div>
+              <p className="mt-3 text-sm text-muted-foreground">
+                {week
+                  ? `Closing balance for ${fmtRange(week.rangeStart, week.rangeEnd)}, after every bill due this week.`
+                  : "Today is outside the forecast window."}
+              </p>
+            </CardBody>
+          </Card>
 
-          <div className="grid gap-x-6 gap-y-5 pt-10 sm:grid-cols-3">
+          <div className="grid gap-3 pt-3 sm:grid-cols-3">
             <Figure
               id="end-of-next-week"
               label="End of next week"
@@ -233,11 +256,12 @@ function DashboardContent({ d }: { d: DashboardResponse }) {
         </section>
 
         {/* The forecast as a sum, the way a register reconciles. */}
-        <Card className="px-5 pt-4 pb-2" aria-labelledby="sum-heading">
-          <h2 id="sum-heading" className="font-semiwide text-base font-bold text-slate-900">
+        <Card aria-labelledby="sum-heading">
+          <CardBody className="px-5 pt-5 pb-2">
+          <h2 id="sum-heading" className="font-semiwide text-base font-bold text-foreground">
             How the forecast adds up
           </h2>
-          <p className="mt-0.5 mb-2 text-sm text-slate-600">{fmtRange(d.window.startDate, d.window.endDate)}</p>
+          <p className="mt-0.5 mb-2 text-sm text-muted-foreground">{fmtRange(d.window.startDate, d.window.endDate)}</p>
           <RegisterLine
             id="starting-balance"
             op=""
@@ -260,6 +284,7 @@ function DashboardContent({ d }: { d: DashboardResponse }) {
           <RegisterLine id="ending-balance" op="=" label="Projected at forecast end" sub={`End of ${fmtShort(d.window.endDate)}`} total>
             <Balance cents={t.endingBalanceCents} currency={currency} iconClassName="h-4 w-4" />
           </RegisterLine>
+          </CardBody>
         </Card>
       </div>
 
@@ -283,7 +308,7 @@ function DashboardContent({ d }: { d: DashboardResponse }) {
           />
           <CardBody className="pt-3">
             {d.upcomingBills.length === 0 ? (
-              <p className="py-6 text-center text-sm text-slate-600">No bills due in the next two weeks.</p>
+              <p role="status" className="py-6 text-center text-sm text-muted-foreground">No bills due in the next two weeks.</p>
             ) : (
               <ul className="divide-y divide-slate-200">
                 {d.upcomingBills.map((b) => (

@@ -1,14 +1,55 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+@custom-variant data-open {
+  &:where([data-state="open"], [data-open]:not([data-open="false"])) {
+    @slot;
+  }
+}
+@custom-variant data-closed {
+  &:where([data-state="closed"], [data-closed]:not([data-closed="false"])) {
+    @slot;
+  }
+}
+@custom-variant data-checked {
+  &:where([data-state="checked"], [data-checked]:not([data-checked="false"])) {
+    @slot;
+  }
+}
+@custom-variant data-unchecked {
+  &:where([data-state="unchecked"], [data-unchecked]:not([data-unchecked="false"])) {
+    @slot;
+  }
+}
+@custom-variant data-disabled {
+  &:where([data-disabled="true"], [data-disabled]:not([data-disabled="false"])) {
+    @slot;
+  }
+}
+@custom-variant data-active {
+  &:where([data-state="active"], [data-active]:not([data-active="false"])) {
+    @slot;
+  }
+}
+@custom-variant data-horizontal {
+  &:where([data-orientation="horizontal"]) {
+    @slot;
+  }
+}
+@custom-variant data-vertical {
+  &:where([data-orientation="vertical"]) {
+    @slot;
+  }
+}
 
 /*
- * "Check register" palette. The stock Tailwind scales the components already use
- * are remapped here, so `slate` is the paper-and-ink ramp, `brand` is the blue pen,
- * `emerald` is ledger green (income) and `rose` is red ink (bills, negatives).
+ * Check-register palette. Tailwind's slate scale is paper and ink; brand is
+ * ballpoint blue; emerald and rose are ledger green and red ink.
  */
 @theme {
   --font-sans: var(--font-archivo), ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 
-  /* Paper → ink */
   --color-slate-50: #f4f7f5;
   --color-slate-100: #e9eeea;
   --color-slate-200: #d8e1dc;
@@ -21,21 +62,18 @@
   --color-slate-900: #172a33;
   --color-slate-950: #0e1e26;
 
-  /* Blue ballpoint */
   --color-brand-50: #eef1fa;
   --color-brand-100: #dbe2f5;
   --color-brand-500: #3a5bc0;
   --color-brand-600: #2c49a6;
   --color-brand-700: #223a88;
 
-  /* Ledger green */
   --color-emerald-50: #ebf5ee;
   --color-emerald-100: #d3eadb;
   --color-emerald-200: #a8d4b8;
   --color-emerald-700: #1c6b43;
   --color-emerald-800: #155637;
 
-  /* Red ink */
   --color-rose-50: #fbefed;
   --color-rose-100: #f6dad6;
   --color-rose-200: #edb9b2;
@@ -46,9 +84,7 @@
   --color-rose-900: #6c1a13;
 
   --color-sheet: #fbfcfa;
-  /* Input and chip surfaces, a touch brighter than the sheet. */
   --color-field: #ffffff;
-  /* Text on filled brand/emerald/rose/slate-900 surfaces. */
   --color-on-accent: #ffffff;
   --color-highlight: #f3df6e;
 
@@ -58,11 +94,46 @@
   --radius-dialog: 12px;
 }
 
+:root {
+  color-scheme: light;
+  --background: #e9eeea;
+  --foreground: #172a33;
+  --card: #fbfcfa;
+  --card-foreground: #172a33;
+  --popover: #fbfcfa;
+  --popover-foreground: #172a33;
+  --primary: #2c49a6;
+  --primary-foreground: #ffffff;
+  --secondary: #f4f7f5;
+  --secondary-foreground: #364846;
+  --muted: #e9eeea;
+  --muted-foreground: #4b5d58;
+  --accent: #eef1fa;
+  --accent-foreground: #223a88;
+  --destructive: #a82a20;
+  --destructive-foreground: #ffffff;
+  --border: #d8e1dc;
+  --input: #d8e1dc;
+  --ring: #2c49a6;
+  --chart-1: #2c49a6;
+  --chart-2: #1c6b43;
+  --chart-3: #a82a20;
+  --chart-4: #3a5bc0;
+  --chart-5: #5f726c;
+  --radius: 8px;
+  --sidebar: #e9eeea;
+  --sidebar-foreground: #172a33;
+  --sidebar-primary: #2c49a6;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #d8e1dc;
+  --sidebar-accent-foreground: #172a33;
+  --sidebar-border: #d8e1dc;
+  --sidebar-ring: #2c49a6;
+}
+
 /*
- * Dark mode: monochrome. Built around #121212 (background), #444444 (lines), #888888
- * (muted), #b0b0b0 (secondary text) and #e0e0e0 (text). The blue pen becomes light gray,
- * so filled buttons take dark `on-accent` text. Green and red stay, as pale inks, because
- * they carry meaning (income vs. bills). Toggled by the `dark` class on <html>.
+ * Dark mode preserves the upstream cashflow-theme contract. The slate ramp is
+ * monochrome; green and rose remain pale semantic inks for income and bills.
  */
 .dark {
   color-scheme: dark;
@@ -104,20 +175,96 @@
   --color-field: #242424;
   --color-on-accent: #121212;
   --color-highlight: #444444;
+
+  --background: #121212;
+  --foreground: #e0e0e0;
+  --card: #1c1c1c;
+  --card-foreground: #e0e0e0;
+  --popover: #1c1c1c;
+  --popover-foreground: #e0e0e0;
+  --primary: #e0e0e0;
+  --primary-foreground: #121212;
+  --secondary: #181818;
+  --secondary-foreground: #c8c8c8;
+  --muted: #181818;
+  --muted-foreground: #888888;
+  --accent: #262626;
+  --accent-foreground: #e0e0e0;
+  --destructive: #ee948a;
+  --destructive-foreground: #121212;
+  --border: #444444;
+  --input: #444444;
+  --ring: #e0e0e0;
+  --chart-1: #e0e0e0;
+  --chart-2: #7fcf9f;
+  --chart-3: #ee948a;
+  --chart-4: #b0b0b0;
+  --chart-5: #6a6a6a;
+  --radius: 8px;
+  --sidebar: #121212;
+  --sidebar-foreground: #e0e0e0;
+  --sidebar-primary: #e0e0e0;
+  --sidebar-primary-foreground: #121212;
+  --sidebar-accent: #262626;
+  --sidebar-accent-foreground: #e0e0e0;
+  --sidebar-border: #444444;
+  --sidebar-ring: #e0e0e0;
 }
 
-/* Archivo's width axis carries the hierarchy: wider = more important figure. */
+@theme inline {
+  --font-heading: var(--font-archivo);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --radius-sm: calc(var(--radius) * 0.75);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) * 1.25);
+  --radius-xl: calc(var(--radius) * 1.5);
+  --radius-2xl: calc(var(--radius) * 2);
+  --radius-3xl: calc(var(--radius) * 2.5);
+}
+
 @utility font-wide {
   font-variation-settings: "wdth" 125;
 }
+
 @utility font-semiwide {
   font-variation-settings: "wdth" 112;
 }
+
 @utility font-narrow {
   font-variation-settings: "wdth" 88;
 }
 
-/* A highlighter swipe, used only to mark today. */
 @utility highlight {
   background-image: linear-gradient(104deg, transparent 2%, var(--color-highlight) 6%, var(--color-highlight) 94%, transparent 98%);
   background-size: 100% 78%;
@@ -129,23 +276,33 @@
   html {
     -webkit-text-size-adjust: 100%;
   }
+
   body {
-    @apply bg-slate-100 text-slate-900 antialiased;
+    @apply bg-background text-foreground antialiased;
   }
+
   h1 {
     font-variation-settings: "wdth" 112;
   }
+
   h1,
   h2,
   h3 {
     text-wrap: balance;
   }
+
   :focus-visible {
     outline: 2px solid var(--color-brand-600);
     outline-offset: 2px;
   }
+
   dialog::backdrop {
     background: rgb(23 42 51 / 0.45);
+  }
+
+  /* Keep visually hidden table-action headings within their horizontal scroll region. */
+  main table th:has(> .sr-only) {
+    position: relative;
   }
 }
 
@@ -154,6 +311,8 @@
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

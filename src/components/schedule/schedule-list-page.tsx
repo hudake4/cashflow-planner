@@ -1,20 +1,33 @@
 "use client";
 
-import { HandCoins, Pencil, Plus, Receipt, Trash } from "lucide-react";
-import { useState } from "react";
-import type { BillDTO, IncomeDTO, SettingsDTO } from "@/contracts/api";
-import { api } from "@/lib/api-client";
+import { ChevronDown, CircleAlert, HandCoins, MoreHorizontal, Pencil, Plus, Receipt, Trash } from "lucide-react";
+import { useRef, useState, type ReactNode } from "react";
+import type { BillDTO, BillInput, IncomeDTO, IncomeInput, SettingsDTO } from "@/contracts/api";
+import { api, errorMessage } from "@/lib/api-client";
 import { fmtShort } from "@/lib/dates";
 import { FREQUENCY_LABELS, money } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
+import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/app-shell";
 import { ScheduleFormDialog, type ScheduleKind } from "@/components/forms/schedule-form-dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Expandable, ExpandableContent, ExpandableTrigger } from "@/components/ui/expandable";
+import { Switch } from "@/components/ui/field";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/ui/states";
+import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 
 type Item = BillDTO | IncomeDTO;
@@ -26,7 +39,7 @@ const COPY = {
     add: "Add bill",
     emptyTitle: "No bills yet",
     emptyText: "Add your first bill, like rent or a phone plan, to see how it affects your weekly balance.",
-    dateLabel: "First due",
+    dateLabel: "Next due",
     noun: "bill",
   },
   income: {
@@ -35,10 +48,35 @@ const COPY = {
     add: "Add income",
     emptyTitle: "No income yet",
     emptyText: "Add your first paycheck so the calendar can project what you'll have left each week.",
-    dateLabel: "First payday",
+    dateLabel: "Next payday",
     noun: "income source",
   },
 } as const;
+
+function itemInput(item: Item, active: boolean): BillInput | IncomeInput {
+  if ("category" in item) {
+    return {
+      name: item.name,
+      amountCents: item.amountCents,
+      frequency: item.frequency,
+      anchorDate: item.anchorDate,
+      endDate: item.endDate,
+      category: item.category,
+      notes: item.notes,
+      active,
+    };
+  }
+
+  return {
+    name: item.name,
+    amountCents: item.amountCents,
+    frequency: item.frequency,
+    anchorDate: item.anchorDate,
+    endDate: item.endDate,
+    notes: item.notes,
+    active,
+  };
+}
 
 export function ScheduleListPage({ kind }: { kind: ScheduleKind }) {
   const copy = COPY[kind];
@@ -50,6 +88,9 @@ export function ScheduleListPage({ kind }: { kind: ScheduleKind }) {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Item | null>(null);
   const [deleting, setDeleting] = useState<Item | null>(null);
+  const deleteFocusTarget = useRef<HTMLButtonElement | null>(null);
+  const [pendingToggle, setPendingToggle] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const openAdd = () => {
     setEditing(null);
@@ -59,27 +100,63 @@ export function ScheduleListPage({ kind }: { kind: ScheduleKind }) {
     setEditing(item);
     setFormOpen(true);
   };
+  const openDelete = (item: Item, trigger: HTMLButtonElement | null) => {
+    deleteFocusTarget.current = trigger;
+    setDeleting(item);
+  };
 
   const addButton = (
-    <Button variant="primary" onClick={openAdd} data-testid={`add-${kind}-button`}>
-      <Plus className="h-4 w-4" aria-hidden="true" /> {copy.add}
+    <Button variant="primary" className="w-full sm:w-auto" onClick={openAdd} data-testid={`add-${kind}-button`}>
+      <Plus aria-hidden="true" data-icon="inline-start" /> {copy.add}
     </Button>
   );
 
   const items = list.data ?? [];
   const Icon = kind === "bill" ? Receipt : HandCoins;
 
+  async function toggleActive(item: Item, active: boolean) {
+    setPendingToggle(item.id);
+    setActionError(null);
+    try {
+      if (kind === "bill") await api.updateBill(item.id, itemInput(item, active) as BillInput);
+      else await api.updateIncome(item.id, itemInput(item, active) as IncomeInput);
+      toast(`${item.name} is now ${active ? "active" : "inactive"}.`, "success");
+      await list.reload();
+    } catch (error) {
+      const message = errorMessage(error);
+      setActionError(message);
+      toast(message, "error");
+    } finally {
+      setPendingToggle(null);
+    }
+  }
+
   return (
     <>
       <PageHeader title={copy.title} description={copy.description} actions={items.length > 0 ? addButton : undefined} />
+
+      {actionError && (
+        <Alert variant="destructive" role="alert" className="mb-5 flex items-start gap-3">
+          <CircleAlert aria-hidden="true" />
+          <div className="min-w-0 flex-1">
+            <AlertTitle>Couldn&apos;t update {copy.noun}</AlertTitle>
+            <AlertDescription>{actionError}</AlertDescription>
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => setActionError(null)}>
+            Dismiss
+          </Button>
+        </Alert>
+      )}
+
+      {list.error && list.data && <ErrorState message={list.error} onRetry={list.reload} className="mb-5" />}
 
       {list.error && !list.data ? (
         <ErrorState message={list.error} onRetry={list.reload} />
       ) : list.loading ? (
         <LoadingRegion label={`Loading ${copy.title.toLowerCase()}`}>
-          <Card className="space-y-3 p-5">
+          <Card className="flex flex-col gap-3 p-5">
             {[0, 1, 2].map((i) => (
-              <Skeleton key={i} className="h-12 w-full" />
+              <Skeleton key={i} className="h-14 w-full" />
             ))}
           </Card>
         </LoadingRegion>
@@ -94,81 +171,144 @@ export function ScheduleListPage({ kind }: { kind: ScheduleKind }) {
       ) : (
         <>
           {/* Desktop table */}
-          <Card className="hidden overflow-x-auto lg:block">
-            <table className="w-full text-sm" data-testid={`${kind}-table`}>
-              <caption className="sr-only">{copy.title}</caption>
-              <thead className="border-b border-slate-300 bg-slate-50 text-left text-xs font-semibold text-slate-600">
-                <tr>
-                  <th scope="col" className="px-4 py-3">Name</th>
-                  <th scope="col" className="px-4 py-3 text-right">Amount</th>
-                  <th scope="col" className="px-4 py-3">Frequency</th>
-                  <th scope="col" className="px-4 py-3">{copy.dateLabel}</th>
-                  <th scope="col" className="px-4 py-3">Ends</th>
-                  {kind === "bill" && <th scope="col" className="px-4 py-3">Category</th>}
-                  <th scope="col" className="px-4 py-3">Status</th>
-                  <th scope="col" className="px-4 py-3 text-right"><span className="sr-only">Actions</span></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
+          <Card className="hidden overflow-hidden lg:block" aria-busy={list.refreshing || undefined}>
+            <Table data-testid={`${kind}-table`} aria-label={`${copy.title} schedule`}>
+              <TableCaption className="sr-only">{copy.title}</TableCaption>
+              <TableHeader className="bg-muted/60 text-left text-xs font-semibold text-muted-foreground">
+                <TableRow>
+                  <TableHead className="px-4">Name</TableHead>
+                  <TableHead className="px-4 text-right">Amount</TableHead>
+                  <TableHead className="px-4">Frequency</TableHead>
+                  <TableHead className="px-4">{copy.dateLabel}</TableHead>
+                  <TableHead className="px-4">Ends</TableHead>
+                  {kind === "bill" && <TableHead className="px-4">Category</TableHead>}
+                  <TableHead className="px-4">Status</TableHead>
+                  <TableHead className="w-12 px-4 text-right">
+                    <span className="sr-only">Actions</span>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {items.map((item) => (
-                  <tr key={item.id} data-testid={`${kind}-row-${item.id}`} className={item.active ? "" : "bg-slate-50/60 text-slate-500"}>
-                    <td className="px-4 py-3">
-                      <div className="font-semibold text-slate-900">{item.name}</div>
-                      {item.notes && <div className="max-w-[16rem] truncate text-xs text-slate-600" title={item.notes}>{item.notes}</div>}
-                    </td>
-                    <td className="font-semiwide px-4 py-3 text-right font-semibold tabular-nums">{money(item.amountCents, currency)}</td>
-                    <td className="px-4 py-3">{FREQUENCY_LABELS[item.frequency]}</td>
-                    <td className="px-4 py-3 whitespace-nowrap">{fmtShort(item.anchorDate)}</td>
-                    <td className="px-4 py-3 whitespace-nowrap">
+                  <TableRow
+                    key={item.id}
+                    data-testid={`${kind}-row-${item.id}`}
+                    className={cn(!item.active && "bg-muted/40 text-muted-foreground")}
+                  >
+                    <TableCell className="min-w-52 whitespace-normal px-4">
+                      <div className="font-semibold text-foreground">{item.name}</div>
+                      {item.notes && (
+                        <div className="mt-1 max-w-[22rem] truncate text-xs text-muted-foreground" title={item.notes}>
+                          {item.notes}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="font-semiwide px-4 text-right font-semibold tabular-nums text-foreground">
+                      {money(item.amountCents, currency)}
+                    </TableCell>
+                    <TableCell className="px-4">{FREQUENCY_LABELS[item.frequency]}</TableCell>
+                    <TableCell className="whitespace-nowrap px-4">{fmtShort(item.anchorDate)}</TableCell>
+                    <TableCell className="whitespace-nowrap px-4">
                       {item.frequency === "ONE_TIME" ? "—" : item.endDate ? fmtShort(item.endDate) : "No end"}
-                    </td>
-                    {kind === "bill" && <td className="px-4 py-3">{(item as BillDTO).category ?? "—"}</td>}
-                    <td className="px-4 py-3">
-                      <ActiveBadge active={item.active} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <RowActions item={item} kind={kind} onEdit={openEdit} onDelete={setDeleting} />
-                    </td>
-                  </tr>
+                    </TableCell>
+                    {kind === "bill" && <TableCell className="px-4">{(item as BillDTO).category ?? "—"}</TableCell>}
+                    <TableCell className="px-4">
+                      <ActiveControl
+                        item={item}
+                        kind={kind}
+                        suffix=""
+                        busy={pendingToggle === item.id}
+                        onToggle={toggleActive}
+                      />
+                    </TableCell>
+                    <TableCell className="px-4 text-right">
+                        <RowActions item={item} kind={kind} onEdit={openEdit} onDelete={openDelete} />
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </Card>
 
           {/* Mobile cards */}
-          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:hidden" data-testid={`${kind}-cards`}>
-            {items.map((item) => (
-              <li key={item.id} className="min-w-0">
-                <Card className="p-4" data-testid={`${kind}-card-${item.id}`}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate font-semibold text-slate-900">{item.name}</p>
-                      <p className="text-sm text-slate-600">
-                        {FREQUENCY_LABELS[item.frequency]}
-                        {kind === "bill" && (item as BillDTO).category ? `, ${(item as BillDTO).category}` : ""}
-                      </p>
-                    </div>
-                    <p className="font-semiwide shrink-0 text-right font-bold whitespace-nowrap tabular-nums">{money(item.amountCents, currency)}</p>
-                  </div>
-                  <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                    <div>
-                      <dt className="text-slate-500">{copy.dateLabel}</dt>
-                      <dd className="text-slate-800">{fmtShort(item.anchorDate)}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-slate-500">Ends</dt>
-                      <dd className="text-slate-800">
-                        {item.frequency === "ONE_TIME" ? "—" : item.endDate ? fmtShort(item.endDate) : "No end"}
-                      </dd>
-                    </div>
-                  </dl>
-                  <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
-                    <ActiveBadge active={item.active} />
-                    <RowActions item={item} kind={kind} onEdit={openEdit} onDelete={setDeleting} suffix="-mobile" />
-                  </div>
-                </Card>
-              </li>
-            ))}
+          <ul
+            className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:hidden"
+            data-testid={`${kind}-cards`}
+            aria-busy={list.refreshing || undefined}
+          >
+            {items.map((item) => {
+              const hasDetails =
+                item.frequency !== "ONE_TIME" || Boolean(item.notes) || (kind === "bill" && Boolean((item as BillDTO).category));
+              return (
+                <li key={item.id} className="min-w-0">
+                  <Expandable className="h-full">
+                    {({ isExpanded }) => (
+                      <Card className="h-full p-4" data-testid={`${kind}-card-${item.id}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold text-foreground">{item.name}</p>
+                          <p className="text-sm text-muted-foreground">{FREQUENCY_LABELS[item.frequency]}</p>
+                        </div>
+                        <p className="font-semiwide shrink-0 text-right font-bold tabular-nums text-foreground">
+                          {money(item.amountCents, currency)}
+                        </p>
+                      </div>
+
+                      <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                        <DataPoint label={copy.dateLabel} value={fmtShort(item.anchorDate)} />
+                        <DataPoint
+                          label="Status"
+                          value={
+                            <span className="flex items-center gap-1.5">
+                              <ActiveBadge active={item.active} />
+                            </span>
+                          }
+                        />
+                      </dl>
+
+                      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
+                        <ActiveControl
+                          item={item}
+                          kind={kind}
+                          suffix="-mobile"
+                          busy={pendingToggle === item.id}
+                          onToggle={toggleActive}
+                        />
+                        <RowActions item={item} kind={kind} onEdit={openEdit} onDelete={openDelete} suffix="-mobile" />
+                      </div>
+
+                      {hasDetails && (
+                        <>
+                          <ExpandableTrigger
+                            className="mt-3 flex min-h-9 w-full items-center justify-between gap-2 border-t border-border pt-3 text-left text-sm font-semibold text-primary"
+                            aria-label={isExpanded ? `Hide details for ${item.name}` : `Show details for ${item.name}`}
+                          >
+                            <span>{isExpanded ? "Hide details" : "Show details"}</span>
+                            <ChevronDown
+                              className={cn("size-4 transition-transform duration-150", isExpanded && "rotate-180")}
+                              aria-hidden="true"
+                            />
+                          </ExpandableTrigger>
+                          <ExpandableContent preset="slide-down" className="text-sm">
+                            <dl className="grid gap-2 border-t border-border pt-3 text-sm">
+                              <DataPoint
+                                label="Ends"
+                                value={item.frequency === "ONE_TIME" ? "—" : item.endDate ? fmtShort(item.endDate) : "No end"}
+                              />
+                              {kind === "bill" && (
+                                <DataPoint label="Category" value={(item as BillDTO).category ?? "Not set"} />
+                              )}
+                              {item.notes && <DataPoint label="Notes" value={item.notes} />}
+                            </dl>
+                          </ExpandableContent>
+                        </>
+                      )}
+                    </Card>
+                    )}
+                  </Expandable>
+                </li>
+              );
+            })}
           </ul>
         </>
       )}
@@ -184,22 +324,25 @@ export function ScheduleListPage({ kind }: { kind: ScheduleKind }) {
       <ConfirmDialog
         open={deleting !== null}
         onClose={() => setDeleting(null)}
-        title={`Delete ${copy.noun}?`}
-        confirmLabel="Delete"
+        restoreFocusTarget={deleteFocusTarget.current}
+        title={`Delete ${kind === "bill" ? "bill" : "income source"}?`}
         description={
-          <p>
-            <strong className="font-semibold text-slate-900">{deleting?.name}</strong> will be removed from your projection.
+          <span className="block">
+            <strong className="font-semibold text-foreground">{deleting?.name}</strong> will be removed from your projection.
             {kind === "bill" && " Any paid or skipped marks for it are deleted too."} This can&apos;t be undone.
-          </p>
+          </span>
         }
+        confirmLabel="Delete"
+        tone="danger"
         onConfirm={async () => {
           if (!deleting) return;
           const name = deleting.name;
           if (kind === "bill") await api.deleteBill(deleting.id);
           else await api.deleteIncome(deleting.id);
-          toast(`Deleted “${name}”.`);
+          toast(`Deleted “${name}”.`, "success");
           await list.reload();
         }}
+        onError={(message) => toast(message, "error")}
       />
     </>
   );
@@ -207,6 +350,47 @@ export function ScheduleListPage({ kind }: { kind: ScheduleKind }) {
 
 function ActiveBadge({ active }: { active: boolean }) {
   return active ? <Badge tone="positive">Active</Badge> : <Badge tone="neutral">Inactive</Badge>;
+}
+
+function DataPoint({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
+      <dd className="mt-0.5 break-words font-medium text-foreground">{value}</dd>
+    </div>
+  );
+}
+
+function ActiveControl({
+  item,
+  kind,
+  suffix,
+  busy,
+  onToggle,
+}: {
+  item: Item;
+  kind: ScheduleKind;
+  suffix: string;
+  busy: boolean;
+  onToggle: (item: Item, active: boolean) => void | Promise<void>;
+}) {
+  return (
+    <div
+      className={cn("min-w-0", busy && "pointer-events-none opacity-70")}
+      aria-busy={busy || undefined}
+      aria-disabled={busy || undefined}
+    >
+      <Switch
+        checked={item.active}
+        onChange={(active) => {
+          if (!busy) void onToggle(item, active);
+        }}
+        label={item.active ? "Included" : "Paused"}
+        description={busy ? "Saving…" : undefined}
+        testId={`toggle-${kind}-${item.id}${suffix}`}
+      />
+    </div>
+  );
 }
 
 function RowActions({
@@ -220,25 +404,44 @@ function RowActions({
   item: Item;
   kind: ScheduleKind;
   onEdit: (item: Item) => void;
-  onDelete: (item: Item) => void;
+  onDelete: (item: Item, trigger: HTMLButtonElement | null) => void;
 }) {
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+
   return (
-    <div className="flex justify-end gap-1">
-      <Button size="sm" variant="ghost" onClick={() => onEdit(item)} aria-label={`Edit ${item.name}`} data-testid={`edit-${kind}-${item.id}${suffix}`}>
-        <Pencil className="h-4 w-4" aria-hidden="true" />
-        <span className="hidden xl:inline">Edit</span>
-      </Button>
-      <Button
-        size="sm"
-        variant="ghost"
-        className="text-rose-700 hover:bg-rose-50"
-        onClick={() => onDelete(item)}
-        aria-label={`Delete ${item.name}`}
-        data-testid={`delete-${kind}-${item.id}${suffix}`}
-      >
-        <Trash className="h-4 w-4" aria-hidden="true" />
-        <span className="hidden xl:inline">Delete</span>
-      </Button>
-    </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          ref={triggerRef}
+          size="icon"
+          variant="ghost"
+          aria-label={`Actions for ${item.name}`}
+          data-testid={`actions-${kind}-${item.id}${suffix}`}
+        >
+          <MoreHorizontal aria-hidden="true" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-44">
+        <DropdownMenuLabel className="truncate">{item.name}</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          className="min-h-9"
+          onSelect={() => onEdit(item)}
+          data-testid={`edit-${kind}-${item.id}${suffix}`}
+        >
+          <Pencil aria-hidden="true" />
+          Edit
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="min-h-9"
+          variant="destructive"
+          onSelect={() => onDelete(item, triggerRef.current)}
+          data-testid={`delete-${kind}-${item.id}${suffix}`}
+        >
+          <Trash aria-hidden="true" />
+          Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

@@ -78,7 +78,7 @@ export function EventChip({
       aria-label={eventAriaLabel(event, currency)}
       onClick={() => onSelect(event)}
       className={clsx(
-        "font-narrow group flex w-full min-w-0 gap-1 rounded-chip border border-l-[3px] px-1.5 py-1 text-left text-xs transition-colors",
+        "font-narrow group flex min-h-11 w-full min-w-0 gap-1 rounded-chip border border-l-[3px] px-2 py-1 text-left text-xs transition-colors xl:min-h-0 xl:px-1.5",
         wrap ? "flex-wrap items-center" : "items-center",
         "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-600",
         skipped
@@ -139,15 +139,15 @@ function DayCell({
       data-testid={`day-cell-${day.date}`}
       data-state={day.state}
       className={clsx(
-        "relative flex min-w-0 gap-2 border-slate-200 p-2 md:flex-col md:gap-1 md:p-1.5",
-        "border-b md:border-r md:border-b-0 md:last:border-r-0",
-        day.state !== "projected" ? "md:min-h-[4.5rem]" : expanded ? "md:min-h-[14rem]" : "md:min-h-[8.75rem]",
+        "relative flex min-w-0 gap-2 border-slate-200 p-2 xl:flex-col xl:gap-1 xl:p-1.5",
+        "border-b xl:border-r xl:border-b-0 xl:last:border-r-0",
+        day.state !== "projected" ? "xl:min-h-[4.5rem]" : expanded ? "xl:min-h-[14rem]" : "xl:min-h-[8.75rem]",
         muted ? "bg-slate-100/70 text-slate-500" : negative ? "bg-rose-50/60" : day.inMonth ? "bg-sheet" : "bg-slate-50",
         // On phones, hide event-less days in month view to keep the list scannable.
-        !expanded && day.events.length === 0 && !day.isToday && "hidden md:flex",
+        !expanded && day.events.length === 0 && !day.isToday && "hidden xl:flex",
       )}
     >
-      <div className="flex w-14 shrink-0 flex-col items-start md:w-auto md:flex-row md:items-center md:justify-between">
+      <div className="flex w-14 shrink-0 flex-col items-start xl:w-auto xl:flex-row xl:items-center xl:justify-between">
         <button
           type="button"
           onClick={() => onSelectDay(day)}
@@ -155,16 +155,16 @@ function DayCell({
           aria-label={dayAriaLabel(day, currency)}
           data-testid={`day-button-${day.date}`}
           className={clsx(
-            "flex items-center gap-1 rounded-chip px-1 text-left text-sm font-bold focus-visible:outline-2 focus-visible:outline-brand-600",
+            "flex min-h-11 items-center gap-1 rounded-chip px-1 text-left text-sm font-bold focus-visible:outline-2 focus-visible:outline-brand-600 xl:min-h-0",
             !muted && "hover:bg-slate-100",
             !day.inMonth && !day.isToday && "text-slate-500",
             muted && "cursor-default",
           )}
         >
-          <span className="text-xs font-medium text-slate-500 md:hidden">{fmtDate(day.date, "EEE")}</span>
+          <span className="text-xs font-medium text-slate-500 xl:hidden">{fmtDate(day.date, "EEE")}</span>
           <span
             className={clsx(
-              "inline-flex h-6 min-w-6 items-center justify-center tabular-nums",
+              "inline-flex h-11 min-w-11 items-center justify-center tabular-nums xl:h-6 xl:min-w-6",
               day.isToday && "highlight px-1.5 text-slate-900",
             )}
           >
@@ -176,9 +176,9 @@ function DayCell({
       </div>
 
       {day.state === "before-start" ? (
-        <p className="text-[11px] leading-tight text-slate-500 md:px-1">Before projection start</p>
+        <p className="text-[11px] leading-tight text-slate-500 xl:px-1">Before projection start</p>
       ) : day.state === "beyond-range" ? (
-        <p className="text-[11px] leading-tight text-slate-500 md:px-1">Beyond 12-month forecast limit</p>
+        <p className="text-[11px] leading-tight text-slate-500 xl:px-1">Beyond 12-month forecast limit</p>
       ) : (
         <>
           <ul className="flex min-w-0 flex-1 flex-col gap-1" aria-label={`Events on ${fmtDayLong(day.date)}`}>
@@ -202,7 +202,7 @@ function DayCell({
             )}
           </ul>
           {day.summary && (
-            <div className="flex shrink-0 flex-col items-end justify-end text-right md:mt-auto md:flex-row md:items-baseline md:justify-between md:px-1">
+            <div className="flex shrink-0 flex-col items-end justify-end text-right xl:mt-auto xl:flex-row xl:items-baseline xl:justify-between xl:px-1">
               <span className="text-[11px] text-slate-500">End</span>
               <Balance
                 cents={day.summary.closingBalanceCents}
@@ -274,7 +274,7 @@ export function WeekSummaryStrip({
   );
 
   const className = clsx(
-    "flex w-full flex-col gap-1.5 px-3 py-2 text-left sm:flex-row sm:items-center sm:justify-between",
+    "flex min-h-11 w-full flex-col gap-1.5 px-3 py-2 text-left sm:flex-row sm:items-center sm:justify-between",
     week.hasNegative ? "bg-rose-50" : "bg-slate-50",
   );
 
@@ -321,16 +321,16 @@ export function WeekRow({
       data-testid={`week-row-${weekStart}`}
       aria-label={`Week of ${fmtRange(days[0].date, days[6].date)}`}
       className={clsx(
-        "overflow-hidden rounded-sheet border bg-sheet md:rounded-none md:border-0 md:border-b md:last:border-b-0",
+        "overflow-hidden rounded-sheet border bg-sheet xl:rounded-none xl:border-0 xl:border-b xl:last:border-b-0",
         week?.hasNegative ? "border-rose-300" : "border-slate-200",
       )}
     >
-      <div className="grid grid-cols-1 md:grid-cols-7">
+      <div className="grid grid-cols-1 xl:grid-cols-7">
         {days.map((d) => (
           <DayCell key={d.date} day={d} currency={currency} expanded={expanded} onSelectEvent={onSelectEvent} onSelectDay={onSelectDay} />
         ))}
         {!expanded && !anyEvents && !allMuted && (
-          <p className="px-3 py-2 text-xs text-slate-500 md:hidden">
+          <p className="px-3 py-2 text-xs text-slate-500 xl:hidden">
             {fmtRange(days[0].date, days[6].date)}: no income or bills
           </p>
         )}

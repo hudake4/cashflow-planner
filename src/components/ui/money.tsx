@@ -1,6 +1,10 @@
-import { clsx } from "clsx";
+"use client";
+
 import { ArrowDown, ArrowUp, TriangleAlert } from "lucide-react";
+import { useReducedMotion } from "motion/react";
+import { cn } from "@/lib/utils";
 import { kindMoney, money } from "@/lib/format";
+import { RollingNumber } from "./rolling-number";
 
 /**
  * A balance as returned by the API. Negative balances are red AND carry an
@@ -24,11 +28,48 @@ export function Balance({
     <span
       data-testid={testId}
       data-negative={negative || undefined}
-      className={clsx("inline-flex items-center gap-1 tabular-nums", negative && "font-semibold text-rose-700", className)}
+      className={cn("inline-flex items-center gap-1 tabular-nums", negative && "font-semibold text-rose-700", className)}
     >
-      {negative && <TriangleAlert className={clsx("shrink-0", iconClassName)} aria-hidden="true" />}
+      {negative && <TriangleAlert className={cn("shrink-0", iconClassName)} aria-hidden="true" />}
       {negative && <span className="sr-only">negative balance </span>}
       {money(cents, currency)}
+    </span>
+  );
+}
+
+/** Animated display-only balance with a static reduced-motion fallback. */
+export function AnimatedBalance({
+  cents,
+  currency,
+  className,
+  iconClassName = "size-3.5",
+  testId,
+}: {
+  cents: number;
+  currency: string;
+  className?: string;
+  iconClassName?: string;
+  testId?: string;
+}) {
+  const reduceMotion = useReducedMotion();
+  const negative = cents < 0;
+  const formatted = money(cents, currency);
+
+  return (
+    <span
+      data-testid={testId}
+      data-negative={negative || undefined}
+      className={cn("inline-flex items-center gap-1 tabular-nums", negative && "font-semibold text-rose-700", className)}
+    >
+      <span aria-hidden="true" className="inline-flex items-center gap-1">
+        {negative && <TriangleAlert className={cn("shrink-0", iconClassName)} />}
+        {reduceMotion ? (
+          formatted
+        ) : (
+          <RollingNumber value={cents} precision={0} format={(value) => money(Math.round(value), currency)} />
+        )}
+      </span>
+      <span className="sr-only">{negative ? "negative balance " : ""}{formatted}</span>
     </span>
   );
 }
@@ -50,7 +91,7 @@ export function EventAmount({
   const Icon = kind === "INCOME" ? ArrowUp : ArrowDown;
   return (
     <span
-      className={clsx(
+      className={cn(
         "inline-flex items-center gap-0.5 font-medium tabular-nums whitespace-nowrap",
         muted ? "text-slate-500" : kind === "INCOME" ? "text-emerald-700" : "text-rose-700",
         className,
