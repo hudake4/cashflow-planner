@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { CalendarDays, HandCoins, Landmark, LayoutDashboard, Receipt, Settings } from "lucide-react";
+import { CalendarDays, ChartPie, HandCoins, Landmark, LayoutDashboard, Receipt, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
@@ -9,6 +9,7 @@ import type { ReactNode } from "react";
 const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard, testId: "nav-dashboard" },
   { href: "/calendar", label: "Calendar", icon: CalendarDays, testId: "nav-calendar" },
+  { href: "/spending", label: "Spend Analyzer", icon: ChartPie, testId: "nav-spending" },
   { href: "/bills", label: "Bills", icon: Receipt, testId: "nav-bills" },
   { href: "/income", label: "Income", icon: HandCoins, testId: "nav-income" },
   { href: "/institutions", label: "Institutions", icon: Landmark, testId: "nav-institutions" },
@@ -101,7 +102,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         aria-label="Main"
         className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-sheet/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
       >
-        <ul className="grid grid-cols-6">
+        <ul className="grid grid-cols-7">
           {NAV.map(({ href, label, icon: Icon, testId }) => {
             const active = isActive(pathname, href);
             return (

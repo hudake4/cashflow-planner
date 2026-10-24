@@ -147,6 +147,10 @@ buildDashboard(input: Omit<ProjectionInput, "from" | "to" | "settings"> & { sett
 // src/domain/recurring.ts (section 12)
 detectRecurring(input: { transactions: { date; description; amountCents }[]; incomes: ExistingSchedule[]; bills: ExistingSchedule[]; today: string }): RecurringSuggestionDTO[]
 // ExistingSchedule = { name; amountCents; frequency; anchorDate; endDate }
+
+// src/domain/spending.ts (section 13)
+categorize(description: string): SpendingCategory
+buildSpending(input: { transactions: { date; description; amountCents }[]; today: string }): SpendingAnalysisDTO
 ```
 
 ## 11. Team workflow rules
@@ -181,3 +185,15 @@ Finds repeating payments and deposits in the stored bank history (section 9, Sim
 - **Order:** next date, then income before bills, then name.
 - **Skip is per scan.** Nothing is stored, so skipped suggestions reappear on the next scan.
 - **Adding** a suggestion uses the normal `POST /api/bills` or `POST /api/income`, with the notes "Found in your bank history."
+
+## 13. Spend analyzer
+
+Shows where money went last month and so far this month, grouped by category. Pure rules in `src/domain/spending.ts`. It reads the local bank snapshot only and **never calls SimpleFIN**.
+
+- **Input:** settled (non-pending) transactions in the 89-day history window. That window always covers last month and this month, because last month's first day is at most about 61 days back. The page shows the earliest transaction date (`coverageStart`) so a newly connected bank with thin history isn't mistaken for low spending.
+- **What counts as spending:** money out only (`amountCents < 0`), counted as a positive magnitude. Money in (income, refunds) is ignored and refunds are **not** netted against purchases.
+- **Periods** are calendar months by the transaction's `YYYY-MM-DD` date (section 9 dates). *This month* runs from the 1st through today; *last month* is the whole previous month. `lastMonthToDateCents` is last month's spending from the 1st through today's day number (clamped to that month's length, so on Mar 30 it covers Feb 1-28/29), for a like-for-like comparison.
+- **Categories** (`SPENDING_CATEGORIES`): Groceries, Dining, Gas, Utilities, Bills, Shopping, Transport, Entertainment, Health, Transfers, Other. A transaction gets the **first** category whose keyword list matches the lower-cased description, tried in a fixed priority order so overlaps are deterministic (a gas station is Gas, not Shopping). Nothing matching is `OTHER`. Keyword matching is whole-word or word-prefix on tokens, never an arbitrary substring.
+- **Transfers** (payments to a card, transfers between accounts, peer-to-peer apps, cash withdrawals) are summed separately in `transfersCents` and are **excluded** from `totalCents`, `categories` and `topMerchants`, so moving money around doesn't look like spending.
+- **Merchants:** transactions are grouped by the same normalised name used by the recurring scan (section 12); the top 5 by total are returned per period.
+- **Nothing is stored.** Categories are derived on every request, so improving the keyword lists re-categorizes history. There are no per-transaction category overrides yet.
