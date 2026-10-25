@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.18.0](https://github.com/hudake4/cashflow-planner/compare/v0.17.0...v0.18.0) (2026-10-25)
+
+
+### Features
+
+* **settings:** restore data from a backup file ([545cf8e](https://github.com/hudake4/cashflow-planner/commit/545cf8e4b7dc59f3919f93a71e436f9ee06a4b9d))
+* **settings:** restore data from a backup file ([7129d73](https://github.com/hudake4/cashflow-planner/commit/7129d73fa90806cee6c5349c62491b44afcaf17f))
+
+
+### Bug Fixes
+
+* **settings:** accept backups from older app versions ([6ee094f](https://github.com/hudake4/cashflow-planner/commit/6ee094f1011cbcd24b9154949a9e6177476b725c))
+* **ui:** remove inherited negative margins from dialog footer ([98eff35](https://github.com/hudake4/cashflow-planner/commit/98eff35c1e79df87226f9d137a7b49d4bee3dd0f))
+* **ui:** remove inherited negative margins from dialog footer ([38fc273](https://github.com/hudake4/cashflow-planner/commit/38fc273ecd6b7382b23f776b142e77a9892fce15))
+
 ## [0.17.0](https://github.com/hudake4/cashflow-planner/compare/v0.16.0...v0.17.0) (2026-10-25)
 
 
