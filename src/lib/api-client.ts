@@ -10,6 +10,7 @@ import type {
   BillDTO,
   BillInput,
   BankTransactionsResponse,
+  BillEstimateDTO,
   BillOccurrenceDTO,
   ConnectInstitutionInput,
   DashboardResponse,
@@ -158,6 +159,10 @@ export const api = {
 
   /** Finds repeating payments/deposits in the stored bank history. Reads local data only. */
   scanRecurring: () => request<RecurringScanResponse>("/recurring"),
+
+  /** Suggested amount for a bill from the stored bank history. Nothing is saved. Reads local data only. */
+  getBillEstimate: (billId: string, date: string) =>
+    request<BillEstimateDTO>(`/bills/${encodeURIComponent(billId)}/estimate?date=${date}`),
 
   /** Last month's and this month's spending by category from the stored bank history. Reads local data only. */
   getSpending: () => request<SpendingResponse>("/spending"),

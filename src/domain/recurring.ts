@@ -175,6 +175,9 @@ function nextDate(frequency: RecurringFrequency, dates: string[], today: string)
 const within = (a: number, b: number, fraction: number) => Math.abs(a - b) <= Math.max(a, b) * fraction;
 const isSubset = (small: string[], big: string[]) => small.length > 0 && small.every((t) => big.includes(t));
 
+/** One name's words are all in the other's: the "already tracked" name rule, also used to match a bill to bank transactions. */
+export const namesOverlap = (a: string[], b: string[]) => isSubset(a, b) || isSubset(b, a);
+
 function isTracked(
   tokens: string[],
   amountCents: number,
@@ -186,7 +189,7 @@ function isTracked(
   return existing.some((e) => {
     if (e.frequency === "ONE_TIME" || (e.endDate && e.endDate < today)) return false;
     const theirs = nameTokens(e.name);
-    if (isSubset(theirs, tokens) || isSubset(tokens, theirs)) return true;
+    if (namesOverlap(theirs, tokens)) return true;
     // "Netflix Premium" already tracked and the bank says "NETFLIX.COM": same first word, similar amount.
     if (theirs[0] && theirs[0] === tokens[0] && theirs[0].length >= 5 && within(e.amountCents, amountCents, 0.25)) return true;
     // Named differently ("Rent" vs a landlord's name) but the same amount on the same schedule.
