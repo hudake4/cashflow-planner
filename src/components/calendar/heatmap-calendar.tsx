@@ -179,15 +179,15 @@ export function HeatmapCalendar({
   const headerDays = Array.from({ length: 7 }, (_, i) => WEEKDAY_NAMES[(weekStartsOn + i) % 7].slice(0, 3));
 
   return (
-    <section aria-label="Balance calendar" className="@container rounded-sheet border border-slate-300 bg-sheet p-2 sm:p-3" data-testid="calendar-heatmap">
-      <div className="grid grid-cols-7 gap-1" aria-hidden="true">
+    <section aria-label="Balance calendar" className="@container rounded-sheet border border-slate-300 bg-sheet p-1 sm:p-3" data-testid="calendar-heatmap">
+      <div className="grid grid-cols-7 gap-0.5 sm:gap-1" aria-hidden="true">
         {headerDays.map((d) => (
           <div key={d} className="pb-1 text-center text-xs font-semibold text-slate-600">
             {d}
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-1">
+      <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
         {weeks.flatMap((w) =>
           w.days.map((d) => <DayCell key={d.date} day={d} currency={currency} maxPositiveCents={maxPositiveCents} onSelect={onSelectDay} />),
         )}
