@@ -18,6 +18,7 @@ import { EventDetailDialog } from "./event-detail-dialog";
 import { HeatmapCalendar, type DayView, type GridWeek } from "./heatmap-calendar";
 import { PeriodDetailDialog, type PeriodDetail } from "./period-detail-dialog";
 import { RegisterList } from "./register-list";
+import { weekStartText } from "./week-label";
 
 export function CalendarPage() {
   const settings = useApi<SettingsDTO>("settings", api.getSettings);
@@ -220,7 +221,7 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-rose-700" aria-hidden="true" />
           <span>
             <strong className="font-semibold">Heads up:</strong> your projected balance dips below zero in the week of{" "}
-            {fmtDate(visibleNegative.weekStart, "MMM d")}.
+            {weekStartText(visibleNegative.weekStart)}.
           </span>
         </p>
       )}

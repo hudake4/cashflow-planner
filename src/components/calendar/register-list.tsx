@@ -3,12 +3,13 @@
 import { clsx } from "clsx";
 import { ChevronRight, CircleCheck, TriangleAlert } from "lucide-react";
 import type { LedgerEvent, WeekSummary } from "@/contracts/api";
-import { fmtDate, fmtRange } from "@/lib/dates";
+import { fmtDate } from "@/lib/dates";
 import { money, signedMoney } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Balance, EventAmount } from "@/components/ui/money";
 import { eventAriaLabel } from "./event-labels";
 import type { GridWeek } from "./heatmap-calendar";
+import { weekLabel, weekSpokenLabel } from "./week-label";
 
 /** A balance for screen readers: the sign alone is easy to miss, so a negative one says so (like `Balance`). */
 function spokenBalance(cents: number, currency: string): string {
@@ -18,7 +19,7 @@ function spokenBalance(cents: number, currency: string): string {
 /** The week header's accessible name carries everything the visible header shows, including the dip warning. */
 function weekHeaderLabel(week: WeekSummary, currency: string): string {
   const dip = week.hasNegative ? `, dips below zero, low ${spokenBalance(week.lowestBalanceCents, currency)}` : "";
-  return `Week of ${fmtRange(week.rangeStart, week.rangeEnd)}: opening ${spokenBalance(week.openingBalanceCents, currency)}, income ${money(week.incomeCents, currency)}, bills ${money(week.billsCents, currency)}, closing ${spokenBalance(week.closingBalanceCents, currency)}${dip}. Open week details.`;
+  return `${weekSpokenLabel(week)}: opening ${spokenBalance(week.openingBalanceCents, currency)}, income ${money(week.incomeCents, currency)}, bills ${money(week.billsCents, currency)}, closing ${spokenBalance(week.closingBalanceCents, currency)}${dip}. Open week details.`;
 }
 
 function WeekHeader({ week, currency, onSelect }: { week: WeekSummary; currency: string; onSelect: (week: WeekSummary) => void }) {
@@ -36,7 +37,7 @@ function WeekHeader({ week, currency, onSelect }: { week: WeekSummary; currency:
     >
       <span className="flex items-center justify-between gap-2">
         <span className="font-semiwide text-sm font-bold text-slate-800">
-          Week of {fmtDate(week.weekStart, "MMM d")}
+          {weekLabel(week.weekStart)}
           {week.partial && <span className="ml-1 font-normal text-slate-500">(partial)</span>}
         </span>
         <span className="inline-flex items-center gap-0.5 text-xs font-medium text-brand-700 group-hover:underline" aria-hidden="true">
@@ -182,7 +183,7 @@ export function RegisterList({
           <section
             key={key}
             data-testid={`week-register-${key}`}
-            aria-label={`Week of ${fmtRange(week.rangeStart, week.rangeEnd)}`}
+            aria-label={weekLabel(key)}
             className={clsx("overflow-hidden rounded-sheet border bg-sheet", week.hasNegative ? "border-rose-300" : "border-slate-300")}
           >
             <WeekHeader week={week} currency={currency} onSelect={onSelectWeek} />

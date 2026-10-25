@@ -4,7 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import type { DaySummary, LedgerEvent, ProjectionResponse, SettingsDTO, WeekSummary } from "@/contracts/api";
 import { CalendarPage } from "@/components/calendar/calendar-view";
 import { ToastProvider } from "@/components/ui/toast";
-import { addDays, eachDay, startOfWeek } from "@/lib/dates";
+import { addDays, eachDay, fmtDate, startOfWeek } from "@/lib/dates";
 
 const { getSettings, getProjection } = vi.hoisted(() => ({ getSettings: vi.fn(), getProjection: vi.fn() }));
 
@@ -330,5 +330,52 @@ describe("week header accessible name", () => {
     expect(header).not.toHaveAccessibleName(/negative balance/);
     expect(header).not.toHaveAccessibleName(/dips below zero/i);
     expect(header).toHaveAccessibleName(/opening \$1,000\.00, .*closing \$1,000\.00/);
+  });
+});
+
+describe.each([
+  { weekStartsOn: 0, label: "Week of Oct 18", covers: "Oct 21 – Oct 24, 2026" },
+  { weekStartsOn: 1, label: "Week of Oct 19", covers: "Oct 21 – Oct 25, 2026" },
+])("partial first week label (week starts on day $weekStartsOn)", ({ weekStartsOn, label, covers }) => {
+  const weekStart = startOfWeek(TODAY, weekStartsOn);
+
+  beforeEach(() => {
+    getSettings.mockResolvedValue(settings({ weekStartsOn }));
+    mockProjection({ weekStartsOn });
+  });
+
+  it(`names the week "${label}" in the header, its accessible name, the register section and the drawer title`, async () => {
+    const user = userEvent.setup();
+    renderCalendar();
+    const header = await screen.findByTestId(`week-summary-${weekStart}`);
+
+    expect(header).toHaveTextContent(label);
+    expect(header).toHaveTextContent("(partial)");
+    expect(header).toHaveAccessibleName(new RegExp(`^${label} \\(partial, covers ${covers}\\): opening `));
+    const section = screen.getByTestId(`week-register-${weekStart}`);
+    expect(section).toHaveAttribute("aria-label", label);
+    expect(screen.getByRole("region", { name: label })).toBe(section);
+    expect(screen.getByTestId("calendar-negative-warning")).toHaveTextContent(`week of ${label.replace("Week of ", "")}`);
+
+    await user.click(header);
+    const detail = await screen.findByTestId("week-detail");
+    expect(detail).toHaveAccessibleName(label);
+    expect(within(detail).getByRole("heading", { name: label })).toBeInTheDocument();
+    expect(detail).toHaveAccessibleDescription(new RegExp(`${covers}.*Partial week`));
+  });
+
+  it("uses the same week-start label for every week in the register, not the covered range", async () => {
+    renderCalendar();
+    await screen.findByTestId(`week-summary-${weekStart}`);
+
+    const headers = screen.getAllByTestId(/^week-summary-/);
+    expect(headers.length).toBeGreaterThan(1);
+    for (const header of headers) {
+      const start = header.dataset.testid!.replace("week-summary-", "");
+      const name = `Week of ${fmtDate(start, "MMM d")}`;
+      expect(header).toHaveTextContent(name);
+      expect(header.getAttribute("aria-label")).toMatch(new RegExp(`^${name}[ :(]`));
+      expect(screen.getByTestId(`week-register-${start}`)).toHaveAttribute("aria-label", name);
+    }
   });
 });
