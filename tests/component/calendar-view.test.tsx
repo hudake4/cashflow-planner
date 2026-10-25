@@ -379,3 +379,32 @@ describe.each([
     }
   });
 });
+
+describe("zero income and bills in the week header", () => {
+  const weekStart = startOfWeek(TODAY, 0);
+
+  it("shows a dash instead of +$0.00 and −$0.00, keeps the test ids, and says so to screen readers", async () => {
+    mockProjection({ events: [] });
+    renderCalendar();
+    const header = await screen.findByTestId(`week-summary-${weekStart}`);
+
+    const income = screen.getByTestId(`week-income-${weekStart}`);
+    const bills = screen.getByTestId(`week-bills-${weekStart}`);
+    expect(income).toHaveTextContent("—");
+    expect(bills).toHaveTextContent("—");
+    expect(header).not.toHaveTextContent(/[+−]\$0\.00/);
+    expect(income).toHaveTextContent("no income");
+    expect(bills).toHaveTextContent("no bills");
+    expect(header).toHaveAccessibleName(/opening \$1,000\.00, no income, no bills, closing \$1,000\.00/);
+  });
+
+  it("dashes only the zero side and leaves non-zero amounts as they were", async () => {
+    mockProjection({ events: [PAYCHECK] });
+    renderCalendar();
+    const header = await screen.findByTestId(`week-summary-${weekStart}`);
+
+    expect(screen.getByTestId(`week-income-${weekStart}`)).toHaveTextContent("+$500.00");
+    expect(screen.getByTestId(`week-bills-${weekStart}`)).toHaveTextContent("—");
+    expect(header).toHaveAccessibleName(/income \$500\.00, no bills/);
+  });
+});

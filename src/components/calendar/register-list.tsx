@@ -1,7 +1,7 @@
 "use client";
 
 import { clsx } from "clsx";
-import { ChevronRight, CircleCheck, TriangleAlert } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronRight, CircleCheck, TriangleAlert } from "lucide-react";
 import type { LedgerEvent, WeekSummary } from "@/contracts/api";
 import { fmtDate } from "@/lib/dates";
 import { money, signedMoney } from "@/lib/format";
@@ -19,7 +19,22 @@ function spokenBalance(cents: number, currency: string): string {
 /** The week header's accessible name carries everything the visible header shows, including the dip warning. */
 function weekHeaderLabel(week: WeekSummary, currency: string): string {
   const dip = week.hasNegative ? `, dips below zero, low ${spokenBalance(week.lowestBalanceCents, currency)}` : "";
-  return `${weekSpokenLabel(week)}: opening ${spokenBalance(week.openingBalanceCents, currency)}, income ${money(week.incomeCents, currency)}, bills ${money(week.billsCents, currency)}, closing ${spokenBalance(week.closingBalanceCents, currency)}${dip}. Open week details.`;
+  const income = week.incomeCents === 0 ? "no income" : `income ${money(week.incomeCents, currency)}`;
+  const bills = week.billsCents === 0 ? "no bills" : `bills ${money(week.billsCents, currency)}`;
+  return `${weekSpokenLabel(week)}: opening ${spokenBalance(week.openingBalanceCents, currency)}, ${income}, ${bills}, closing ${spokenBalance(week.closingBalanceCents, currency)}${dip}. Open week details.`;
+}
+
+/** A week's income or bills total. A zero total is a quiet dash (still in its slot) instead of "+$0.00" / "−$0.00". */
+function WeekTotal({ kind, cents, currency }: { kind: "INCOME" | "BILL"; cents: number; currency: string }) {
+  if (cents !== 0) return <EventAmount kind={kind} amountCents={cents} currency={currency} />;
+  const Icon = kind === "INCOME" ? ArrowUp : ArrowDown;
+  return (
+    <span className="inline-flex items-center gap-0.5 font-medium whitespace-nowrap text-slate-500">
+      <Icon className="h-3 w-3 shrink-0" aria-hidden="true" />
+      <span aria-hidden="true">—</span>
+      <span className="sr-only">{kind === "INCOME" ? "no income" : "no bills"}</span>
+    </span>
+  );
 }
 
 function WeekHeader({ week, currency, onSelect }: { week: WeekSummary; currency: string; onSelect: (week: WeekSummary) => void }) {
@@ -50,10 +65,10 @@ function WeekHeader({ week, currency, onSelect }: { week: WeekSummary; currency:
           <Balance cents={week.openingBalanceCents} currency={currency} iconClassName="h-3 w-3" className="text-slate-800" />
         </span>
         <span title="Income this week" data-testid={`week-income-${week.weekStart}`}>
-          <EventAmount kind="INCOME" amountCents={week.incomeCents} currency={currency} />
+          <WeekTotal kind="INCOME" cents={week.incomeCents} currency={currency} />
         </span>
         <span title="Bills this week" data-testid={`week-bills-${week.weekStart}`}>
-          <EventAmount kind="BILL" amountCents={week.billsCents} currency={currency} />
+          <WeekTotal kind="BILL" cents={week.billsCents} currency={currency} />
         </span>
         <span className="flex items-baseline gap-1">
           <span className="text-slate-500">Net</span>
