@@ -625,6 +625,13 @@ export interface DataExportDTO {
   institutions: ExportedInstitutionDTO[];
 }
 
+export interface DataImportResponse {
+  ok: true;
+  restored: { incomes: number; bills: number; billOccurrences: number };
+  ignored: { institutions: number; accounts: number; transactions: number };
+  note: string;
+}
+
 // The schema and the DTO interfaces must describe the same shape.
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 const exportSchemaMatchesDTO: Same<z.output<typeof dataExportSchema>, DataExportDTO> = true;

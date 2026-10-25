@@ -1,8 +1,8 @@
 "use client";
 
-import { Database, Download, HardDrive, Trash } from "lucide-react";
+import { Database, Download, HardDrive, Trash, Upload } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   MAX_FORECAST_DAYS,
   MIN_FORECAST_DAYS,
@@ -33,7 +33,8 @@ const PRESETS = [30, 60, 90, 180, 365];
 
 export function SettingsView({ appVersion }: { appVersion: string }) {
   const settings = useApi<SettingsDTO>("settings", api.getSettings);
-  const [confirm, setConfirm] = useState<"demo" | "reset" | null>(null);
+  const [confirm, setConfirm] = useState<"demo" | "reset" | "restore" | null>(null);
+  const [backupFile, setBackupFile] = useState<{ name: string; text: string } | null>(null);
   const [formVersion, setFormVersion] = useState(0);
   const toast = useToast();
 
@@ -41,6 +42,15 @@ export function SettingsView({ appVersion }: { appVersion: string }) {
     toast(message, "success");
     await settings.reload();
     setFormVersion((v) => v + 1);
+  };
+
+  const selectBackup = async (file: File) => {
+    try {
+      setBackupFile({ name: file.name, text: await file.text() });
+      setConfirm("restore");
+    } catch (err) {
+      toast(errorMessage(err), "error");
+    }
   };
 
   return (
@@ -70,7 +80,11 @@ export function SettingsView({ appVersion }: { appVersion: string }) {
 
         <div className="flex min-w-0 flex-col gap-6">
           <AppearanceCard />
-          <DataCard onConfirmDemo={() => setConfirm("demo")} onConfirmReset={() => setConfirm("reset")} />
+          <DataCard
+            onConfirmDemo={() => setConfirm("demo")}
+            onConfirmReset={() => setConfirm("reset")}
+            onSelectBackup={(file) => void selectBackup(file)}
+          />
         </div>
       </div>
 
@@ -118,6 +132,29 @@ export function SettingsView({ appVersion }: { appVersion: string }) {
           await afterDataChange("All data cleared.");
         }}
       />
+      <ConfirmDialog
+        open={confirm === "restore"}
+        onClose={() => setConfirm(null)}
+        title="Restore from backup?"
+        confirmLabel="Replace with backup"
+        testId="confirm-restore-dialog"
+        description={
+          <span className="flex flex-col gap-3">
+            <span>
+              This <strong className="font-semibold text-foreground">replaces all current income, bills, paid/skipped marks and settings</strong>{" "}
+              with the contents of <strong className="font-semibold text-foreground">{backupFile?.name}</strong>.
+            </span>
+            <span>Connected banks are kept and not restored. This can&apos;t be undone.</span>
+          </span>
+        }
+        onError={(message) => toast(message, "error")}
+        onConfirm={async () => {
+          if (!backupFile) return;
+          await api.restoreBackup(backupFile.text);
+          setBackupFile(null);
+          await afterDataChange("Backup restored.");
+        }}
+      />
     </>
   );
 }
@@ -135,9 +172,10 @@ function saveFile(blob: Blob, filename: string) {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-function DataCard({ onConfirmDemo, onConfirmReset }: { onConfirmDemo: () => void; onConfirmReset: () => void }) {
+function DataCard({ onConfirmDemo, onConfirmReset, onSelectBackup }: { onConfirmDemo: () => void; onConfirmReset: () => void; onSelectBackup: (file: File) => void }) {
   const toast = useToast();
   const [exporting, setExporting] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   async function downloadBackup() {
     setExporting(true);
@@ -172,8 +210,31 @@ function DataCard({ onConfirmDemo, onConfirmReset }: { onConfirmDemo: () => void
           >
             {!exporting && <Download aria-hidden="true" data-icon="inline-start" />} Download backup
           </Button>
+          <input
+            ref={inputRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            data-testid="settings-import-input"
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0];
+              event.currentTarget.value = "";
+              if (file) onSelectBackup(file);
+            }}
+          />
+          <Button
+            className="w-full"
+            variant="secondary"
+            onClick={() => inputRef.current?.click()}
+            data-testid="settings-import"
+          >
+            <Upload aria-hidden="true" data-icon="inline-start" /> Restore from backup
+          </Button>
           <p className="text-xs leading-relaxed text-muted-foreground">
             Saves every paycheck, bill, status and bank snapshot as a JSON file. Bank credentials are never included.
+          </p>
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Choose a JSON backup to replace your current income, bills, paid/skipped marks and settings. Connected banks stay as they are.
           </p>
         </div>
         <div className="flex flex-col gap-2">

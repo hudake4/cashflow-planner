@@ -13,6 +13,7 @@ import type {
   BillOccurrenceDTO,
   ConnectInstitutionInput,
   DashboardResponse,
+  DataImportResponse,
   IncomeDTO,
   IncomeInput,
   InstitutionDTO,
@@ -169,6 +170,9 @@ export const api = {
   resetAllData: () => request<{ ok: true }>("/data/reset", json("POST")),
   /** The full backup as a JSON file (bank credentials are never included). */
   downloadBackup,
+  /** Replaces planner data with the contents of a previously exported JSON backup. */
+  restoreBackup: (fileText: string) =>
+    request<DataImportResponse>("/data/import", { method: "POST", body: fileText, headers: { "Content-Type": "application/json" } }),
 };
 
 export function errorMessage(err: unknown): string {
