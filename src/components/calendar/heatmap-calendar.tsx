@@ -84,7 +84,8 @@ function DayCell({ day, currency, maxPositiveCents, onSelect }: { day: DayView; 
         <span className="flex items-center justify-between gap-0.5">
           <span
             className={clsx(
-              "inline-flex h-5 min-w-5 items-center justify-center rounded-chip px-0.5 text-xs font-bold tabular-nums",
+              // In the tight cells the number chip gives up 4px so a negative cell's alert icon stays inside the padding.
+              "inline-flex h-5 min-w-5 items-center justify-center rounded-chip px-0.5 text-xs font-bold tabular-nums @max-[21rem]:min-w-4 @max-[21rem]:px-px",
               day.isToday && "highlight text-slate-900",
             )}
           >
