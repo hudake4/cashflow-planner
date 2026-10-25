@@ -16,7 +16,10 @@ export async function scanRecurring(now: Date = new Date()): Promise<RecurringSc
   const [connections, rows, bills, incomes, settings] = await Promise.all([
     db.bankConnection.findMany({ where: { householdId: HOUSEHOLD_ID }, select: { lastSyncedAt: true } }),
     db.bankTransaction.findMany({
-      where: { pending: false, date: { gte: historyCutoff(today) }, account: { connection: { householdId: HOUSEHOLD_ID } } },
+      // Bank accounts only, like the starting balance: a bill or income suggestion has to move money
+      // through one. Card purchases are paid for by the card payment, and the payment received on the
+      // card would look like a monthly income.
+      where: { pending: false, date: { gte: historyCutoff(today) }, account: { kind: "BANK", connection: { householdId: HOUSEHOLD_ID } } },
       select: { date: true, description: true, amountCents: true },
     }),
     listBills(),
