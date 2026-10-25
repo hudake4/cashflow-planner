@@ -72,7 +72,7 @@ Finds repeating payments and deposits in the stored bank transactions and sugges
 
 | Method | Path | Body / query | Response |
 |---|---|---|---|
-| GET | `/api/recurring` | — | `RecurringScanResponse` `{ suggestions, currency, connectionCount, transactionCount, lastSyncedAt }`. Each suggestion is a `RecurringSuggestionDTO`: `key`, `kind` (`INCOME` or `BILL`), `name`, `amountCents` (positive, latest occurrence), `frequency` (`WEEKLY`, `BIWEEKLY` or `MONTHLY`), `nextDate` (YYYY-MM-DD, first expected date on or after today), `occurrences`, `seenDates` and `amountVaries`. Suggestions already tracked as bills or income are left out. |
+| GET | `/api/recurring` | — | `RecurringScanResponse` `{ suggestions, currency, connectionCount, transactionCount, lastSyncedAt }`. Each suggestion is a `RecurringSuggestionDTO`: `key`, `kind` (`INCOME` or `BILL`), `name`, `amountCents` (positive, latest occurrence), `frequency` (`WEEKLY`, `BIWEEKLY` or `MONTHLY`), `nextDate` (YYYY-MM-DD, first expected date on or after today), `occurrences`, `seenDates` and `amountVaries`. Suggestions already tracked as bills or income are left out. Only accounts labelled `BANK` are read, so `transactionCount` leaves out card, loan and other accounts. |
 
 Adding a suggestion uses the existing `POST /api/bills` or `POST /api/income`, with the notes "Found in your bank history."
 
@@ -81,7 +81,7 @@ Last month's and this month's spending by category. Rules are in [`CONVENTIONS.m
 
 | Method | Path | Body / query | Response |
 |---|---|---|---|
-| GET | `/api/spending` | — | `SpendingResponse` `{ thisMonth, lastMonth, lastMonthToDateCents, coverageStart, currency, connectionCount, transactionCount, lastSyncedAt }`. Each period is a `SpendingPeriodDTO`: `from`, `to`, `totalCents`, `transactionCount`, `transfersCents`, `categories`, `topMerchants` and `transactions` (every money-out transaction of the period, transfers included, newest first: `id`, `date`, `name`, `description`, `cents`, `category`, `source` (`AUTO`, `MERCHANT` or `MANUAL`) and `merchantLearnable`). |
+| GET | `/api/spending` | — | `SpendingResponse` `{ thisMonth, lastMonth, lastMonthToDateCents, coverageStart, currency, connectionCount, transactionCount, lastSyncedAt }`. Each period is a `SpendingPeriodDTO`: `from`, `to`, `totalCents`, `transactionCount`, `transfersCents`, `categories`, `topMerchants` and `transactions` (every money-out transaction of the period, transfers included, newest first: `id`, `date`, `name`, `description`, `cents`, `category`, `source` (`AUTO`, `MERCHANT` or `MANUAL`) and `merchantLearnable`). Reads accounts labelled `BANK` or `CREDIT`; a bank debit that a credit account received is a transfer (`CONVENTIONS.md` section 13). |
 | PUT | `/api/spending/transactions/:id/category` | `{ category, applyToMerchant? }` | The refreshed `SpendingResponse`. `category` is a `SpendingCategory` (including `TRANSFERS`) or `null` to go back to the automatic category. `applyToMerchant` defaults to `true`: the choice is remembered for the transaction's merchant, replacing any per-transaction choices for it; `false` changes only this transaction. 404 for a transaction that isn't a settled one in the 89-day history; 400 `BAD_REQUEST` for money in, or for `applyToMerchant` on a description with no merchant name (`merchantLearnable: false`); 400 `VALIDATION_ERROR` for an unknown category or extra fields. |
 
 ## Data management (local only)
