@@ -8,6 +8,7 @@
 import path from "node:path";
 import { app, BrowserWindow, dialog, Menu, session, shell } from "electron";
 import { DatabaseBackupError } from "./backup";
+import { startAlertNotifications } from "./notifications";
 import { startServer, type RunningServer } from "./server";
 
 const APP_NAME = "CashFlow Planner";
@@ -15,6 +16,8 @@ const APP_NAME = "CashFlow Planner";
 // Packaged: %APPDATA%\CashFlow Planner. Unpackaged (npm run desktop:start) gets its own folder
 // so trying the desktop build from source never touches the installed app's data.
 app.setName(APP_NAME);
+// Windows shows notifications under this id; it matches the installer's appId (electron-builder.yml).
+if (process.platform === "win32") app.setAppUserModelId("com.cashflowplanner.desktop");
 app.setPath("userData", path.join(app.getPath("appData"), app.isPackaged ? APP_NAME : `${APP_NAME} (dev)`));
 
 const paths = app.isPackaged
@@ -109,4 +112,11 @@ async function launch(): Promise<void> {
   });
 
   await mainWindow.loadURL(server.url);
+
+  const stopAlerts = startAlertNotifications(server.url, () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  });
+  app.once("before-quit", stopAlerts);
 }

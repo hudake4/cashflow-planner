@@ -356,6 +356,28 @@ export interface DashboardResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Alerts (desktop notifications)
+// ---------------------------------------------------------------------------
+
+export type AlertKind = "LOW_BALANCE" | "BILL_DUE";
+
+export interface AlertDTO {
+  /** Stable for the same event, so a client can remember which alerts it already showed. */
+  key: string;
+  kind: AlertKind;
+  title: string;
+  body: string;
+  /** Last date the alert is still relevant (YYYY-MM-DD). A client can forget the key after it. */
+  expiresOn: string;
+}
+
+export interface AlertsResponse {
+  /** Server's local "today". */
+  today: string;
+  alerts: AlertDTO[];
+}
+
+// ---------------------------------------------------------------------------
 // Institutions (SimpleFIN Bridge bank connections, read-only)
 // ---------------------------------------------------------------------------
 // Only src/server/simplefin.ts ever sees a setup token or access URL. No DTO below

@@ -3,6 +3,7 @@
  * from `src/domain`; nothing computed by a client is ever trusted.
  */
 import {
+  type AlertsResponse,
   DATA_EXPORT_FORMAT,
   DATA_EXPORT_FORMAT_VERSION,
   dataExportSchema,
@@ -10,6 +11,7 @@ import {
   type DataExportDTO,
   type ProjectionResponse,
 } from "../contracts/api";
+import { buildAlerts } from "../domain/alerts";
 import { buildDashboard } from "../domain/dashboard";
 import { todayLocal } from "../domain/dates";
 import { computeProjection } from "../domain/projection";
@@ -42,6 +44,10 @@ export async function getProjection(from?: string, to?: string): Promise<Project
 
 export async function getDashboard(today: string = todayLocal()): Promise<DashboardResponse> {
   return buildDashboard({ ...(await loadInputs()), today });
+}
+
+export async function getAlerts(today: string = todayLocal()): Promise<AlertsResponse> {
+  return { today, alerts: buildAlerts(await getProjection(), today) };
 }
 
 /**

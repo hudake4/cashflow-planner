@@ -48,6 +48,7 @@ Errors always use this shape (`ApiErrorBody`):
 |---|---|---|---|
 | GET | `/api/projection` | `from?`, `to?` (YYYY-MM-DD). The default is the full window. `from` is clamped to `projectionStartDate`, and `to` is clamped to `maxEndDate`. | `ProjectionResponse` |
 | GET | `/api/dashboard` | — | `DashboardResponse` |
+| GET | `/api/alerts` | — | `AlertsResponse` `{ today, alerts }`: what the desktop app may notify about right now (CONVENTIONS section 14). Each `AlertDTO` is `{ key, kind: LOW_BALANCE \| BILL_DUE, title, body, expiresOn }`. The `key` is stable for the same event, so a client can remember what it already showed and forget the key after `expiresOn`. Read-only; the server stores nothing. |
 
 Projection slicing details:
 - An empty `from`/`to` value is treated as missing. `from > to` (as requested) → 400 `VALIDATION_ERROR` on `to`. If clamping leaves `from` after `to` (e.g. only `from` is given and it is past the window end), the range becomes the single day `from`.
