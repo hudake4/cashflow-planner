@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.21.0](https://github.com/hudake4/cashflow-planner/compare/v0.20.0...v0.21.0) (2026-10-25)
+
+
+### Features
+
+* **ui:** give each institution account its own card ([087db0c](https://github.com/hudake4/cashflow-planner/commit/087db0c0f7972051f2113fd85bd0f02d7adfe5bd))
+* **ui:** give each institution account its own card ([e78db2c](https://github.com/hudake4/cashflow-planner/commit/e78db2cc0addc22dc734135d39a142c91d1d2596))
+
 ## [0.20.0](https://github.com/hudake4/cashflow-planner/compare/v0.19.0...v0.20.0) (2026-10-25)
 
 
