@@ -494,6 +494,35 @@ export interface RecurringScanResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Bill payment matches (reads the stored bank transactions; never calls SimpleFIN)
+// ---------------------------------------------------------------------------
+
+/** A synced bank transaction that looks like the payment of one unpaid bill occurrence. Only an offer: nothing is marked until the user confirms. */
+export interface BillPaymentMatchDTO {
+  billId: string;
+  billName: string;
+  /** The scheduled due date of the occurrence the payment matches. */
+  dueDate: string;
+  /** What the occurrence is expected to cost (its amount override, else the bill's amount). Positive magnitude. */
+  expectedCents: number;
+  /** The occurrence's recorded override and note, so marking it paid can keep them. */
+  amountOverrideCents: number | null;
+  note: string | null;
+  transaction: {
+    id: string;
+    date: string;
+    description: string;
+    /** Positive magnitude of the money out. */
+    cents: number;
+  };
+}
+
+export interface BillMatchesResponse {
+  matches: BillPaymentMatchDTO[];
+  currency: string;
+}
+
+// ---------------------------------------------------------------------------
 // Data export (backup file from GET /api/data/export)
 // ---------------------------------------------------------------------------
 // Everything the user entered plus the stored bank snapshot, as a single JSON file.

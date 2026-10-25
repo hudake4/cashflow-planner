@@ -76,6 +76,15 @@ Finds repeating payments and deposits in the stored bank transactions and sugges
 
 Adding a suggestion uses the existing `POST /api/bills` or `POST /api/income`, with the notes "Found in your bank history."
 
+## Bill payment matches (from bank history)
+Synced bank transactions that look like the payment of a bill occurrence that is not yet marked paid. Rules are in [`CONVENTIONS.md`](CONVENTIONS.md) section 14. The endpoint reads the local database only, never calls SimpleFIN and changes nothing.
+
+| Method | Path | Body / query | Response |
+|---|---|---|---|
+| GET | `/api/bills/matches` | — | `BillMatchesResponse` `{ matches, currency }`. Each match is a `BillPaymentMatchDTO`: `billId`, `billName`, `dueDate` (the scheduled occurrence), `expectedCents` (the occurrence's override, else the bill amount), `amountOverrideCents` and `note` (the occurrence's recorded values, or `null`), and `transaction` `{ id, date, description, cents }` (`cents` is the positive magnitude of the money out). Sorted by `dueDate`, then bill name. `matches` is empty when no bank is connected. |
+
+To accept a match, the client calls the existing `PUT /api/bills/:id/occurrences/:date` with `{ status: "PAID", amountOverrideCents, note }` copied from the match, so the override and note are kept. Marking paid is tracking only and never changes the projection.
+
 ## Spend analyzer (from bank history)
 Last month's and this month's spending by category. Rules are in [`CONVENTIONS.md`](CONVENTIONS.md) section 13. Both endpoints read and write the local database only and never call SimpleFIN.
 
