@@ -186,6 +186,7 @@ export function RegisterList({
     <section aria-label="Running balance register" className="@container min-w-0 space-y-3" data-testid="calendar-register">
       {shown.length > 0 && (
         <div
+          data-testid="register-column-headings"
           className="hidden grid-cols-[3.75rem_minmax(0,1fr)_7rem_7.5rem] gap-x-3 px-3 text-xs font-semibold text-slate-600 @lg:grid"
           aria-hidden="true"
         >

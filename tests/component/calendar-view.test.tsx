@@ -449,7 +449,7 @@ describe("out-of-range message and register notes", () => {
     expect(await screen.findByText(/before your projection start date, so there's no projected balance/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Change projection settings" })).toHaveAttribute("href", "/settings");
     expect(screen.getByTestId("calendar-register")).not.toHaveTextContent(/earlier weeks?/);
-    expect(screen.getByTestId("calendar-register")).not.toHaveTextContent("Balance after");
+    expect(screen.queryByTestId("register-column-headings")).not.toBeInTheDocument();
     expect(screen.queryByTestId(/^week-summary-/)).not.toBeInTheDocument();
   });
 
@@ -461,7 +461,16 @@ describe("out-of-range message and register notes", () => {
     expect(await screen.findByText(/These dates are beyond the 12-month forecast limit\./)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Change projection settings" })).toHaveAttribute("href", "/settings");
     expect(screen.getByTestId("calendar-register")).not.toHaveTextContent(/later weeks?/);
-    expect(screen.getByTestId("calendar-register")).not.toHaveTextContent("Balance after");
+    expect(screen.queryByTestId("register-column-headings")).not.toBeInTheDocument();
+  });
+
+  it("shows the register column headings above a listed week, not only the 'Balance after' text every row carries", async () => {
+    renderCalendar();
+    await screen.findByTestId(`week-summary-${startOfWeek(TODAY, 0)}`);
+
+    const headings = screen.getByTestId("register-column-headings");
+    for (const name of ["Date", "Income or bill", "Amount", "Balance after"]) expect(headings).toHaveTextContent(name);
+    expect(screen.getByTestId("calendar-register").contains(headings)).toBe(true);
   });
 
   it("keeps the later-weeks note, and no Settings message, when the view mixes projected and unprojected weeks", async () => {
@@ -471,7 +480,7 @@ describe("out-of-range message and register notes", () => {
 
     await waitFor(() => expect(screen.getByTestId("calendar-register")).toHaveTextContent(/2 later weeks are beyond the 12-month forecast limit\./));
     expect(screen.getAllByTestId(/^week-summary-/).length).toBeGreaterThan(0);
-    expect(screen.getByTestId("calendar-register")).toHaveTextContent("Balance after");
+    expect(screen.getByTestId("register-column-headings")).toHaveTextContent("Balance after");
     expect(screen.queryByRole("link", { name: "Change projection settings" })).not.toBeInTheDocument();
   });
 
