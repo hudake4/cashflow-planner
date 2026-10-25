@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.20.0](https://github.com/hudake4/cashflow-planner/compare/v0.19.0...v0.20.0) (2026-10-25)
+
+
+### Features
+
+* desktop notifications for low balance and upcoming bills ([98546b5](https://github.com/hudake4/cashflow-planner/commit/98546b55745c40e9fda0f98759d0838dba8d2cf9))
+* **desktop:** add a setting to turn notifications off ([22e0869](https://github.com/hudake4/cashflow-planner/commit/22e08690c46a5cc337a2f3e8e2b74aae70989710))
+* **desktop:** notify about low balance and bills due soon ([0891af1](https://github.com/hudake4/cashflow-planner/commit/0891af1ed632794e0cb19af2bf0b58782b8050bd)), closes [#51](https://github.com/hudake4/cashflow-planner/issues/51)
+* suggest variable-bill amounts from bank history ([22ca1a7](https://github.com/hudake4/cashflow-planner/commit/22ca1a7bb170633926fba2edf4eef7cec0c61a17))
+* suggest variable-bill amounts from bank history ([34dd668](https://github.com/hudake4/cashflow-planner/commit/34dd6687ff5088878d0d8c1943c06e6f04033a54)), closes [#43](https://github.com/hudake4/cashflow-planner/issues/43)
+
+
+### Bug Fixes
+
+* **bank:** make recurring scan and spending aware of credit cards ([e716530](https://github.com/hudake4/cashflow-planner/commit/e716530f2c2e3f624e69c90ed77b917ad318f344))
+* **bank:** make recurring scan and spending aware of credit cards ([acc8755](https://github.com/hudake4/cashflow-planner/commit/acc87553fc2f9b9e575d1991aa81ba4276e442b5))
+* **ui:** make estimate Use button visibly a button ([0db12f6](https://github.com/hudake4/cashflow-planner/commit/0db12f6b410566cb320430f4f74345cdf28c0099))
+
 ## [0.19.0](https://github.com/hudake4/cashflow-planner/compare/v0.18.0...v0.19.0) (2026-10-25)
 
 
