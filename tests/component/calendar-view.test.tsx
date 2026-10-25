@@ -426,6 +426,7 @@ describe("out-of-range message and register notes", () => {
     expect(await screen.findByText(/before your projection start date, so there's no projected balance/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Change projection settings" })).toHaveAttribute("href", "/settings");
     expect(screen.getByTestId("calendar-register")).not.toHaveTextContent(/earlier weeks?/);
+    expect(screen.getByTestId("calendar-register")).not.toHaveTextContent("Balance after");
     expect(screen.queryByTestId(/^week-summary-/)).not.toBeInTheDocument();
   });
 
@@ -437,6 +438,7 @@ describe("out-of-range message and register notes", () => {
     expect(await screen.findByText(/These dates are beyond the 12-month forecast limit\./)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Change projection settings" })).toHaveAttribute("href", "/settings");
     expect(screen.getByTestId("calendar-register")).not.toHaveTextContent(/later weeks?/);
+    expect(screen.getByTestId("calendar-register")).not.toHaveTextContent("Balance after");
   });
 
   it("keeps the later-weeks note, and no Settings message, when the view mixes projected and unprojected weeks", async () => {
@@ -446,6 +448,7 @@ describe("out-of-range message and register notes", () => {
 
     await waitFor(() => expect(screen.getByTestId("calendar-register")).toHaveTextContent(/2 later weeks are beyond the 12-month forecast limit\./));
     expect(screen.getAllByTestId(/^week-summary-/).length).toBeGreaterThan(0);
+    expect(screen.getByTestId("calendar-register")).toHaveTextContent("Balance after");
     expect(screen.queryByRole("link", { name: "Change projection settings" })).not.toBeInTheDocument();
   });
 

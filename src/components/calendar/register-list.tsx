@@ -183,15 +183,17 @@ export function RegisterList({
 
   return (
     <section aria-label="Running balance register" className="@container min-w-0 space-y-3" data-testid="calendar-register">
-      <div
-        className="hidden grid-cols-[3.75rem_minmax(0,1fr)_7rem_7.5rem] gap-x-3 px-3 text-xs font-semibold text-slate-600 @lg:grid"
-        aria-hidden="true"
-      >
-        <span>Date</span>
-        <span>Income or bill</span>
-        <span className="text-right">Amount</span>
-        <span className="text-right">Balance after</span>
-      </div>
+      {shown.length > 0 && (
+        <div
+          className="hidden grid-cols-[3.75rem_minmax(0,1fr)_7rem_7.5rem] gap-x-3 px-3 text-xs font-semibold text-slate-600 @lg:grid"
+          aria-hidden="true"
+        >
+          <span>Date</span>
+          <span>Income or bill</span>
+          <span className="text-right">Amount</span>
+          <span className="text-right">Balance after</span>
+        </div>
+      )}
       {showRangeNotes && earlier > 0 && (
         <Note>{`${earlier} earlier ${plural(earlier)} before your projection start.`}</Note>
       )}
