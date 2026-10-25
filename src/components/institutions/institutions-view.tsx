@@ -369,6 +369,9 @@ function AccountRow({
     }
   }
 
+  // SimpleFIN sends 0 for cards and loans whose provider doesn't report available credit, so a zero there means "unknown", not "nothing left".
+  const showAvailable = account.availableBalanceCents !== null && (account.kind === "BANK" || account.kind === "OTHER" || account.availableBalanceCents !== 0);
+
   return (
     <li className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-3" data-testid={`account-row-${account.id}`}>
       <div className="min-w-0">
@@ -405,7 +408,7 @@ function AccountRow({
       </div>
       <div className="text-right">
         <Balance cents={account.balanceCents} currency={account.currency} className="font-semibold" />
-        {account.availableBalanceCents !== null && (
+        {showAvailable && (
           <p className="text-xs text-muted-foreground">
             Available <Balance cents={account.availableBalanceCents} currency={account.currency} className="font-normal" />
           </p>
