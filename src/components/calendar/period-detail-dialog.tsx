@@ -3,12 +3,13 @@
 import { clsx } from "clsx";
 import { ChevronRight, TriangleAlert } from "lucide-react";
 import type { LedgerEvent } from "@/contracts/api";
-import { fmtDate, fmtDayShort, fmtRange } from "@/lib/dates";
+import { fmtDate, fmtDayShort } from "@/lib/dates";
 import { money, signedMoney } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Dialog } from "@/components/ui/dialog";
 import { Balance, EventAmount } from "@/components/ui/money";
 import { eventAriaLabel } from "./event-labels";
+import { weekCoverage, weekLabel } from "./week-label";
 
 /** Everything needed to show a week or a day; all values come straight from the API. */
 export interface PeriodDetail {
@@ -43,7 +44,10 @@ export function PeriodDetailDialog({
   onSelectEvent: (event: LedgerEvent) => void;
 }) {
   const events = detail ? detail.eventIds.map((id) => eventsById.get(id)).filter((e): e is LedgerEvent => !!e) : [];
-  const title = detail ? (detail.kind === "week" ? `Week of ${fmtRange(detail.from, detail.to)}` : fmtDate(detail.from, "EEEE, MMMM d, yyyy")) : "";
+  const title = detail ? (detail.kind === "week" ? weekLabel(detail.key) : fmtDate(detail.from, "EEEE, MMMM d, yyyy")) : "";
+  const summary = detail?.partial ? "Partial week: the projection starts partway through this week." : "Every event in order, with the running balance.";
+  // The title names the calendar week; the dates it actually covers go here.
+  const description = detail?.kind === "week" ? `${weekCoverage({ rangeStart: detail.from, rangeEnd: detail.to })}. ${summary}` : summary;
 
   return (
     <Dialog
@@ -52,9 +56,7 @@ export function PeriodDetailDialog({
       onClose={onClose}
       variant="drawer"
       title={title}
-      description={
-        detail?.partial ? "Partial week: the projection starts partway through this week." : "Every event in order, with the running balance."
-      }
+      description={description}
       testId={detail?.kind === "day" ? "day-detail" : "week-detail"}
     >
       {detail && (

@@ -80,7 +80,9 @@ model BillOccurrence {
 
 // A SimpleFIN Bridge connection. `accessUrl` embeds the credentials (user:password in the
 // URL), so it is server-only: only src/server/simplefin.ts and the institutions repository
-// read it, and no DTO ever includes it. Stored unencrypted, like the rest of the data.
+// read it, and no DTO ever includes it. The value is encrypted at rest when possible
+// (src/server/secret-box.ts: `enc:v1:os:` desktop keystore, `enc:v1:key:` CASHFLOW_SECRET_KEY);
+// a legacy plain `https://...` value is still read and upgraded on its next sync.
 model BankConnection {
   id           String        @id @default(cuid())
   householdId  String        @default("local")

@@ -12,6 +12,8 @@ export function defaultSettings(today: string = todayLocal()): SettingsDTO {
     startingBalanceSource: "MANUAL",
     accountsBalanceCents: null,
     accountCount: 0,
+    accountsBalanceDate: null,
+    accountsStaleCount: 0,
     projectionStartDate: today,
     currency: "USD",
     forecastDays: DEFAULT_FORECAST_DAYS,

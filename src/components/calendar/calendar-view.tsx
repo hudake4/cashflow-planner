@@ -4,6 +4,7 @@ import { TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import type { CalendarView, LedgerEvent, ProjectionResponse, SettingsDTO, WeekSummary } from "@/contracts/api";
+import { effectiveProjectionStartDate, startDateFromAccounts } from "@/domain/starting-balance";
 import { api } from "@/lib/api-client";
 import { addDays, addMonths, eachDay, endOfMonth, fmtDate, fmtRange, startOfMonth, startOfWeek, todayLocal } from "@/lib/dates";
 import { useApi } from "@/lib/use-api";
@@ -18,6 +19,7 @@ import { EventDetailDialog } from "./event-detail-dialog";
 import { HeatmapCalendar, type DayView, type GridWeek } from "./heatmap-calendar";
 import { PeriodDetailDialog, type PeriodDetail } from "./period-detail-dialog";
 import { RegisterList } from "./register-list";
+import { weekStartText } from "./week-label";
 
 export function CalendarPage() {
   const settings = useApi<SettingsDTO>("settings", api.getSettings);
@@ -101,7 +103,7 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
     return { from, to, month: cursor.slice(0, 7) };
   }, [view, cursor, weekStartsOn]);
 
-  const projectionStart = settings.projectionStartDate;
+  const projectionStart = effectiveProjectionStartDate(settings);
   const maxEnd = addDays(projectionStart, 365);
   const fetchFrom = grid.from < projectionStart ? projectionStart : grid.from;
   const fetchTo = grid.to > maxEnd ? maxEnd : grid.to;
@@ -220,7 +222,7 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-rose-700" aria-hidden="true" />
           <span>
             <strong className="font-semibold">Heads up:</strong> your projected balance dips below zero in the week of{" "}
-            {fmtDate(visibleNegative.weekStart, "MMM d")}.
+            {weekStartText(visibleNegative.weekStart)}.
           </span>
         </p>
       )}
@@ -253,6 +255,7 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
                 weeksByStart={weeksByStart}
                 eventsById={eventsById}
                 currency={currency}
+                showRangeNotes={canFetch}
                 onSelectWeek={openWeek}
                 onSelectEvent={selectEvent}
               />
@@ -277,6 +280,7 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
         restoreFocusTarget={() => lastEventTrigger.current}
         event={selectedEvent}
         currency={currency}
+        balanceFromAccounts={startDateFromAccounts(settings)}
         onClose={closeEvent}
         onChanged={projection.reload}
         onEditSource={(e) => {
