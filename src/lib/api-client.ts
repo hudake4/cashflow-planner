@@ -9,6 +9,7 @@ import type {
   BankAccountDTO,
   BillDTO,
   BillInput,
+  BillMatchesResponse,
   BankTransactionsResponse,
   BillOccurrenceDTO,
   ConnectInstitutionInput,
@@ -131,6 +132,9 @@ export const api = {
     request<BillOccurrenceDTO>(`/bills/${encodeURIComponent(billId)}/occurrences/${date}`, json("PUT", input)),
   resetOccurrence: (billId: string, date: string) =>
     request<void>(`/bills/${encodeURIComponent(billId)}/occurrences/${date}`, json("DELETE")),
+
+  /** Synced bank transactions that look like payments of unpaid bill occurrences. Reads local data only; marking one paid is a separate `setOccurrence` call. */
+  listBillMatches: () => request<BillMatchesResponse>("/bills/matches"),
 
   getProjection: (range?: { from?: string; to?: string }) => {
     const qs = new URLSearchParams();
