@@ -1,10 +1,10 @@
 import type { PrismaClient } from "@prisma/client";
-import type { DataExportDTO } from "../contracts/api";
+import type { DataRestoreInput } from "../contracts/api";
 import { HOUSEHOLD_ID } from "./defaults";
 import { badRequest } from "./http";
 
 /** Replaces the planner's editable data in one transaction; bank and spending data stay put. */
-export async function restoreData(prisma: PrismaClient, data: DataExportDTO): Promise<void> {
+export async function restoreData(prisma: PrismaClient, data: DataRestoreInput): Promise<void> {
   const incomeIds = data.incomes.map((row) => row.id);
   const billIds = data.bills.map((row) => row.id);
   const occurrenceKeys = data.billOccurrences.map((row) => `${row.billId}\0${row.dueDate}`);

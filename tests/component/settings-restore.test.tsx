@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DataExportDTO, SettingsDTO } from "@/contracts/api";
 import { SettingsView } from "@/components/settings/settings-view";
@@ -25,6 +26,7 @@ const backup: DataExportDTO = {
 };
 
 beforeEach(() => {
+  toast.dismiss();
   getSettings.mockReset().mockResolvedValue(SETTINGS);
   restoreBackup.mockReset().mockResolvedValue({ ok: true });
 });
@@ -54,5 +56,23 @@ describe("Settings → Restore from backup", () => {
     expect(await screen.findByText("That file isn't a CashFlow Planner backup.")).toBeInTheDocument();
     expect(restoreBackup).not.toHaveBeenCalled();
     expect(screen.queryByTestId("confirm-restore-dialog")).not.toBeInTheDocument();
+  });
+
+  it("accepts a v0.12-shaped backup and opens the confirmation dialog", async () => {
+    const user = userEvent.setup();
+    renderView();
+    const legacy = structuredClone(backup) as unknown as Record<string, unknown>;
+    const legacySettings = { ...(legacy.settings as Record<string, unknown>) };
+    delete legacySettings.accountsBalanceDate;
+    delete legacySettings.accountsStaleCount;
+    legacy.settings = legacySettings;
+    const legacyAccount: Record<string, unknown> = { id: "account", providerAccountId: "provider", institutionName: "Bank", name: "Checking", kind: "BANK", currency: "USD", balanceCents: 1000, availableBalanceCents: null, balanceDate: "2026-10-25" };
+    delete legacyAccount.kind;
+    legacy.institutions = [{ id: "institution", name: "Bank", connectedAt: "2026-01-01T00:00:00.000Z", lastSyncedAt: null, accounts: [legacyAccount], transactions: [] }];
+    const file = new File([JSON.stringify(legacy)], "backup-v012.json", { type: "application/json" });
+    await user.upload(screen.getByLabelText("Choose backup file"), file);
+    expect(await screen.findByTestId("confirm-restore-dialog")).toBeInTheDocument();
+    expect(screen.queryByText("That file isn't a CashFlow Planner backup.")).not.toBeInTheDocument();
+    expect(restoreBackup).not.toHaveBeenCalled();
   });
 });

@@ -7,8 +7,8 @@ import {
   MAX_FORECAST_DAYS,
   MIN_FORECAST_DAYS,
   settingsInputSchema,
-  dataExportSchema,
-  type DataExportDTO,
+  dataRestoreSchema,
+  type DataRestoreInput,
   type SettingsDTO,
   type SettingsInput,
   type StartingBalanceSource,
@@ -36,7 +36,7 @@ const PRESETS = [30, 60, 90, 180, 365];
 export function SettingsView({ appVersion }: { appVersion: string }) {
   const settings = useApi<SettingsDTO>("settings", api.getSettings);
   const [confirm, setConfirm] = useState<"demo" | "reset" | "restore" | null>(null);
-  const [restoreData, setRestoreData] = useState<DataExportDTO | null>(null);
+  const [restoreData, setRestoreData] = useState<DataRestoreInput | null>(null);
   const [formVersion, setFormVersion] = useState(0);
   const toast = useToast();
 
@@ -173,7 +173,7 @@ function saveFile(blob: Blob, filename: string) {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-function DataCard({ onConfirmDemo, onConfirmReset, onRestore }: { onConfirmDemo: () => void; onConfirmReset: () => void; onRestore: (data: DataExportDTO) => void }) {
+function DataCard({ onConfirmDemo, onConfirmReset, onRestore }: { onConfirmDemo: () => void; onConfirmReset: () => void; onRestore: (data: DataRestoreInput) => void }) {
   const toast = useToast();
   const fileInput = useRef<HTMLInputElement>(null);
   const [exporting, setExporting] = useState(false);
@@ -195,7 +195,7 @@ function DataCard({ onConfirmDemo, onConfirmReset, onRestore }: { onConfirmDemo:
     if (!file) return;
     try {
       const raw: unknown = JSON.parse(await readFile(file));
-      const parsed = dataExportSchema.safeParse(raw);
+      const parsed = dataRestoreSchema.safeParse(raw);
       if (!parsed.success) {
         toast("That file isn't a CashFlow Planner backup.", "error");
         return;

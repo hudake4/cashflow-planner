@@ -45,6 +45,30 @@ describe("POST /api/data/restore", () => {
     expect(restored.billOccurrences).toEqual(original.billOccurrences);
   });
 
+  it("restores a v0.12-shaped backup without derived fields or account kinds", async () => {
+    await testPrisma.settings.create({ data: { householdId: "local", startingBalanceCents: 42000, projectionStartDate: "2026-10-20", currency: "USD", forecastDays: 90 } });
+    await testPrisma.incomeSource.create({ data: { id: "income-v012", householdId: "local", name: "Paycheck", amountCents: 100000, frequency: "BIWEEKLY", anchorDate: "2026-10-30" } });
+    await testPrisma.bill.create({ data: { id: "bill-v012", householdId: "local", name: "Rent", amountCents: 90000, frequency: "MONTHLY", anchorDate: "2026-10-01" } });
+    await testPrisma.billOccurrence.create({ data: { billId: "bill-v012", dueDate: "2026-10-01", status: "PAID" } });
+    await testPrisma.bankConnection.create({ data: { id: "conn-v012", householdId: "local", accessUrl: "https://example.invalid/secret", accounts: { create: { id: "account-v012", providerAccountId: "provider", institutionName: "Bank", name: "Checking", kind: "BANK", currency: "USD", balanceCents: 1000, balanceDate: "2026-10-25" } } } });
+    const legacy = await exported();
+    delete (legacy.settings as Partial<typeof legacy.settings>).accountsBalanceDate;
+    delete (legacy.settings as Partial<typeof legacy.settings>).accountsStaleCount;
+    for (const institution of legacy.institutions) {
+      for (const account of institution.accounts) delete (account as { kind?: unknown }).kind;
+    }
+
+    expect(await call(restoreRoute.POST, "POST", "/api/data/restore", { body: legacy })).toMatchObject({ status: 200, body: { ok: true } });
+    const restored = await exported();
+    expect(restored.settings).toMatchObject({ startingBalanceCents: 42000, projectionStartDate: "2026-10-20", currency: "USD" });
+    expect(restored.incomes).toHaveLength(1);
+    expect(restored.incomes[0]).toMatchObject({ id: "income-v012", name: "Paycheck" });
+    expect(restored.bills).toHaveLength(1);
+    expect(restored.bills[0]).toMatchObject({ id: "bill-v012", name: "Rent" });
+    expect(restored.billOccurrences).toHaveLength(1);
+    expect(restored.billOccurrences[0]).toMatchObject({ billId: "bill-v012", status: "PAID" });
+  });
+
   it("rejects malformed, unsupported, invalid, orphaned, and duplicate data without changing the database", async () => {
     await testPrisma.incomeSource.create({ data: { id: "existing", householdId: "local", name: "Existing", amountCents: 100, frequency: "WEEKLY", anchorDate: "2026-10-25" } });
     const valid = await exported();
