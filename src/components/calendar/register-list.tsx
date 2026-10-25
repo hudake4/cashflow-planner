@@ -16,12 +16,13 @@ function spokenBalance(cents: number, currency: string): string {
   return `${cents < 0 ? "negative balance " : ""}${money(cents, currency)}`;
 }
 
-/** The week header's accessible name carries everything the visible header shows, including the dip warning. */
+/** The week header's accessible name carries everything the visible header shows: totals, net, closing and the dip warning. */
 function weekHeaderLabel(week: WeekSummary, currency: string): string {
   const dip = week.hasNegative ? `, dips below zero, low ${spokenBalance(week.lowestBalanceCents, currency)}` : "";
   const income = week.incomeCents === 0 ? "no income" : `income ${money(week.incomeCents, currency)}`;
   const bills = week.billsCents === 0 ? "no bills" : `bills ${money(week.billsCents, currency)}`;
-  return `${weekSpokenLabel(week)}: opening ${spokenBalance(week.openingBalanceCents, currency)}, ${income}, ${bills}, closing ${spokenBalance(week.closingBalanceCents, currency)}${dip}. Open week details.`;
+  const net = `net ${week.netCents < 0 ? "negative " : ""}${money(week.netCents, currency)}`;
+  return `${weekSpokenLabel(week)}: opening ${spokenBalance(week.openingBalanceCents, currency)}, ${income}, ${bills}, closing ${spokenBalance(week.closingBalanceCents, currency)}, ${net}${dip}. Open week details.`;
 }
 
 /** A week's income or bills total. A zero total is a quiet dash (still in its slot) instead of "+$0.00" / "−$0.00". */

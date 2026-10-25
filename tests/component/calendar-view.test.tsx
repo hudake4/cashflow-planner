@@ -325,6 +325,29 @@ describe("week header accessible name", () => {
     expect(header).toHaveAccessibleName(/dips below zero, low negative balance -\$700\.00/i);
   });
 
+  it("announces the week's net, saying negative for a net loss, to match the visible Net amount", async () => {
+    renderCalendar();
+    const header = await screen.findByTestId(`week-summary-${weekStart}`);
+
+    expect(screen.getByTestId(`week-net-${weekStart}`)).toHaveTextContent("−$1,500.00");
+    expect(header).toHaveAccessibleName(/closing negative balance -\$500\.00, net negative -\$1,500\.00/);
+  });
+
+  it("announces a positive net without the word negative, and a zero net as $0.00", async () => {
+    mockProjection({ events: [PAYCHECK] });
+    const { unmount } = renderCalendar();
+    const gain = await screen.findByTestId(`week-summary-${weekStart}`);
+    expect(screen.getByTestId(`week-net-${weekStart}`)).toHaveTextContent("+$500.00");
+    expect(gain).toHaveAccessibleName(/closing \$1,500\.00, net \$500\.00/);
+    expect(gain).not.toHaveAccessibleName(/net negative/);
+    unmount();
+
+    mockProjection({ events: [] });
+    renderCalendar();
+    const flat = await screen.findByTestId(`week-summary-${weekStart}`);
+    expect(flat).toHaveAccessibleName(/closing \$1,000\.00, net \$0\.00/);
+  });
+
   it("says nothing about negative balances or dips for a healthy week", async () => {
     mockProjection({ events: [] });
     renderCalendar();
