@@ -139,7 +139,7 @@ export function InstitutionsView() {
           if (!removing) return;
           const name = removing.name;
           await api.removeInstitution(removing.id);
-          toast(`Removed “${name}” from this app.`, "success");
+          toast(`Removed â€œ${name}â€ from this app.`, "success");
           await list.reload();
         }}
         onError={(message) => toast(message, "error")}
@@ -290,7 +290,7 @@ function InstitutionCard({
             title={institution.lastSyncedAt ? new Date(institution.lastSyncedAt).toLocaleString() : undefined}
             data-testid={`institution-synced-${institution.id}`}
           >
-            {lastSyncedText(institution)} · Connected {fmtShort(institution.connectedAt.slice(0, 10))}
+            {lastSyncedText(institution)} Â· Connected {fmtShort(institution.connectedAt.slice(0, 10))}
           </p>
         </div>
         <div className="flex items-center gap-1">
@@ -369,6 +369,9 @@ function AccountRow({
     }
   }
 
+  // SimpleFIN sends 0 for cards and loans whose provider doesn't report available credit, so a zero there means "unknown", not "nothing left".
+  const available = account.kind === "CREDIT" || account.kind === "LOAN" ? account.availableBalanceCents || null : account.availableBalanceCents;
+
   return (
     <li className="min-w-0" data-testid={`account-row-${account.id}`}>
       <Card className="flex h-full flex-col gap-2 p-4">
@@ -383,14 +386,14 @@ function AccountRow({
               <span className="sr-only"> transactions</span>
             </Link>
             <p className="text-xs text-muted-foreground">
-              {showInstitution && `${account.institutionName} · `}As of {fmtShort(account.balanceDate)}
+              {showInstitution && `${account.institutionName} Â· `}As of {fmtShort(account.balanceDate)}
             </p>
           </div>
           <div className="shrink-0 text-right">
             <Balance cents={account.balanceCents} currency={account.currency} className="font-semibold" />
-            {account.availableBalanceCents !== null && (
+            {available !== null && (
               <p className="text-xs text-muted-foreground">
-                Available <Balance cents={account.availableBalanceCents} currency={account.currency} className="font-normal" />
+                Available <Balance cents={available}currency={account.currency} className="font-normal" />
               </p>
             )}
           </div>

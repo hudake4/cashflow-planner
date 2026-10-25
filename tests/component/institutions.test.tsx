@@ -81,6 +81,20 @@ describe("InstitutionsView", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1); // only the initial list request
   });
 
+  it("hides a zero Available on credit cards but keeps it on bank accounts", async () => {
+    const accounts = [
+      { ...INSTITUTION.accounts[0], id: "conn1:bank0", availableBalanceCents: 0 },
+      { ...INSTITUTION.accounts[1], id: "conn1:card0", availableBalanceCents: 0 },
+      { ...INSTITUTION.accounts[1], id: "conn1:card1", availableBalanceCents: 250000 },
+    ];
+    route({ "GET /institutions": () => json(200, [{ ...INSTITUTION, accounts }]) });
+    renderView();
+
+    expect(await screen.findByTestId("account-row-conn1:bank0")).toHaveTextContent("Available");
+    expect(screen.getByTestId("account-row-conn1:card0")).not.toHaveTextContent("Available");
+    expect(screen.getByTestId("account-row-conn1:card1")).toHaveTextContent("Available");
+  });
+
   it("connects with a pasted token and shows SimpleFIN warnings as text", async () => {
     let connected = false;
     route({
