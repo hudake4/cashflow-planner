@@ -6,7 +6,7 @@
  *    The one exception: links to SimpleFIN Bridge (to create a setup token) open in the user's browser.
  */
 import path from "node:path";
-import { app, BrowserWindow, dialog, Menu, session, shell } from "electron";
+import { app, BrowserWindow, dialog, Menu, safeStorage, session, shell } from "electron";
 import { DatabaseBackupError } from "./backup";
 import { startAlertNotifications } from "./notifications";
 import { startServer, type RunningServer } from "./server";
@@ -78,6 +78,16 @@ function isSimplefinBridgeUrl(url: string): boolean {
 async function launch(): Promise<void> {
   Menu.setApplicationMenu(null);
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
+
+  // The server runs in this process (see server.ts), so it reaches the OS keystore through a
+  // global (the same pattern as the PrismaClient singleton). Nothing is exposed to the window.
+  // It encrypts the stored SimpleFIN Access URL (src/server/secret-box.ts): Windows DPAPI,
+  // tied to this Windows account. Registered before the server starts.
+  (globalThis as { __cashflowOsKeystore?: unknown }).__cashflowOsKeystore = {
+    isAvailable: () => safeStorage.isEncryptionAvailable(),
+    encrypt: (plain: string) => safeStorage.encryptString(plain),
+    decrypt: (sealed: Buffer) => safeStorage.decryptString(sealed),
+  };
 
   server = await startServer({
     ...paths,

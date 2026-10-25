@@ -15,6 +15,8 @@ const fullSettings = (over: Partial<SettingsDTO> = {}): SettingsDTO => ({
   startingBalanceSource: "MANUAL",
   accountsBalanceCents: null,
   accountCount: 0,
+  accountsBalanceDate: null,
+  accountsStaleCount: 0,
   updatedAt: null,
   ...over,
 });

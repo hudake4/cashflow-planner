@@ -1,5 +1,5 @@
 /**
- * Native desktop notifications for low balance and bills due soon (CONVENTIONS section 14).
+ * Native desktop notifications for low balance and bills due soon (CONVENTIONS section 16).
  * The app's own local server decides what is worth saying (GET /api/alerts, 127.0.0.1 only);
  * this file only asks it now and then and shows what is new. Nothing leaves the machine.
  */

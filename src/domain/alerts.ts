@@ -1,5 +1,5 @@
 /**
- * Alerts behind the desktop notifications (CONVENTIONS section 14): a projected negative
+ * Alerts behind the desktop notifications (CONVENTIONS section 16): a projected negative
  * balance and bills that are due soon. Pure: built from a finished projection, and
  * `today` is passed in. Remembering which alerts were already shown is the client's job.
  */

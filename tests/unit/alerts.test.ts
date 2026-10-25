@@ -1,5 +1,5 @@
 /**
- * Desktop alerts (CONVENTIONS section 14). Fixture: start 2025-01-01 (Wed), 90 days.
+ * Desktop alerts (CONVENTIONS section 16). Fixture: start 2025-01-01 (Wed), 90 days.
  * 2025-01-06 is a Monday, 2025-01-10 a Friday.
  */
 import { describe, expect, it } from "vitest";

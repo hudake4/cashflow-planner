@@ -138,12 +138,25 @@ export interface SettingsDTO {
   accountsBalanceCents: number | null;
   /** How many accounts are labelled BANK (the ones in `accountsBalanceCents`). */
   accountCount: number;
+  /**
+   * The oldest `balanceDate` among the accounts labelled BANK that refreshed within the last 7 days
+   * (all of them when none did), capped at today; null when there are none. With the ACCOUNTS source
+   * it is the date the projection starts on (`effectiveProjectionStartDate`).
+   */
+  accountsBalanceDate: string | null;
+  /**
+   * How many BANK accounts were left out of `accountsBalanceDate` because they haven't refreshed in
+   * over 7 days. Their balance is still in `accountsBalanceCents`. 0 when every account is equally
+   * stale (the date then comes from all of them).
+   */
+  accountsStaleCount: number;
+  /** The start date the user typed. Used when `startingBalanceSource` is MANUAL (or no accounts are connected). */
   projectionStartDate: string;
   currency: string;
   forecastDays: number;
   weekStartsOn: number;
   defaultCalendarView: CalendarView;
-  /** Whether the desktop app shows notifications (CONVENTIONS section 14). The web app ignores it. */
+  /** Whether the desktop app shows notifications (CONVENTIONS section 16). The web app ignores it. */
   desktopNotifications: boolean;
   updatedAt: string | null; // null when defaults have never been saved
 }
@@ -508,6 +521,64 @@ export interface RecurringScanResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Bill payment matches (reads the stored bank transactions; never calls SimpleFIN)
+// ---------------------------------------------------------------------------
+
+/** A synced bank transaction that looks like the payment of one unpaid bill occurrence. Only an offer: nothing is marked until the user confirms. */
+export interface BillPaymentMatchDTO {
+  billId: string;
+  billName: string;
+  /** The scheduled due date of the occurrence the payment matches. */
+  dueDate: string;
+  /** What the occurrence is expected to cost (its amount override, else the bill's amount). Positive magnitude. */
+  expectedCents: number;
+  /** The occurrence's recorded override and note, so marking it paid can keep them. */
+  amountOverrideCents: number | null;
+  note: string | null;
+  transaction: {
+    id: string;
+    date: string;
+    description: string;
+    /** Positive magnitude of the money out. */
+    cents: number;
+  };
+}
+
+export interface BillMatchesResponse {
+  matches: BillPaymentMatchDTO[];
+  currency: string;
+}
+
+// ---------------------------------------------------------------------------
+// Bill amount estimate (reads the stored bank transactions; never calls SimpleFIN)
+// ---------------------------------------------------------------------------
+
+/** ROLLING: average of the latest complete periods. SEASONAL: average of the same month in earlier years. */
+export type BillEstimateMethod = "ROLLING" | "SEASONAL";
+
+/** Why no estimate was made. */
+export type BillEstimateReason = "NO_BANK_DATA" | "NO_MATCHES" | "TOO_FEW_PERIODS" | "UNSUPPORTED_FREQUENCY";
+
+export interface BillEstimateValueDTO {
+  /** Positive magnitude, integer cents. */
+  amountCents: number;
+  method: BillEstimateMethod;
+  /** How many periods (weeks, 2-week periods or calendar months) the average is over. */
+  periodCount: number;
+  /** First and last bank transaction date that went into it. */
+  firstDate: string;
+  lastDate: string;
+}
+
+/** A suggestion only: nothing is stored or applied until the user saves it as a per-date amount. */
+export interface BillEstimateDTO {
+  estimate: BillEstimateValueDTO | null;
+  /** Set exactly when `estimate` is null. */
+  reason: BillEstimateReason | null;
+  currency: string;
+}
+
+// ---------------------------------------------------------------------------
 // Data export (backup file from GET /api/data/export)
 // ---------------------------------------------------------------------------
 // Everything the user entered plus the stored bank snapshot, as a single JSON file.
@@ -525,6 +596,8 @@ const settingsDTOSchema = z.object({
   startingBalanceSource: startingBalanceSourceSchema,
   accountsBalanceCents: signedCentsSchema.nullable(),
   accountCount: z.number().int().min(0),
+  accountsBalanceDate: isoDateSchema.nullable(),
+  accountsStaleCount: z.number().int().min(0),
   projectionStartDate: isoDateSchema,
   currency: z.string().regex(/^[A-Z]{3}$/),
   forecastDays: z.number().int().min(MIN_FORECAST_DAYS).max(MAX_FORECAST_DAYS),
@@ -620,6 +693,27 @@ export const dataExportSchema = z.object({
   billOccurrences: z.array(billOccurrenceDTOSchema),
   institutions: z.array(exportedInstitutionSchema),
 });
+
+/** Accept every formatVersion 1 file since v0.12.0; ignored fields may be absent or older-shaped. */
+export const dataRestoreSchema = z.object({
+  format: z.literal(DATA_EXPORT_FORMAT),
+  formatVersion: z.literal(DATA_EXPORT_FORMAT_VERSION),
+  appVersion: z.string().min(1),
+  exportedAt: timestampSchema,
+  settings: settingsDTOSchema.extend({
+    accountsBalanceCents: signedCentsSchema.nullable().optional(),
+    accountCount: z.number().int().min(0).optional(),
+    accountsBalanceDate: isoDateSchema.nullable().optional(),
+    accountsStaleCount: z.number().int().min(0).optional(),
+    desktopNotifications: z.boolean().optional(),
+    updatedAt: timestampSchema.nullable().optional(),
+  }),
+  incomes: z.array(incomeDTOSchema),
+  bills: z.array(billDTOSchema),
+  billOccurrences: z.array(billOccurrenceDTOSchema),
+  institutions: z.array(z.unknown()),
+});
+export type DataRestoreInput = z.output<typeof dataRestoreSchema>;
 
 /** InstitutionDTO (id, name, connectedAt, lastSyncedAt, accounts) plus the stored transactions. */
 export interface ExportedInstitutionDTO extends InstitutionDTO {
