@@ -100,6 +100,13 @@ it("scrolls a focused control into the dialog body without smooth motion", async
   }
 });
 
+it("renders the footer inside the dialog without inherited negative margins", () => {
+  render(<Dialog open onClose={() => {}} title="Footer" description="Footer spacing" footer={<button>Done</button>}>Body</Dialog>);
+  const footer = screen.getByText("Done").parentElement!;
+  expect(footer).toHaveClass("m-0", "px-5", "py-3");
+  expect(footer.className).not.toMatch(/(^|\s)-m[xb]-/);
+});
+
 it.each(["Escape", "Cancel"])("keeps the same source-edit dialog through async loading and restores after %s", async (close) => {
   let resolve!: (response: Response) => void;
   vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((done) => { resolve = done; })));

@@ -140,7 +140,7 @@ export function Dialog({
         </ShadcnDialogHeader>
         <div className="min-h-0 overflow-y-auto scroll-py-2 px-5 py-4" onFocusCapture={revealFocusedControl}>{children}</div>
         {footer && (
-          <ShadcnDialogFooter className="flex flex-wrap justify-end gap-2 border-t border-border bg-muted px-5 py-3">
+          <ShadcnDialogFooter className="m-0 flex flex-wrap justify-end gap-2 rounded-none border-t border-border bg-muted px-5 py-3">
             {footer}
           </ShadcnDialogFooter>
         )}
