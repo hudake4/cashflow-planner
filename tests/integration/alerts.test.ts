@@ -27,7 +27,7 @@ describe("GET /api/alerts", () => {
   it("is empty when nothing is due and the balance stays positive", async () => {
     const res = await call<AlertsResponse>(alertsRoute.GET, "GET", "/api/alerts");
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ today: todayLocal(), alerts: [] });
+    expect(res.body).toEqual({ today: todayLocal(), enabled: true, alerts: [] });
   });
 
   it("reports a bill due soon and the balance it pushes below zero", async () => {
@@ -41,5 +41,19 @@ describe("GET /api/alerts", () => {
     expect(res.status).toBe(200);
     expect(res.body.alerts.map((a) => a.kind)).toEqual(["LOW_BALANCE", "BILL_DUE"]);
     expect(res.body.alerts[1]).toMatchObject({ key: `bill:${created.body.id}:${due}`, title: "Rent due in 2 days", expiresOn: due });
+  });
+
+  it("reports nothing while desktop notifications are turned off in settings", async () => {
+    const created = await call(billList.POST, "POST", "/api/bills", {
+      body: { name: "Rent", amountCents: 120000, frequency: "ONE_TIME", anchorDate: addDays(todayLocal(), 2) },
+    });
+    expect(created.status).toBe(201);
+    const off = await call(settingsRoute.PUT, "PUT", "/api/settings", {
+      body: { startingBalanceCents: 10000, projectionStartDate: todayLocal(), currency: "USD", forecastDays: 90, weekStartsOn: 0, desktopNotifications: false },
+    });
+    expect(off.status).toBe(200);
+
+    const res = await call<AlertsResponse>(alertsRoute.GET, "GET", "/api/alerts");
+    expect(res.body).toEqual({ today: todayLocal(), enabled: false, alerts: [] });
   });
 });

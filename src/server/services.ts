@@ -47,7 +47,9 @@ export async function getDashboard(today: string = todayLocal()): Promise<Dashbo
 }
 
 export async function getAlerts(today: string = todayLocal()): Promise<AlertsResponse> {
-  return { today, alerts: buildAlerts(await getProjection(), today) };
+  const { desktopNotifications } = await getSettings();
+  if (!desktopNotifications) return { today, enabled: false, alerts: [] };
+  return { today, enabled: true, alerts: buildAlerts(await getProjection(), today) };
 }
 
 /**

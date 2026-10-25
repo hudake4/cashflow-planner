@@ -24,6 +24,7 @@ model Settings {
   forecastDays          Int      @default(90)
   weekStartsOn          Int      @default(0) // 0 = Sunday ... 6 = Saturday
   defaultCalendarView   String   @default("month") // "month" | "week"
+  desktopNotifications  Boolean  @default(true) // desktop app: notify about low balance and bills due soon (CONVENTIONS section 14)
   updatedAt             DateTime @updatedAt
 }
 

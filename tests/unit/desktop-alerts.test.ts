@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { loadNotified, saveNotified, selectNewAlerts, type Alert } from "../../electron/alerts";
+import { loadNotified, planCheck, saveNotified, selectNewAlerts, type Alert } from "../../electron/alerts";
 
 const alert = (key: string, expiresOn: string): Alert => ({ key, title: `T ${key}`, body: `B ${key}`, expiresOn });
 
@@ -44,6 +44,24 @@ describe("selectNewAlerts", () => {
     const given = { a: "2025-01-10" };
     selectNewAlerts([alert("b", "2025-01-11")], given, "2025-01-08");
     expect(given).toEqual({ a: "2025-01-10" });
+  });
+});
+
+describe("planCheck", () => {
+  const a = alert("a", "2025-01-10");
+
+  it("shows and remembers new alerts while notifications are on", () => {
+    expect(planCheck({ today: "2025-01-08", enabled: true, alerts: [a] }, {})).toEqual({ fresh: [a], state: { a: "2025-01-10" } });
+  });
+
+  it("shows nothing and leaves the remembered alerts alone while notifications are off", () => {
+    expect(planCheck({ today: "2025-01-08", enabled: false, alerts: [a] }, { old: "2025-01-01" })).toEqual({ fresh: [], state: null });
+  });
+
+  it("shows the still-relevant alert once notifications are turned back on", () => {
+    const off = planCheck({ today: "2025-01-08", enabled: false, alerts: [] }, {});
+    expect(off.state).toBeNull();
+    expect(planCheck({ today: "2025-01-09", enabled: true, alerts: [a] }, {}).fresh).toEqual([a]);
   });
 });
 

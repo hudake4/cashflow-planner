@@ -26,6 +26,7 @@ export function toSettingsDTO(row: Settings, accounts: { balanceCents: number | 
     forecastDays: row.forecastDays,
     weekStartsOn: row.weekStartsOn,
     defaultCalendarView: row.defaultCalendarView as CalendarView,
+    desktopNotifications: row.desktopNotifications,
     updatedAt: row.updatedAt.toISOString(),
   };
 }

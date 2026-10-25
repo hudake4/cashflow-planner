@@ -6,14 +6,15 @@ import { SettingsView } from "@/components/settings/settings-view";
 import { ToastProvider } from "@/components/ui/toast";
 import { ApiError } from "@/lib/api-client";
 
-const { getSettings, downloadBackup } = vi.hoisted(() => ({
+const { getSettings, saveSettings, downloadBackup } = vi.hoisted(() => ({
   getSettings: vi.fn(),
+  saveSettings: vi.fn(),
   downloadBackup: vi.fn(),
 }));
 
 vi.mock("@/lib/api-client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api-client")>();
-  return { ...actual, api: { ...actual.api, getSettings, downloadBackup } };
+  return { ...actual, api: { ...actual.api, getSettings, saveSettings, downloadBackup } };
 });
 
 const SETTINGS: SettingsDTO = {
@@ -26,6 +27,7 @@ const SETTINGS: SettingsDTO = {
   forecastDays: 90,
   weekStartsOn: 0,
   defaultCalendarView: "month",
+  desktopNotifications: true,
   updatedAt: null,
 };
 
@@ -35,6 +37,7 @@ let clicked: { href: string; download: string }[];
 
 beforeEach(() => {
   getSettings.mockReset().mockResolvedValue(SETTINGS);
+  saveSettings.mockReset().mockResolvedValue(SETTINGS);
   downloadBackup.mockReset();
   createObjectURL.mockClear();
   revokeObjectURL.mockClear();
@@ -83,5 +86,27 @@ describe("Settings → Download backup", () => {
     expect(await screen.findByText("Something went wrong. Please try again.")).toBeInTheDocument();
     expect(clicked).toEqual([]);
     expect(screen.getByTestId("settings-export")).toBeEnabled();
+  });
+});
+
+describe("Settings → Desktop notifications", () => {
+  it("is on by default and is saved as off when switched off", async () => {
+    renderView();
+
+    const toggle = await screen.findByTestId("settings-desktop-notifications");
+    expect(toggle).toBeChecked();
+    await userEvent.click(toggle);
+    expect(toggle).not.toBeChecked();
+    await userEvent.click(screen.getByTestId("settings-save"));
+
+    await waitFor(() => expect(saveSettings).toHaveBeenCalledTimes(1));
+    expect(saveSettings).toHaveBeenCalledWith(expect.objectContaining({ desktopNotifications: false }));
+  });
+
+  it("shows a saved off setting as off", async () => {
+    getSettings.mockResolvedValue({ ...SETTINGS, desktopNotifications: false });
+    renderView();
+
+    expect(await screen.findByTestId("settings-desktop-notifications")).not.toBeChecked();
   });
 });

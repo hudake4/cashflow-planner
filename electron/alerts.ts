@@ -35,6 +35,26 @@ export function selectNewAlerts(
   return { fresh: unique, state };
 }
 
+/** The fields of GET /api/alerts that this file uses. */
+export interface AlertsResponse {
+  today: string;
+  enabled: boolean;
+  alerts: readonly Alert[];
+}
+
+/**
+ * What one check should do with the server's answer. With the "Desktop notifications"
+ * setting off nothing is shown and nothing is remembered, so turning it back on shows
+ * whatever is still relevant then.
+ */
+export function planCheck(
+  response: AlertsResponse,
+  notified: NotifiedState
+): { fresh: Alert[]; state: NotifiedState | null } {
+  if (!response.enabled) return { fresh: [], state: null };
+  return selectNewAlerts(response.alerts, notified, response.today);
+}
+
 /** Reads the state file. A missing or unreadable file is an empty state (worst case: one repeat). */
 export function loadNotified(file: string): NotifiedState {
   try {

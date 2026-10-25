@@ -5,7 +5,7 @@
  */
 import path from "node:path";
 import { app, Notification } from "electron";
-import { loadNotified, saveNotified, selectNewAlerts, type Alert } from "./alerts";
+import { loadNotified, planCheck, saveNotified, type AlertsResponse } from "./alerts";
 
 const FIRST_CHECK_MS = 10_000;
 const CHECK_EVERY_MS = 30 * 60_000;
@@ -18,10 +18,10 @@ export function startAlertNotifications(baseUrl: string, onClick: () => void): (
     try {
       const res = await fetch(`${baseUrl}/api/alerts`, { signal: AbortSignal.timeout(10_000) });
       if (!res.ok) return;
-      const { today, alerts } = (await res.json()) as { today: string; alerts: Alert[] };
-      const { fresh, state } = selectNewAlerts(alerts, loadNotified(stateFile), today);
+      // The setting is read on every check, so the switch in Settings takes effect without a restart.
+      const { fresh, state } = planCheck((await res.json()) as AlertsResponse, loadNotified(stateFile));
       // Remember before showing, so a failure while showing cannot turn into a repeat on every check.
-      saveNotified(stateFile, state);
+      if (state) saveNotified(stateFile, state);
       for (const alert of fresh) {
         const notification = new Notification({ title: alert.title, body: alert.body });
         notification.on("click", onClick);

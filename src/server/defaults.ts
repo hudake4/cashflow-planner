@@ -17,6 +17,7 @@ export function defaultSettings(today: string = todayLocal()): SettingsDTO {
     forecastDays: DEFAULT_FORECAST_DAYS,
     weekStartsOn: 0,
     defaultCalendarView: "month",
+    desktopNotifications: true,
     updatedAt: null,
   };
 }

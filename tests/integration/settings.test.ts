@@ -29,6 +29,7 @@ describe("/api/settings", () => {
       forecastDays: 90,
       weekStartsOn: 0,
       defaultCalendarView: "month",
+      desktopNotifications: true,
       updatedAt: null,
     });
   });
@@ -58,6 +59,16 @@ describe("/api/settings", () => {
     expect(res.body.defaultCalendarView).toBe("month");
   });
 
+  it("desktopNotifications defaults to on when omitted, and can be turned off and on again", async () => {
+    const first = await call(PUT, "PUT", "/api/settings", { body: valid });
+    expect(first.body.desktopNotifications).toBe(true);
+    const off = await call(PUT, "PUT", "/api/settings", { body: { ...valid, desktopNotifications: false } });
+    expect(off.body.desktopNotifications).toBe(false);
+    expect((await call(GET, "GET", "/api/settings")).body.desktopNotifications).toBe(false);
+    const on = await call(PUT, "PUT", "/api/settings", { body: { ...valid, desktopNotifications: true } });
+    expect(on.body.desktopNotifications).toBe(true);
+  });
+
   it.each([
     ["projectionStartDate", { projectionStartDate: "2025-02-30" }],
     ["projectionStartDate", { projectionStartDate: "abc" }],
@@ -72,6 +83,7 @@ describe("/api/settings", () => {
     ["startingBalanceCents", { startingBalanceCents: undefined }],
     ["defaultCalendarView", { defaultCalendarView: "year" }],
     ["startingBalanceSource", { startingBalanceSource: "BANK" }],
+    ["desktopNotifications", { desktopNotifications: "no" }],
   ])("400 VALIDATION_ERROR for bad %s (%j)", async (field, patch) => {
     const res = await call(PUT, "PUT", "/api/settings", { body: { ...valid, ...patch } });
     expectApiError(res, 400, "VALIDATION_ERROR", [field]);

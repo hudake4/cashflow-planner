@@ -29,6 +29,7 @@ const settings = (over: Partial<SettingsDTO> = {}): SettingsDTO => ({
   forecastDays: 90,
   weekStartsOn: 0,
   defaultCalendarView: "month",
+  desktopNotifications: true,
   updatedAt: null,
   ...over,
 });
