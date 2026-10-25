@@ -125,4 +125,28 @@ describe("POST /api/data/import", () => {
       expect(await state()).toEqual(before);
     }
   });
+
+  it("rejects an income whose end date is before its anchor date without changing data", async () => {
+    await populatedBackup();
+    const before = await state();
+    const backup = (await exportBackup()).body;
+    backup.incomes[0] = { ...backup.incomes[0], anchorDate: "2026-10-10", endDate: "2026-10-01" };
+
+    const res = await postImport(backup);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: { code: "BAD_REQUEST", message: expect.stringContaining(`income ${backup.incomes[0].id}`) } });
+    expect(await state()).toEqual(before);
+  });
+
+  it("rejects a bill whose end date is before its anchor date without changing data", async () => {
+    await populatedBackup();
+    const before = await state();
+    const backup = (await exportBackup()).body;
+    backup.bills[0] = { ...backup.bills[0], anchorDate: "2026-10-10", endDate: "2026-10-01" };
+
+    const res = await postImport(backup);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: { code: "BAD_REQUEST", message: expect.stringContaining(`bill ${backup.bills[0].id}`) } });
+    expect(await state()).toEqual(before);
+  });
 });

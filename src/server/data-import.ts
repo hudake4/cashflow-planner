@@ -9,11 +9,17 @@ const BANKS_KEPT_NOTE = "Bank connections are not restored from a backup; connec
 export async function restoreDataImport(prisma: PrismaClient, backup: DataExportDTO): Promise<DataImportResponse> {
   const incomeIds = new Set<string>();
   for (const income of backup.incomes) {
+    if (income.endDate !== null && income.endDate < income.anchorDate) {
+      throw badRequest(`Backup income ${income.id} end date must be on or after the first payday.`);
+    }
     if (incomeIds.has(income.id)) throw badRequest(`Backup contains duplicate income id: ${income.id}.`);
     incomeIds.add(income.id);
   }
   const billIds = new Set<string>();
   for (const bill of backup.bills) {
+    if (bill.endDate !== null && bill.endDate < bill.anchorDate) {
+      throw badRequest(`Backup bill ${bill.id} end date must be on or after the first due date.`);
+    }
     if (billIds.has(bill.id)) throw badRequest(`Backup contains duplicate bill id: ${bill.id}.`);
     billIds.add(bill.id);
   }
