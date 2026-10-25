@@ -573,3 +573,97 @@ describe("secrets", () => {
     expect(responses.at(-1)?.status).toBe(500);
   });
 });
+
+describe("encryption at rest", () => {
+  const g = globalThis as { __cashflowOsKeystore?: unknown };
+  // Stand-in for Electron's safeStorage: reversible and opaque, like DPAPI output.
+  const fakeKeystore = {
+    isAvailable: () => true,
+    encrypt: (plain: string) => Buffer.from(`sealed:${plain}`, "utf8").reverse(),
+    decrypt: (sealed: Buffer) => Buffer.from(sealed).reverse().toString("utf8").replace(/^sealed:/, ""),
+  };
+  const storedUrl = async (id: string) => (await testPrisma.bankConnection.findUniqueOrThrow({ where: { id } })).accessUrl;
+  const staleSync = (id: string) =>
+    testPrisma.bankConnection.update({ where: { id }, data: { lastSyncedAt: new Date(Date.now() - 30 * MIN) } });
+
+  afterEach(() => {
+    delete g.__cashflowOsKeystore;
+    delete process.env.CASHFLOW_SECRET_KEY;
+  });
+
+  it("stores the Access URL encrypted when the desktop keystore is registered, and still syncs with the plain URL", async () => {
+    g.__cashflowOsKeystore = fakeKeystore;
+    const res = await postConnect();
+    const stored = await storedUrl(res.body.id);
+    expect(stored.startsWith("enc:v1:os:")).toBe(true);
+    expect(stored).not.toContain(SECRET_PASSWORD);
+    expect(stored).not.toContain("bridge.simplefin.org");
+    expect(mocked.fetchAccountSet.mock.calls[0][0]).toBe(ACCESS_URL);
+
+    await staleSync(res.body.id);
+    expect((await postSync(res.body.id)).status).toBe(200);
+    expect(mocked.fetchAccountSet.mock.calls[1][0]).toBe(ACCESS_URL);
+  });
+
+  it("stores plaintext when there is no keystore and no CASHFLOW_SECRET_KEY (plain dev/prod server)", async () => {
+    const res = await postConnect();
+    expect(await storedUrl(res.body.id)).toBe(ACCESS_URL);
+  });
+
+  it("encrypts with CASHFLOW_SECRET_KEY on the plain server", async () => {
+    process.env.CASHFLOW_SECRET_KEY = Buffer.alloc(32, 7).toString("base64");
+    const res = await postConnect();
+    const stored = await storedUrl(res.body.id);
+    expect(stored.startsWith("enc:v1:key:")).toBe(true);
+    expect(stored).not.toContain(SECRET_PASSWORD);
+    await staleSync(res.body.id);
+    expect((await postSync(res.body.id)).status).toBe(200);
+    expect(mocked.fetchAccountSet.mock.calls[1][0]).toBe(ACCESS_URL);
+  });
+
+  it("keeps reading a legacy plaintext row and upgrades it in place on the next sync", async () => {
+    const legacy = await testPrisma.bankConnection.create({ data: { accessUrl: ACCESS_URL } });
+    g.__cashflowOsKeystore = fakeKeystore;
+    expect((await postSync(legacy.id)).status).toBe(200);
+    expect(mocked.fetchAccountSet.mock.calls[0][0]).toBe(ACCESS_URL);
+    const stored = await storedUrl(legacy.id);
+    expect(stored.startsWith("enc:v1:os:")).toBe(true);
+    expect(stored).not.toContain(SECRET_PASSWORD);
+  });
+
+  it("leaves a legacy plaintext row untouched when nothing can encrypt it", async () => {
+    const legacy = await testPrisma.bankConnection.create({ data: { accessUrl: ACCESS_URL } });
+    expect((await postSync(legacy.id)).status).toBe(200);
+    expect(await storedUrl(legacy.id)).toBe(ACCESS_URL);
+  });
+
+  it("explains, without leaking anything, when an encrypted value cannot be decrypted here", async () => {
+    g.__cashflowOsKeystore = fakeKeystore;
+    const res = await postConnect();
+    delete g.__cashflowOsKeystore; // e.g. the database was restored into a plain server
+    await staleSync(res.body.id);
+    const failed = await postSync(res.body.id);
+    expectApiError(failed, 409, "CONFLICT");
+    expect(JSON.stringify(failed.body)).not.toMatch(/enc:v1|demouser|bridge\.simplefin\.org/i);
+    expect(JSON.stringify(failed.body)).toMatch(/connect again/i);
+    expect(mocked.fetchAccountSet).toHaveBeenCalledTimes(1); // only the connect sync
+  });
+
+  it("no API response contains the Access URL or its stored ciphertext when encryption is on", async () => {
+    g.__cashflowOsKeystore = fakeKeystore;
+    const created = await postConnect();
+    const id = created.body.id;
+    const ciphertext = await storedUrl(id);
+    await staleSync(id);
+    const responses = [
+      created,
+      await call(listRoute.GET as never, "GET", "/api/institutions"),
+      await postSync(id),
+      await getTx(id, `accountId=${encodeURIComponent(created.body.accounts[0].id)}`),
+    ];
+    const serialized = JSON.stringify(responses);
+    expect(serialized).not.toContain(ciphertext);
+    expect(serialized).not.toContain(SECRET_PASSWORD);
+    expect(serialized).not.toMatch(/enc:v1|accessUrl|bridge\.simplefin\.org/i);
+  });
+});

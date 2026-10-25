@@ -88,7 +88,7 @@ export function InstitutionsView() {
           testId="institutions-empty"
         />
       ) : (
-        <ul className="grid grid-cols-1 gap-4 lg:grid-cols-2" data-testid="institutions-list">
+        <ul className="flex flex-col gap-8" data-testid="institutions-list">
           {items.map((inst) => (
             <li key={inst.id} className="min-w-0">
               <InstitutionCard
@@ -139,7 +139,7 @@ export function InstitutionsView() {
           if (!removing) return;
           const name = removing.name;
           await api.removeInstitution(removing.id);
-          toast(`Removed “${name}” from this app.`, "success");
+          toast(`Removed â€œ${name}â€ from this app.`, "success");
           await list.reload();
         }}
         onError={(message) => toast(message, "error")}
@@ -281,7 +281,7 @@ function InstitutionCard({
   }
 
   return (
-    <Card className="p-5" data-testid={`institution-card-${institution.id}`}>
+    <section aria-label={institution.name} data-testid={`institution-card-${institution.id}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="font-semiwide truncate text-base font-bold text-foreground">{institution.name}</h2>
@@ -290,7 +290,7 @@ function InstitutionCard({
             title={institution.lastSyncedAt ? new Date(institution.lastSyncedAt).toLocaleString() : undefined}
             data-testid={`institution-synced-${institution.id}`}
           >
-            {lastSyncedText(institution)} · Connected {fmtShort(institution.connectedAt.slice(0, 10))}
+            {lastSyncedText(institution)} Â· Connected {fmtShort(institution.connectedAt.slice(0, 10))}
           </p>
         </div>
         <div className="flex items-center gap-1">
@@ -318,10 +318,10 @@ function InstitutionCard({
           </Button>
         </div>
       </div>
-      <ul className="mt-4 divide-y divide-border border-t border-border text-sm">
-        {institution.accounts.length === 0 && (
-          <li className="py-2 text-muted-foreground">No accounts yet. Press Refresh to load them from SimpleFIN.</li>
-        )}
+      {institution.accounts.length === 0 && (
+        <p className="mt-3 text-sm text-muted-foreground">No accounts yet. Press Refresh to load them from SimpleFIN.</p>
+      )}
+      <ul className="mt-3 grid grid-cols-1 gap-3 text-sm md:grid-cols-2 xl:grid-cols-3">
         {institution.accounts.map((a) => (
           <AccountRow
             key={a.id}
@@ -332,7 +332,7 @@ function InstitutionCard({
           />
         ))}
       </ul>
-    </Card>
+    </section>
   );
 }
 
@@ -373,47 +373,53 @@ function AccountRow({
   const showAvailable = account.availableBalanceCents !== null && (account.kind === "BANK" || account.kind === "OTHER" || account.availableBalanceCents !== 0);
 
   return (
-    <li className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-3" data-testid={`account-row-${account.id}`}>
-      <div className="min-w-0">
-        <Link
-          href={`/institutions/${encodeURIComponent(institutionId)}?account=${encodeURIComponent(account.id)}`}
-          className="rounded-control font-medium text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          data-testid={`account-link-${account.id}`}
-        >
-          {account.name}
-          <span className="sr-only"> transactions</span>
-        </Link>
-        <p className="text-xs text-muted-foreground">
-          {showInstitution && `${account.institutionName} · `}As of {fmtShort(account.balanceDate)}
-        </p>
-        <Select
-          value={account.kind}
-          onChange={(e) => void changeKind(e.target.value as AccountKind)}
-          disabled={saving}
-          aria-label={`Account type for ${account.name}`}
-          className="mt-1.5 h-8 w-auto max-w-full py-0 text-sm"
-          data-testid={`account-kind-${account.id}`}
-        >
-          {ACCOUNT_KINDS.map((k) => (
-            <option key={k} value={k}>
-              {KIND_LABELS[k]}
-            </option>
-          ))}
-        </Select>
-        {account.kind !== "BANK" && (
-          <p className="mt-1 text-xs text-muted-foreground" data-testid={`account-excluded-${account.id}`}>
-            Not counted in your starting balance
-          </p>
-        )}
-      </div>
-      <div className="text-right">
-        <Balance cents={account.balanceCents} currency={account.currency} className="font-semibold" />
-        {showAvailable && (
-          <p className="text-xs text-muted-foreground">
-            Available <Balance cents={account.availableBalanceCents} currency={account.currency} className="font-normal" />
-          </p>
-        )}
-      </div>
+    <li className="min-w-0" data-testid={`account-row-${account.id}`}>
+      <Card className="flex h-full flex-col gap-2 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <Link
+              href={`/institutions/${encodeURIComponent(institutionId)}?account=${encodeURIComponent(account.id)}`}
+              className="rounded-control font-medium text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              data-testid={`account-link-${account.id}`}
+            >
+              {account.name}
+              <span className="sr-only"> transactions</span>
+            </Link>
+            <p className="text-xs text-muted-foreground">
+              {showInstitution && `${account.institutionName} Â· `}As of {fmtShort(account.balanceDate)}
+            </p>
+          </div>
+          <div className="shrink-0 text-right">
+            <Balance cents={account.balanceCents} currency={account.currency} className="font-semibold" />
+            {showAvailable && (
+              <p className="text-xs text-muted-foreground">
+                Available <Balance cents={account.availableBalanceCents} currency={account.currency} className="font-normal" />
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="mt-auto">
+          <Select
+            value={account.kind}
+            onChange={(e) => void changeKind(e.target.value as AccountKind)}
+            disabled={saving}
+            aria-label={`Account type for ${account.name}`}
+            className="h-8 w-auto max-w-full py-0 text-sm"
+            data-testid={`account-kind-${account.id}`}
+          >
+            {ACCOUNT_KINDS.map((k) => (
+              <option key={k} value={k}>
+                {KIND_LABELS[k]}
+              </option>
+            ))}
+          </Select>
+          {account.kind !== "BANK" && (
+            <p className="mt-1 text-xs text-muted-foreground" data-testid={`account-excluded-${account.id}`}>
+              Not counted in your starting balance
+            </p>
+          )}
+        </div>
+      </Card>
     </li>
   );
 }
