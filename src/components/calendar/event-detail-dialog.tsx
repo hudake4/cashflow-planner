@@ -18,6 +18,7 @@ import { useToast } from "@/components/ui/toast";
 export function EventDetailDialog({
   event,
   currency,
+  balanceFromAccounts = false,
   onClose,
   restoreFocusOnClose,
   restoreFocusTarget,
@@ -26,6 +27,8 @@ export function EventDetailDialog({
 }: {
   event: LedgerEvent | null;
   currency: string;
+  /** The starting balance and start date come from the bank accounts, so Settings can't change them. */
+  balanceFromAccounts?: boolean;
   onClose: () => void;
   restoreFocusOnClose?: boolean;
   restoreFocusTarget?: DialogFocusTarget;
@@ -50,6 +53,7 @@ export function EventDetailDialog({
           key={event.id}
           event={event}
           currency={currency}
+          balanceFromAccounts={balanceFromAccounts}
           onChanged={onChanged}
           onEditSource={onEditSource}
         />
@@ -61,11 +65,13 @@ export function EventDetailDialog({
 function EventDetailBody({
   event,
   currency,
+  balanceFromAccounts,
   onChanged,
   onEditSource,
 }: {
   event: LedgerEvent;
   currency: string;
+  balanceFromAccounts: boolean;
   onChanged: () => Promise<void> | void;
   onEditSource: (event: LedgerEvent) => void;
 }) {
@@ -173,8 +179,9 @@ function EventDetailBody({
       )}
       {status === "PAID" && (
         <p className="rounded-control bg-slate-100 px-3 py-2 text-xs text-slate-700">
-          “Paid” is a tracking mark. The bill still counts once on its due date. To match your real bank balance, update the starting
-          balance and start date in Settings.
+          {balanceFromAccounts
+            ? "“Paid” is a tracking mark. The bill still counts once on its due date. Your starting balance comes from your bank accounts, so it catches up when they refresh."
+            : "“Paid” is a tracking mark. The bill still counts once on its due date. To match your real bank balance, update the starting balance and start date in Settings."}
         </p>
       )}
 

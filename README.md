@@ -115,7 +115,7 @@ The full rules are in [docs/CONVENTIONS.md](docs/CONVENTIONS.md). In short:
   - **Skipped** occurrences don't count at all, and later occurrences are unaffected.
   - Per-occurrence amount overrides support variable bills.
   - Editing a bill never rewrites past paid or skipped records.
-- To line projections up with your real bank balance, update the starting balance and start date in Settings.
+- To line projections up with your real bank balance, update the starting balance and start date in Settings. When the starting balance comes from your bank accounts, refresh them instead: the start date follows the refresh. Events dated on that start date are still projected, so one your bank already shows for that day may be counted twice.
 
 ## Architecture
 

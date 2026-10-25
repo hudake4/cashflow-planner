@@ -137,6 +137,19 @@ export interface SettingsDTO {
   accountsBalanceCents: number | null;
   /** How many accounts are labelled BANK (the ones in `accountsBalanceCents`). */
   accountCount: number;
+  /**
+   * The oldest `balanceDate` among the accounts labelled BANK that refreshed within the last 7 days
+   * (all of them when none did), capped at today; null when there are none. With the ACCOUNTS source
+   * it is the date the projection starts on (`effectiveProjectionStartDate`).
+   */
+  accountsBalanceDate: string | null;
+  /**
+   * How many BANK accounts were left out of `accountsBalanceDate` because they haven't refreshed in
+   * over 7 days. Their balance is still in `accountsBalanceCents`. 0 when every account is equally
+   * stale (the date then comes from all of them).
+   */
+  accountsStaleCount: number;
+  /** The start date the user typed. Used when `startingBalanceSource` is MANUAL (or no accounts are connected). */
   projectionStartDate: string;
   currency: string;
   forecastDays: number;
@@ -498,6 +511,8 @@ const settingsDTOSchema = z.object({
   startingBalanceSource: startingBalanceSourceSchema,
   accountsBalanceCents: signedCentsSchema.nullable(),
   accountCount: z.number().int().min(0),
+  accountsBalanceDate: isoDateSchema.nullable(),
+  accountsStaleCount: z.number().int().min(0),
   projectionStartDate: isoDateSchema,
   currency: z.string().regex(/^[A-Z]{3}$/),
   forecastDays: z.number().int().min(MIN_FORECAST_DAYS).max(MAX_FORECAST_DAYS),
