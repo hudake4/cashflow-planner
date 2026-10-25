@@ -17,9 +17,14 @@ const NEGATIVE_DECIMAL_LIMIT = 10;
 /** Same for positive balances, which have the extra character of room. */
 const POSITIVE_DECIMAL_LIMIT = 100;
 
+/**
+ * The narrow symbol ("$" for CAD and AUD, not "CA$" or "A$"), or "" when it is still longer than one
+ * character ("CHF", "kr", "R$"): a cell is too narrow for that, and the label carries the currency.
+ */
 function currencySymbol(currency: string): string {
-  const part = new Intl.NumberFormat("en-US", { style: "currency", currency }).formatToParts(0).find((p) => p.type === "currency");
-  return part?.value ?? currency;
+  const part = new Intl.NumberFormat("en-US", { style: "currency", currency, currencyDisplay: "narrowSymbol" }).formatToParts(0).find((p) => p.type === "currency");
+  const symbol = part?.value ?? "";
+  return [...symbol].length === 1 ? symbol : "";
 }
 
 function trimmed(value: number, digits: number): string {
@@ -29,9 +34,10 @@ function trimmed(value: number, digits: number): string {
 /**
  * A short balance for a heatmap cell: "$265", "$1,330", "$12.5k", "$125k", "$1.2M".
  * Negative balances get a leading true minus sign and abbreviate sooner
- * ("−$1.2k", "−$13k") so the longer text still fits. `tight` is for phone cells
- * (about 38px): it also drops the currency symbol ("1.3k", "−13k"). Cents are
- * dropped; the full amount lives in the cell's accessible label.
+ * ("−$1.2k", "−$13k") so the longer text still fits. `tight` is for the narrowest
+ * cells (phones, and the desktop two-column layout): it also drops the currency
+ * symbol ("1.3k", "−13k"). A symbol longer than one character is always dropped.
+ * Cents are dropped; the full amount lives in the cell's accessible label.
  */
 export function compactBalance(cents: number, currency = "USD", tight = false): string {
   const dollars = Math.round(Math.abs(cents) / 100);

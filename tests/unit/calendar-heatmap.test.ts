@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compactBalance, heatBackground, heatTint } from "@/lib/calendar-heatmap";
+import { CURRENCIES } from "@/lib/format";
 
 describe("compactBalance", () => {
   it("shows whole dollars with separators below $10,000", () => {
@@ -72,6 +73,31 @@ describe("compactBalance", () => {
   it("uses the currency symbol", () => {
     expect(compactBalance(133000, "EUR")).toBe("€1,330");
     expect(compactBalance(1_250_000, "GBP")).toBe("£12.5k");
+  });
+
+  it("uses the narrow symbol, so dollar currencies show a plain $ instead of CA$, A$ or MX$", () => {
+    expect(compactBalance(133000, "CAD")).toBe("$1,330");
+    expect(compactBalance(-123_400, "AUD")).toBe("−$1.2k");
+    expect(compactBalance(1_250_000, "NZD")).toBe("$12.5k");
+    expect(compactBalance(-123_456_789, "MXN")).toBe("−$1.2M");
+    expect(compactBalance(133000, "ZAR")).toBe("R1,330");
+  });
+
+  it("drops a currency symbol that is longer than one character, which would overflow a cell", () => {
+    for (const currency of ["CHF", "SEK", "NOK", "DKK", "BRL"]) {
+      expect(compactBalance(133000, currency)).toBe("1,330");
+      expect(compactBalance(-123_400, currency)).toBe("−1.2k");
+      expect(compactBalance(-123_456_789, currency)).toBe("−1.2M");
+    }
+  });
+
+  it("never adds more than one symbol character for any currency the app offers", () => {
+    for (const { code } of CURRENCIES) {
+      for (const cents of [-99_960_000, -123_456_789, -1_234_500, -99_900, 99_900, 99_949, 12_500_000, 99_999_999_900]) {
+        const symbolWidth = [...compactBalance(cents, code)].length - [...compactBalance(cents, code, true)].length;
+        expect(symbolWidth, `${code} ${cents}: ${compactBalance(cents, code)}`).toBeLessThanOrEqual(1);
+      }
+    }
   });
 });
 

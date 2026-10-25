@@ -96,10 +96,10 @@ function DayCell({ day, currency, maxPositiveCents, onSelect }: { day: DayView; 
           <>
             <span
               aria-hidden="true"
-              className={clsx("block text-[10px] leading-3 font-semibold @min-[20.5rem]:text-[11px] whitespace-nowrap tabular-nums", negative ? "text-rose-800" : "text-slate-800")}
+              className={clsx("block text-[10px] leading-3 font-semibold @min-[21rem]:text-[11px] whitespace-nowrap tabular-nums", negative ? "text-rose-800" : "text-slate-800")}
             >
-              <span className="@min-[20.5rem]:hidden">{compactBalance(closing, currency, true)}</span>
-              <span className="hidden @min-[20.5rem]:inline">{compactBalance(closing, currency)}</span>
+              <span className="@min-[21rem]:hidden">{compactBalance(closing, currency, true)}</span>
+              <span className="hidden @min-[21rem]:inline">{compactBalance(closing, currency)}</span>
             </span>
             <span className="sr-only" data-testid={`day-balance-${day.date}`}>
               {money(closing, currency)}
