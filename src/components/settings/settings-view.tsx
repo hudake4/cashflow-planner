@@ -361,7 +361,7 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsDTO; onSaved: () 
                   <span className="text-sm font-semibold text-foreground">Projection start date</span>
                   <p className="text-lg font-semibold tabular-nums text-foreground">{fmtShort(initial.accountsBalanceDate)}</p>
                   <p className="text-xs leading-relaxed text-muted-foreground">
-                    From your last bank refresh: the oldest balance date among your bank accounts, never later than today. Income and bills
+                    From your last bank refresh: the oldest balance date among bank accounts refreshed in the last week (the oldest overall if none were), never later than today. Income and bills
                     dated on this date are still projected, so one your bank already shows for that day may be counted twice on that day.
                   </p>
                   {initial.accountsStaleCount > 0 && (

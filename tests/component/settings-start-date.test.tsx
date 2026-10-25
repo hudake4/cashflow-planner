@@ -84,7 +84,7 @@ describe("Settings → projection start date", () => {
 
     const note = screen.getByTestId("stale-accounts-note");
     expect(note).toHaveTextContent("1 account hasn't refreshed in over a week; its balance is still counted.");
-    expect(note).toHaveTextContent("Remove or relabel it on the Institutions page.");
+    expect(note).toHaveTextContent("Relabel it as Other, or refresh its bank, on the Institutions page.");
     expect(within(note).getByRole("link", { name: "Institutions page" })).toHaveAttribute("href", "/institutions");
     expect(screen.getByTestId("settings-start-date-derived")).toContainElement(note);
   });
@@ -94,7 +94,7 @@ describe("Settings → projection start date", () => {
 
     const note = screen.getByTestId("stale-accounts-note");
     expect(note).toHaveTextContent("2 accounts haven't refreshed in over a week; their balances are still counted.");
-    expect(note).toHaveTextContent("Remove or relabel them");
+    expect(note).toHaveTextContent("Relabel them as Other, or refresh their banks, on the Institutions page.");
   });
 
   it("MANUAL: the stale-account notice is not shown, because the typed date is used", async () => {
