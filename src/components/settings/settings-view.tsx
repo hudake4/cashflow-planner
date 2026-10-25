@@ -19,6 +19,7 @@ import { CURRENCIES } from "@/lib/format";
 import { applyTheme, currentTheme, type Theme } from "@/lib/theme";
 import { useApi } from "@/lib/use-api";
 import { PageHeader } from "@/components/app-shell";
+import { StaleAccountsNote } from "@/components/stale-accounts-note";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -360,9 +361,14 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsDTO; onSaved: () 
                   <span className="text-sm font-semibold text-foreground">Projection start date</span>
                   <p className="text-lg font-semibold tabular-nums text-foreground">{fmtShort(initial.accountsBalanceDate)}</p>
                   <p className="text-xs leading-relaxed text-muted-foreground">
-                    From your last bank refresh: the oldest balance date among your bank accounts. Income and bills on or after this date are
-                    projected.
+                    From your last bank refresh: the oldest balance date among your bank accounts, never later than today. Income and bills
+                    dated on this date are still projected, so one your bank already shows for that day may be counted twice on that day.
                   </p>
+                  {initial.accountsStaleCount > 0 && (
+                    <p className="text-xs leading-relaxed text-foreground">
+                      <StaleAccountsNote count={initial.accountsStaleCount} />
+                    </p>
+                  )}
                 </div>
               ) : (
                 <Field

@@ -25,6 +25,7 @@ const settings = (over: Partial<SettingsDTO> = {}): SettingsDTO => ({
   accountsBalanceCents: null,
   accountCount: 0,
   accountsBalanceDate: null,
+  accountsStaleCount: 0,
   projectionStartDate: TODAY,
   currency: "USD",
   forecastDays: 90,
@@ -244,6 +245,33 @@ describe("calendar heatmap and register", () => {
 
     await user.click(screen.getByTestId(`event-${PAYCHECK.id}`));
     expect(await screen.findByTestId("event-detail")).toBeInTheDocument();
+  });
+
+  describe("Paid note in the event dialog", () => {
+    const PAID_RENT = { ...RENT, status: "PAID" as const };
+    const openPaid = async () => {
+      getProjection.mockImplementation(({ from, to }: { from: string; to: string }) =>
+        Promise.resolve(projectionFor(from, to, { events: [PAYCHECK, PAID_RENT] })),
+      );
+      renderCalendar();
+      await userEvent.setup().click(await screen.findByTestId(`event-${PAID_RENT.id}`));
+      return screen.findByTestId("event-detail");
+    };
+
+    it("MANUAL: still tells the user to update the starting balance and start date in Settings", async () => {
+      const detail = await openPaid();
+      expect(detail).toHaveTextContent("update the starting balance and start date in Settings");
+    });
+
+    it("ACCOUNTS: no longer tells the user to edit values Settings can't change", async () => {
+      getSettings.mockResolvedValue(
+        settings({ startingBalanceSource: "ACCOUNTS", accountsBalanceCents: 90_000, accountCount: 1, accountsBalanceDate: TODAY }),
+      );
+      const detail = await openPaid();
+      expect(detail).toHaveTextContent("The bill still counts once on its due date.");
+      expect(detail).toHaveTextContent("it catches up when they refresh");
+      expect(detail).not.toHaveTextContent(/update the starting balance/i);
+    });
   });
 
   it("collapses weeks before the projection start into one note and keeps empty weeks as a one-line note", async () => {

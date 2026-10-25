@@ -11,6 +11,7 @@ import { money } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
 import { PageHeader } from "@/components/app-shell";
 import { RecurringScanButton } from "@/components/recurring/recurring-scan";
+import { StaleAccountsNote } from "@/components/stale-accounts-note";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -168,6 +169,7 @@ function RegisterLine({
 function DashboardContent({ d }: { d: DashboardResponse }) {
   const currency = d.settings.currency;
   const t = d.totals;
+  const fromAccounts = d.settings.startingBalanceSource === "ACCOUNTS" && d.settings.accountsBalanceCents !== null;
 
   if (!d.hasData) {
     return (
@@ -282,12 +284,14 @@ function DashboardContent({ d }: { d: DashboardResponse }) {
             label="Starting balance"
             sub={
               <>
-                {`${
-                  d.settings.startingBalanceSource === "ACCOUNTS" && d.settings.accountsBalanceCents !== null
-                    ? "Total of your bank accounts"
-                    : "Entered by you"
-                }, as of ${fmtShort(d.settings.projectionStartDate)}.`}{" "}
-                <Link href="/settings" className="font-semibold text-brand-700 underline">Update</Link>
+                {`${fromAccounts ? "Total of your bank accounts" : "Entered by you"}, as of ${fmtShort(d.settings.projectionStartDate)}.`}{" "}
+                {/* The bank total can't be edited in Settings; it changes when the accounts refresh. */}
+                <Link href={fromAccounts ? "/institutions" : "/settings"} className="font-semibold text-brand-700 underline">
+                  {fromAccounts ? "Refresh" : "Update"}
+                </Link>
+                {fromAccounts && d.settings.accountsStaleCount > 0 && (
+                  <StaleAccountsNote count={d.settings.accountsStaleCount} className="mt-1 block text-foreground" />
+                )}
               </>
             }
           >

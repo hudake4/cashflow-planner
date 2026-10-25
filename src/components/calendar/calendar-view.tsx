@@ -4,7 +4,7 @@ import { TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import type { CalendarView, LedgerEvent, ProjectionResponse, SettingsDTO, WeekSummary } from "@/contracts/api";
-import { effectiveProjectionStartDate } from "@/domain/starting-balance";
+import { effectiveProjectionStartDate, startDateFromAccounts } from "@/domain/starting-balance";
 import { api } from "@/lib/api-client";
 import { addDays, addMonths, eachDay, endOfMonth, fmtDate, fmtRange, startOfMonth, startOfWeek, todayLocal } from "@/lib/dates";
 import { useApi } from "@/lib/use-api";
@@ -280,6 +280,7 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
         restoreFocusTarget={() => lastEventTrigger.current}
         event={selectedEvent}
         currency={currency}
+        balanceFromAccounts={startDateFromAccounts(settings)}
         onClose={closeEvent}
         onChanged={projection.reload}
         onEditSource={(e) => {

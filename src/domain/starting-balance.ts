@@ -19,9 +19,9 @@ export function startDateFromAccounts(s: Pick<StartDateSettings, "startingBalanc
 }
 
 /**
- * The date the projection starts on (CONVENTIONS section 3). The sum of the bank accounts is only
- * right from the least recent balance forward, so with the ACCOUNTS source it is the oldest
- * `balanceDate` among the summed accounts; otherwise the typed date. Everything the bank balance
+ * The date the projection starts on (CONVENTIONS section 3). With the ACCOUNTS source it is the
+ * oldest `balanceDate` among the recently refreshed bank accounts, never after today (the
+ * repository derives `accountsBalanceDate`); otherwise the typed date. Everything the bank balance
  * already includes happened before it, so the engine must not replay it.
  */
 export function effectiveProjectionStartDate(s: StartDateSettings): string {

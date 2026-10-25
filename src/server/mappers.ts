@@ -15,16 +15,22 @@ import type {
   StartingBalanceSource,
 } from "../contracts/api";
 
-export function toSettingsDTO(
-  row: Settings,
-  accounts: { balanceCents: number | null; oldestBalanceDate: string | null; count: number },
-): SettingsDTO {
+/** The BANK accounts as `getSettings` sees them: their sum, the date that starts the projection, and how many were left out of that date as stale. */
+export interface AccountsSummary {
+  balanceCents: number | null;
+  oldestBalanceDate: string | null;
+  count: number;
+  staleCount: number;
+}
+
+export function toSettingsDTO(row: Settings, accounts: AccountsSummary): SettingsDTO {
   return {
     startingBalanceCents: row.startingBalanceCents,
     startingBalanceSource: row.startingBalanceSource as StartingBalanceSource,
     accountsBalanceCents: accounts.count ? accounts.balanceCents : null,
     accountCount: accounts.count,
     accountsBalanceDate: accounts.count ? accounts.oldestBalanceDate : null,
+    accountsStaleCount: accounts.staleCount,
     projectionStartDate: row.projectionStartDate,
     currency: row.currency,
     forecastDays: row.forecastDays,

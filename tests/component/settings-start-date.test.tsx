@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SettingsDTO } from "@/contracts/api";
@@ -21,6 +21,7 @@ const SETTINGS: SettingsDTO = {
   accountsBalanceCents: 525000,
   accountCount: 2,
   accountsBalanceDate: "2026-10-20",
+  accountsStaleCount: 0,
   projectionStartDate: "2026-10-01",
   currency: "USD",
   forecastDays: 90,
@@ -62,6 +63,44 @@ describe("Settings → projection start date", () => {
     expect(screen.queryByTestId("settings-start-date")).not.toBeInTheDocument();
     expect(screen.queryByText(/set the start date to today/i)).not.toBeInTheDocument();
     expect(screen.getByTestId("settings-accounts-balance")).toHaveTextContent("$5,250.00");
+  });
+
+  it("ACCOUNTS: says same-day events are still applied, so one that already posted may be counted twice", async () => {
+    await renderView({ ...SETTINGS, startingBalanceSource: "ACCOUNTS" });
+
+    const derived = screen.getByTestId("settings-start-date-derived");
+    expect(derived).toHaveTextContent(/dated on this date are still projected/i);
+    expect(derived).toHaveTextContent(/may be counted twice on that day/i);
+  });
+
+  it("ACCOUNTS: no stale-account notice when every account is fresh", async () => {
+    await renderView({ ...SETTINGS, startingBalanceSource: "ACCOUNTS" });
+
+    expect(screen.queryByTestId("stale-accounts-note")).not.toBeInTheDocument();
+  });
+
+  it("ACCOUNTS with a stale account: says its balance is still counted and links to Institutions", async () => {
+    await renderView({ ...SETTINGS, startingBalanceSource: "ACCOUNTS", accountsStaleCount: 1 });
+
+    const note = screen.getByTestId("stale-accounts-note");
+    expect(note).toHaveTextContent("1 account hasn't refreshed in over a week; its balance is still counted.");
+    expect(note).toHaveTextContent("Remove or relabel it on the Institutions page.");
+    expect(within(note).getByRole("link", { name: "Institutions page" })).toHaveAttribute("href", "/institutions");
+    expect(screen.getByTestId("settings-start-date-derived")).toContainElement(note);
+  });
+
+  it("ACCOUNTS with several stale accounts: uses the plural wording", async () => {
+    await renderView({ ...SETTINGS, startingBalanceSource: "ACCOUNTS", accountsStaleCount: 2 });
+
+    const note = screen.getByTestId("stale-accounts-note");
+    expect(note).toHaveTextContent("2 accounts haven't refreshed in over a week; their balances are still counted.");
+    expect(note).toHaveTextContent("Remove or relabel them");
+  });
+
+  it("MANUAL: the stale-account notice is not shown, because the typed date is used", async () => {
+    await renderView({ ...SETTINGS, accountsStaleCount: 1 });
+
+    expect(screen.queryByTestId("stale-accounts-note")).not.toBeInTheDocument();
   });
 
   it("ACCOUNTS without a bank account: the start date stays editable", async () => {

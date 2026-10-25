@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET, PUT } from "@/app/api/settings/route";
 import { GET as projectionGET } from "@/app/api/projection/route";
 import { GET as dashboardGET } from "@/app/api/dashboard/route";
@@ -28,6 +28,7 @@ describe("/api/settings", () => {
       accountsBalanceCents: null,
       accountCount: 0,
       accountsBalanceDate: null,
+      accountsStaleCount: 0,
       projectionStartDate: todayLocal(),
       currency: "USD",
       forecastDays: 90,
@@ -219,6 +220,90 @@ describe("/api/settings", () => {
         const p = await projectionBody();
         expect(p.window.startDate).toBe("2025-01-01");
         expect(p.startingBalanceCents).toBe(100000);
+      });
+
+      describe("stale accounts and the clock", () => {
+        // Fixed "today" (server-local noon) so the 7-day freshness cutoff and the clamp are deterministic.
+        beforeEach(() => {
+          vi.useFakeTimers({ toFake: ["Date"] });
+          vi.setSystemTime(new Date(2026, 9, 25, 12));
+        });
+        afterEach(() => {
+          vi.useRealTimers();
+        });
+        const settingsBody = async () => (await call(PUT, "PUT", "/api/settings", { body: accountsSettings })).body;
+
+        it("a stale BANK account is still summed but can't pull the start date back", async () => {
+          await addAccount("checking", 300000, "BANK", "2026-10-24");
+          await addAccount("savings", 100000, "BANK", "2026-10-24");
+          await addAccount("old-savings", 5000, "BANK", "2026-06-15");
+          await addSchedule();
+
+          const s = await settingsBody();
+          expect(s).toMatchObject({ accountsBalanceCents: 405000, accountCount: 3, accountsBalanceDate: "2026-10-24", accountsStaleCount: 1 });
+          const p = await projectionBody();
+          expect(p.window.startDate).toBe("2026-10-24");
+          expect(p.startingBalanceCents).toBe(405000);
+          expect(p.days[0].openingBalanceCents).toBe(405000);
+          const dash = (await call<DashboardResponse>(dashboardGET, "GET", "/api/dashboard")).body;
+          expect(dash.window.startDate).toBe("2026-10-24");
+          expect(dash.settings).toMatchObject({ accountsStaleCount: 1, projectionStartDate: "2026-10-24" });
+        });
+
+        it("reports the stale count before settings were ever saved", async () => {
+          await addAccount("checking", 300000, "BANK", "2026-10-24");
+          await addAccount("old-savings", 5000, "BANK", "2026-06-15");
+          expect((await call(GET, "GET", "/api/settings")).body).toMatchObject({
+            accountsBalanceDate: "2026-10-24",
+            accountsStaleCount: 1,
+            updatedAt: null,
+          });
+        });
+
+        it("an account is fresh up to 7 days old and stale from the 8th", async () => {
+          await addAccount("checking", 300000, "BANK", "2026-10-25");
+          await addAccount("seven", 1000, "BANK", "2026-10-18");
+          expect(await settingsBody()).toMatchObject({ accountsBalanceDate: "2026-10-18", accountsStaleCount: 0 });
+          await addAccount("eight", 1000, "BANK", "2026-10-17");
+          expect(await settingsBody()).toMatchObject({ accountsBalanceDate: "2026-10-18", accountsStaleCount: 1 });
+        });
+
+        it("when every bank account is stale the date is the oldest overall and nothing is reported as left out", async () => {
+          await addAccount("checking", 300000, "BANK", "2026-08-01");
+          await addAccount("savings", 100000, "BANK", "2026-06-15");
+          expect(await settingsBody()).toMatchObject({ accountsBalanceCents: 400000, accountsBalanceDate: "2026-06-15", accountsStaleCount: 0 });
+          expect((await projectionBody()).window.startDate).toBe("2026-06-15");
+        });
+
+        it("credit, loan and other accounts are never counted as stale", async () => {
+          await addAccount("checking", 300000, "BANK", "2026-10-24");
+          await addAccount("card", -120050, "CREDIT", "2026-01-01");
+          await addAccount("mortgage", -30000000, "LOAN", "2026-01-01");
+          await addAccount("misc", 99900, "OTHER", "2026-01-01");
+          expect(await settingsBody()).toMatchObject({ accountsBalanceDate: "2026-10-24", accountsStaleCount: 0 });
+        });
+
+        it("a balance date after today (a UTC-evening sync) clamps the start date to today", async () => {
+          await addAccount("checking", 300000, "BANK", "2026-10-26");
+          expect(await settingsBody()).toMatchObject({ accountsBalanceDate: "2026-10-25", accountsStaleCount: 0 });
+          const p = await projectionBody();
+          expect(p.window.startDate).toBe("2026-10-25");
+          expect(p.days[0].date).toBe("2026-10-25");
+          expect((await call<DashboardResponse>(dashboardGET, "GET", "/api/dashboard")).body.window.startDate).toBe("2026-10-25");
+        });
+
+        it("the clamp does not move a date that is today or earlier, and a future account doesn't hide an older fresh one", async () => {
+          await addAccount("checking", 300000, "BANK", "2026-10-26");
+          await addAccount("savings", 100000, "BANK", "2026-10-22");
+          expect(await settingsBody()).toMatchObject({ accountsBalanceDate: "2026-10-22", accountsStaleCount: 0 });
+        });
+
+        it("MANUAL ignores all of it and keeps the typed start date", async () => {
+          await addAccount("checking", 300000, "BANK", "2026-10-26");
+          await addAccount("old-savings", 5000, "BANK", "2026-06-15");
+          await call(PUT, "PUT", "/api/settings", { body: valid });
+          expect((await projectionBody()).window.startDate).toBe("2025-01-01");
+        });
       });
 
       it("saving settings in ACCOUNTS mode never stores the derived date", async () => {
