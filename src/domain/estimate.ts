@@ -1,5 +1,5 @@
-/**
- * Suggested amount for a variable bill, from the stored bank history (CONVENTIONS section 14).
+﻿/**
+ * Suggested amount for a variable bill, from the stored bank history (CONVENTIONS section 15).
  * Pure: no Prisma, no clock (today is passed in), no I/O.
  *
  * Money-out transactions whose description matches the bill's name are summed per billing period

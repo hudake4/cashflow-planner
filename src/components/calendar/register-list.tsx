@@ -1,14 +1,42 @@
 "use client";
 
 import { clsx } from "clsx";
-import { ChevronRight, CircleCheck, TriangleAlert } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronRight, CircleCheck, TriangleAlert } from "lucide-react";
 import type { LedgerEvent, WeekSummary } from "@/contracts/api";
-import { fmtDate, fmtRange } from "@/lib/dates";
+import { fmtDate } from "@/lib/dates";
 import { money, signedMoney } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Balance, EventAmount } from "@/components/ui/money";
 import { eventAriaLabel } from "./event-labels";
 import type { GridWeek } from "./heatmap-calendar";
+import { weekLabel, weekSpokenLabel } from "./week-label";
+
+/** A balance for screen readers: the sign alone is easy to miss, so a negative one says so (like `Balance`). */
+function spokenBalance(cents: number, currency: string): string {
+  return `${cents < 0 ? "negative balance " : ""}${money(cents, currency)}`;
+}
+
+/** The week header's accessible name carries everything the visible header shows: totals, net, closing and the dip warning. */
+function weekHeaderLabel(week: WeekSummary, currency: string): string {
+  const dip = week.hasNegative ? `, dips below zero, low ${spokenBalance(week.lowestBalanceCents, currency)}` : "";
+  const income = week.incomeCents === 0 ? "no income" : `income ${money(week.incomeCents, currency)}`;
+  const bills = week.billsCents === 0 ? "no bills" : `bills ${money(week.billsCents, currency)}`;
+  const net = `net ${week.netCents < 0 ? "negative " : ""}${money(week.netCents, currency)}`;
+  return `${weekSpokenLabel(week)}: opening ${spokenBalance(week.openingBalanceCents, currency)}, ${income}, ${bills}, closing ${spokenBalance(week.closingBalanceCents, currency)}, ${net}${dip}. Open week details.`;
+}
+
+/** A week's income or bills total. A zero total is a quiet dash (still in its slot) instead of "+$0.00" / "−$0.00". */
+function WeekTotal({ kind, cents, currency }: { kind: "INCOME" | "BILL"; cents: number; currency: string }) {
+  if (cents !== 0) return <EventAmount kind={kind} amountCents={cents} currency={currency} />;
+  const Icon = kind === "INCOME" ? ArrowUp : ArrowDown;
+  return (
+    <span className="inline-flex items-center gap-0.5 font-medium whitespace-nowrap text-slate-500">
+      <Icon className="h-3 w-3 shrink-0" aria-hidden="true" />
+      <span aria-hidden="true">—</span>
+      <span className="sr-only">{kind === "INCOME" ? "no income" : "no bills"}</span>
+    </span>
+  );
+}
 
 function WeekHeader({ week, currency, onSelect }: { week: WeekSummary; currency: string; onSelect: (week: WeekSummary) => void }) {
   return (
@@ -16,7 +44,7 @@ function WeekHeader({ week, currency, onSelect }: { week: WeekSummary; currency:
       type="button"
       onClick={() => onSelect(week)}
       data-testid={`week-summary-${week.weekStart}`}
-      aria-label={`Week of ${fmtRange(week.rangeStart, week.rangeEnd)}: opening ${money(week.openingBalanceCents, currency)}, income ${money(week.incomeCents, currency)}, bills ${money(week.billsCents, currency)}, closing ${week.closingBalanceCents < 0 ? "negative balance " : ""}${money(week.closingBalanceCents, currency)}. Open week details.`}
+      aria-label={weekHeaderLabel(week, currency)}
       className={clsx(
         "group flex min-h-11 w-full flex-col gap-1.5 px-3 py-2 text-left transition-colors hover:bg-slate-100",
         "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-600",
@@ -25,7 +53,7 @@ function WeekHeader({ week, currency, onSelect }: { week: WeekSummary; currency:
     >
       <span className="flex items-center justify-between gap-2">
         <span className="font-semiwide text-sm font-bold text-slate-800">
-          Week of {fmtDate(week.weekStart, "MMM d")}
+          {weekLabel(week.weekStart)}
           {week.partial && <span className="ml-1 font-normal text-slate-500">(partial)</span>}
         </span>
         <span className="inline-flex items-center gap-0.5 text-xs font-medium text-brand-700 group-hover:underline" aria-hidden="true">
@@ -38,10 +66,10 @@ function WeekHeader({ week, currency, onSelect }: { week: WeekSummary; currency:
           <Balance cents={week.openingBalanceCents} currency={currency} iconClassName="h-3 w-3" className="text-slate-800" />
         </span>
         <span title="Income this week" data-testid={`week-income-${week.weekStart}`}>
-          <EventAmount kind="INCOME" amountCents={week.incomeCents} currency={currency} />
+          <WeekTotal kind="INCOME" cents={week.incomeCents} currency={currency} />
         </span>
         <span title="Bills this week" data-testid={`week-bills-${week.weekStart}`}>
-          <EventAmount kind="BILL" amountCents={week.billsCents} currency={currency} />
+          <WeekTotal kind="BILL" cents={week.billsCents} currency={currency} />
         </span>
         <span className="flex items-baseline gap-1">
           <span className="text-slate-500">Net</span>
@@ -134,6 +162,7 @@ export function RegisterList({
   weeksByStart,
   eventsById,
   currency,
+  showRangeNotes,
   onSelectWeek,
   onSelectEvent,
 }: {
@@ -141,6 +170,8 @@ export function RegisterList({
   weeksByStart: Map<string, WeekSummary>;
   eventsById: Map<string, LedgerEvent>;
   currency: string;
+  /** Show the "earlier/later weeks" notes. Off when no week is projected: the page already explains that. */
+  showRangeNotes: boolean;
   onSelectWeek: (week: WeekSummary) => void;
   onSelectEvent: (event: LedgerEvent) => void;
 }) {
@@ -153,16 +184,19 @@ export function RegisterList({
 
   return (
     <section aria-label="Running balance register" className="@container min-w-0 space-y-3" data-testid="calendar-register">
-      <div
-        className="hidden grid-cols-[3.75rem_minmax(0,1fr)_7rem_7.5rem] gap-x-3 px-3 text-xs font-semibold text-slate-600 @lg:grid"
-        aria-hidden="true"
-      >
-        <span>Date</span>
-        <span>Income or bill</span>
-        <span className="text-right">Amount</span>
-        <span className="text-right">Balance after</span>
-      </div>
-      {earlier > 0 && (
+      {shown.length > 0 && (
+        <div
+          data-testid="register-column-headings"
+          className="hidden grid-cols-[3.75rem_minmax(0,1fr)_7rem_7.5rem] gap-x-3 px-3 text-xs font-semibold text-slate-600 @lg:grid"
+          aria-hidden="true"
+        >
+          <span>Date</span>
+          <span>Income or bill</span>
+          <span className="text-right">Amount</span>
+          <span className="text-right">Balance after</span>
+        </div>
+      )}
+      {showRangeNotes && earlier > 0 && (
         <Note>{`${earlier} earlier ${plural(earlier)} before your projection start.`}</Note>
       )}
       {shown.map(({ key, week }) => {
@@ -171,7 +205,7 @@ export function RegisterList({
           <section
             key={key}
             data-testid={`week-register-${key}`}
-            aria-label={`Week of ${fmtRange(week.rangeStart, week.rangeEnd)}`}
+            aria-label={weekLabel(key)}
             className={clsx("overflow-hidden rounded-sheet border bg-sheet", week.hasNegative ? "border-rose-300" : "border-slate-300")}
           >
             <WeekHeader week={week} currency={currency} onSelect={onSelectWeek} />
@@ -187,7 +221,7 @@ export function RegisterList({
           </section>
         );
       })}
-      {later > 0 && <Note>{`${later} later ${plural(later)} beyond the 12-month forecast limit.`}</Note>}
+      {showRangeNotes && later > 0 && <Note>{`${later} later ${plural(later)} beyond the 12-month forecast limit.`}</Note>}
     </section>
   );
 }

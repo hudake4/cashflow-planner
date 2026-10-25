@@ -17,6 +17,7 @@ You enter a starting balance, your paychecks (weekly, biweekly, monthly or one-t
 - **Institutions:** optionally connect a bank read-only through SimpleFIN Bridge, see its accounts and balances, browse the transactions saved from your last sync, refresh on demand, and remove it again.
 - **Find recurring:** on the Dashboard, Bills and Income pages, scan your saved bank transactions for repeating bills and paychecks, then add the ones you pick with frequency and next date filled in. It reads the local copy only and never uses a SimpleFIN request.
 - **Bill estimates:** for a variable bill, an occurrence's detail panel can suggest an amount from the matching payments in your saved bank transactions (a rolling average of recent weeks or months). It only fills the amount field; nothing changes until you save, and it says so when there is too little history. Local data only.
+- **Paid in your bank?:** on the Bills page, when a saved bank transaction looks like the payment of a bill you haven't marked paid (same merchant, within 3 days of the due date, amount within 10%), you are offered to mark it paid. Nothing is marked until you confirm, marking paid is a tracking note only (the projected balance doesn't change), and it never uses a SimpleFIN request.
 - **Settings:** starting balance, projection start date, currency, forecast length (7–366 days), week start day and default calendar view. Also load demo data or clear everything.
 
 ## Prerequisites
@@ -79,7 +80,9 @@ The app claims the token on the server, saves the connection and loads your acco
 
 - **Sync is explicit.** SimpleFIN allows about 24 requests per day and refreshes bank data roughly once a day, and a token that goes over the limit can be disabled. So the app never fetches while you browse: it fetches when you connect and when you press **Refresh**, and refuses a second refresh within 15 minutes.
 - **Transactions are stored locally this time.** Because live fetching isn't practical, the accounts, balances and transactions from the last sync are saved in the local database (`prisma/dev.db`) so the pages work offline and don't spend your daily requests. Each refresh re-reads the last week or so and replaces what it covers. Only the last 89 days are ever shown or kept: older transactions are deleted on each refresh.
-- **The Access URL is a secret.** SimpleFIN's Access URL contains the credentials for your connection. It is stored unencrypted in the local database, like the rest of your data, is used only by the server, and is never sent to the browser or included in any API response or log.
+- **The Access URL is a secret.** SimpleFIN's Access URL contains the credentials for your connection. It is used only by the server and is never sent to the browser or included in any API response or log. It is **encrypted at rest**:
+  - **Desktop app:** sealed with Windows DPAPI (Electron `safeStorage`), tied to your Windows account. A connection saved before this existed is encrypted the next time you press **Refresh**. If you restore `cashflow.db` onto another computer or Windows account, the stored URL can't be decrypted: remove the connection and connect again with a new setup token.
+  - **`npm run dev` / `npm start`:** set `CASHFLOW_SECRET_KEY` in `.env` to a 32-byte base64 key (`node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`) and the URL is stored with AES-256-GCM. Without a key it is stored as plaintext, like the rest of your data. Keep the key: without it the stored URL can't be read.
 - **Removing a connection** deletes it, its accounts and its stored transactions from this app only. SimpleFIN has no revoke call, so to fully revoke access also disable the token in your SimpleFIN Bridge account.
 - Bank data never changes your projection.
 
@@ -116,7 +119,7 @@ The full rules are in [docs/CONVENTIONS.md](docs/CONVENTIONS.md). In short:
   - **Skipped** occurrences don't count at all, and later occurrences are unaffected.
   - Per-occurrence amount overrides support variable bills.
   - Editing a bill never rewrites past paid or skipped records.
-- To line projections up with your real bank balance, update the starting balance and start date in Settings.
+- To line projections up with your real bank balance, update the starting balance and start date in Settings. When the starting balance comes from your bank accounts, refresh them instead: the start date follows the refresh. Events dated on that start date are still projected, so one your bank already shows for that day may be counted twice.
 
 ## Architecture
 

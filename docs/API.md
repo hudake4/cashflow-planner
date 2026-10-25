@@ -19,7 +19,7 @@ Errors always use this shape (`ApiErrorBody`):
 ## Settings
 | Method | Path | Body | Response |
 |---|---|---|---|
-| GET | `/api/settings` | — | `SettingsDTO`. Returns defaults when never saved: balance 0, start = today, USD, 90 days, Sunday, month, `updatedAt: null`. |
+| GET | `/api/settings` | — | `SettingsDTO`. Returns defaults when never saved: balance 0, start = today, USD, 90 days, Sunday, month, `updatedAt: null`. `startingBalanceCents` and `projectionStartDate` are the values as stored (what the user typed). `accountsBalanceCents`, `accountCount`, `accountsBalanceDate` and `accountsStaleCount` are derived from the accounts labelled `BANK` and are never stored: the total, the count, the oldest `balanceDate` among the accounts refreshed in the last 7 days (the oldest overall when none is that fresh, never later than the server's local today; `null` when there are no accounts) and how many accounts were left out of that date as stale (their balance is still in the total; `0` when none, or when all are equally stale). With `startingBalanceSource: "ACCOUNTS"` and at least one `BANK` account, the projection starts from the total on `accountsBalanceDate`; otherwise from the typed balance on `projectionStartDate`. |
 | PUT | `/api/settings` | `SettingsInput` (full object) | `SettingsDTO` |
 
 ## Income
@@ -46,8 +46,8 @@ Errors always use this shape (`ApiErrorBody`):
 ## Projection & dashboard
 | Method | Path | Query | Response |
 |---|---|---|---|
-| GET | `/api/projection` | `from?`, `to?` (YYYY-MM-DD). The default is the full window. `from` is clamped to `projectionStartDate`, and `to` is clamped to `maxEndDate`. | `ProjectionResponse` |
-| GET | `/api/dashboard` | — | `DashboardResponse` |
+| GET | `/api/projection` | `from?`, `to?` (YYYY-MM-DD). The default is the full window. `from` is clamped to the effective start date (`projectionStartDate`, or `accountsBalanceDate` when the balance comes from the accounts), and `to` is clamped to `maxEndDate`. | `ProjectionResponse` |
+| GET | `/api/dashboard` | — | `DashboardResponse`. Its `settings` carry the effective starting balance and start date, as the projection used them. |
 
 Projection slicing details:
 - An empty `from`/`to` value is treated as missing. `from > to` (as requested) → 400 `VALIDATION_ERROR` on `to`. If clamping leaves `from` after `to` (e.g. only `from` is given and it is past the window end), the range becomes the single day `from`.
@@ -64,7 +64,7 @@ Only the server talks to SimpleFIN (`src/server/simplefin.ts`). The setup token 
 | POST | `/api/institutions` | `{ setupToken }` (trimmed, 1–2000 characters) | `201 InstitutionSyncDTO` (`InstitutionDTO` plus `warnings: string[]`). Claims the token (single use) at SimpleFIN, saves the connection and runs the first sync (up to the last ~90 days). 400 `BAD_REQUEST` for a malformed token, a token that doesn't point at an https `simplefin.org` host (rejected before any network call), or one that is invalid or already used; 502 `UPSTREAM_ERROR` when SimpleFIN fails. If the claim succeeds but the first sync fails, the connection is **kept** (the token can't be claimed again) and the failure is reported in `warnings`. |
 | POST | `/api/institutions/:id/sync` | — | `InstitutionSyncDTO`. Fetches from SimpleFIN and replaces the stored pending transactions and those in the fetched window, then deletes transactions older than 89 days. 404 unknown id; 409 `CONFLICT` if the last successful sync was under 15 minutes ago (or one is running); 502 `UPSTREAM_ERROR` when access was revoked, the subscription needs payment, SimpleFIN rate limits or is unavailable. `warnings` carries SimpleFIN's own notices (plain text). |
 | DELETE | `/api/institutions/:id` | — | `204` / 404. Deletes the connection, its accounts and its stored transactions locally. SimpleFIN has no revoke API, so the token must be disabled in the user's SimpleFIN account. |
-| PATCH | `/api/institutions/:id/accounts/:accountId` | `{ kind }`: `BANK`, `CREDIT`, `LOAN` or `OTHER` | `BankAccountDTO` with the new `kind`. Only `BANK` accounts are summed into the starting balance (`SettingsDTO.accountsBalanceCents` / `accountCount`). Syncs never change `kind`. 400 `VALIDATION_ERROR` for another value; 404 for an unknown connection or an account that isn't part of it. |
+| PATCH | `/api/institutions/:id/accounts/:accountId` | `{ kind }`: `BANK`, `CREDIT`, `LOAN` or `OTHER` | `BankAccountDTO` with the new `kind`. Only `BANK` accounts are summed into the starting balance (`SettingsDTO.accountsBalanceCents` / `accountCount`), and the oldest of their recent balance dates is the projection start date with the `ACCOUNTS` source (`accountsBalanceDate`, `accountsStaleCount`). Syncs never change `kind`. 400 `VALIDATION_ERROR` for another value; 404 for an unknown connection or an account that isn't part of it. |
 | GET | `/api/institutions/:id/transactions` | `accountId` (required), `offset?` (default 0) | `BankTransactionsResponse` `{ transactions, hasMore }` from the local snapshot, limited to the last 89 days (counting today), newest first (date, then id), 50 per page. `amountCents` is signed. 400 `VALIDATION_ERROR` without `accountId`; 404 for an unknown connection or an account that isn't part of it. |
 
 ## Recurring-payment scan (from bank history)
@@ -76,8 +76,17 @@ Finds repeating payments and deposits in the stored bank transactions and sugges
 
 Adding a suggestion uses the existing `POST /api/bills` or `POST /api/income`, with the notes "Found in your bank history."
 
+## Bill payment matches (from bank history)
+Synced bank transactions that look like the payment of a bill occurrence that is not yet marked paid. Rules are in [`CONVENTIONS.md`](CONVENTIONS.md) section 14. The endpoint reads the local database only, never calls SimpleFIN and changes nothing.
+
+| Method | Path | Body / query | Response |
+|---|---|---|---|
+| GET | `/api/bills/matches` | — | `BillMatchesResponse` `{ matches, currency }`. Each match is a `BillPaymentMatchDTO`: `billId`, `billName`, `dueDate` (the scheduled occurrence), `expectedCents` (the occurrence's override, else the bill amount), `amountOverrideCents` and `note` (the occurrence's recorded values, or `null`), and `transaction` `{ id, date, description, cents }` (`cents` is the positive magnitude of the money out). Sorted by `dueDate`, then bill name. `matches` is empty when no bank is connected. |
+
+To accept a match, the client calls the existing `PUT /api/bills/:id/occurrences/:date` with `{ status: "PAID", amountOverrideCents, note }` copied from the match, so the override and note are kept. Marking paid is tracking only and never changes the projection.
+
 ## Bill estimate (from bank history)
-A suggested amount for a variable bill, from the stored bank transactions. Rules are in [`CONVENTIONS.md`](CONVENTIONS.md) section 14. It reads the local snapshot only, never calls SimpleFIN, and **saves nothing**: to use a suggestion the client sends the normal `PUT /api/bills/:id/occurrences/:date` with `amountOverrideCents`.
+A suggested amount for a variable bill, from the stored bank transactions. Rules are in [`CONVENTIONS.md`](CONVENTIONS.md) section 15. It reads the local snapshot only, never calls SimpleFIN, and **saves nothing**: to use a suggestion the client sends the normal `PUT /api/bills/:id/occurrences/:date` with `amountOverrideCents`.
 
 | Method | Path | Body / query | Response |
 |---|---|---|---|
@@ -94,8 +103,9 @@ Last month's and this month's spending by category. Rules are in [`CONVENTIONS.m
 ## Data management (local only)
 | Method | Path | Body | Response |
 |---|---|---|---|
-| GET | `/api/data/export` | — | `200 DataExportDTO`, sent as a download: `Content-Type: application/json`, `Content-Disposition: attachment; filename="cashflow-planner-backup-<YYYY-MM-DD>.json"` (the server's local today) and `Cache-Control: no-store`. Body: `{ format: "cashflow-planner-export", formatVersion: 1, appVersion, exportedAt, settings, incomes, bills, billOccurrences, institutions }`. `settings` is the stored `SettingsDTO` (the typed balance), `billOccurrences` holds every recorded status row for every bill, and each institution is `{ id, name, connectedAt, lastSyncedAt, accounts: BankAccountDTO[], transactions: BankTransactionDTO[] }` with every stored transaction, newest first. The Zod schema is `dataExportSchema`. It **never** contains an Access URL, setup token, Authorization header or any other bank-connection field. Read only; changes nothing. |
+| GET | `/api/data/export` | — | `200 DataExportDTO`, sent as a download: `Content-Type: application/json`, `Content-Disposition: attachment; filename="cashflow-planner-backup-<YYYY-MM-DD>.json"` (the server's local today) and `Cache-Control: no-store`. Body: `{ format: "cashflow-planner-export", formatVersion: 1, appVersion, exportedAt, settings, incomes, bills, billOccurrences, institutions }`. `settings` is the stored `SettingsDTO` (the typed balance and start date, plus the derived `accountsBalanceCents`, `accountCount`, `accountsBalanceDate` and `accountsStaleCount` as of the export), `billOccurrences` holds every recorded status row for every bill, and each institution is `{ id, name, connectedAt, lastSyncedAt, accounts: BankAccountDTO[], transactions: BankTransactionDTO[] }` with every stored transaction, newest first. The Zod schema is `dataExportSchema`. It **never** contains an Access URL, setup token, Authorization header or any other bank-connection field. Read only; changes nothing. |
+| POST | `/api/data/restore` | Backup file JSON body from any app version (`formatVersion: 1`) | `200 { ok: true }`. Accepts only `format: "cashflow-planner-export"`, `formatVersion: 1`, and validates with `dataRestoreSchema`. Derived settings fields and institutions may be missing or older-shaped because they are ignored. Malformed JSON and relationship/duplicate errors return `400 BAD_REQUEST`; schema failures return `400 VALIDATION_ERROR`. Orphan occurrences, duplicate income ids, duplicate bill ids, and duplicate `(billId, dueDate)` occurrences are rejected before writing. Atomically replaces income, bills, all recorded occurrences and the stored settings (typed settings fields only; derived account fields and `updatedAt` are ignored), preserving income/bill ids and `createdAt`. Bank connections, accounts, transactions, `TransactionCategory` and `MerchantCategoryRule` rows are kept as they are now. The backup's `institutions` are not imported. |
 | POST | `/api/data/demo` | — | **Destructive.** `200 { ok: true }`. **Replaces** all income, bills and occurrences with clearly labeled demo data ("Demo: …" names), and sets the start date to today and the starting balance to $1,250.00. |
 | POST | `/api/data/reset` | — | **Destructive.** `200 { ok: true }`. Deletes all income, bills and occurrences, deletes every bank connection with its stored accounts and transactions (locally only; SimpleFIN has no revoke call), and resets settings to defaults. |
 
-The UI must confirm both destructive actions with the user first. The export needs no confirmation.
+The UI must confirm demo data, reset, and backup restore with the user first. The export needs no confirmation.

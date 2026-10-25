@@ -9,11 +9,13 @@ import type {
   BankAccountDTO,
   BillDTO,
   BillInput,
+  BillMatchesResponse,
   BankTransactionsResponse,
   BillEstimateDTO,
   BillOccurrenceDTO,
   ConnectInstitutionInput,
   DashboardResponse,
+  DataRestoreInput,
   IncomeDTO,
   IncomeInput,
   InstitutionDTO,
@@ -133,6 +135,9 @@ export const api = {
   resetOccurrence: (billId: string, date: string) =>
     request<void>(`/bills/${encodeURIComponent(billId)}/occurrences/${date}`, json("DELETE")),
 
+  /** Synced bank transactions that look like payments of unpaid bill occurrences. Reads local data only; marking one paid is a separate `setOccurrence` call. */
+  listBillMatches: () => request<BillMatchesResponse>("/bills/matches"),
+
   getProjection: (range?: { from?: string; to?: string }) => {
     const qs = new URLSearchParams();
     if (range?.from) qs.set("from", range.from);
@@ -172,6 +177,7 @@ export const api = {
 
   loadDemoData: () => request<{ ok: true }>("/data/demo", json("POST")),
   resetAllData: () => request<{ ok: true }>("/data/reset", json("POST")),
+  restoreBackup: (data: DataRestoreInput) => request<{ ok: true }>("/data/restore", json("POST", data)),
   /** The full backup as a JSON file (bank credentials are never included). */
   downloadBackup,
 };
