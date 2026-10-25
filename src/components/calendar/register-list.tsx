@@ -10,13 +10,24 @@ import { Balance, EventAmount } from "@/components/ui/money";
 import { eventAriaLabel } from "./event-labels";
 import type { GridWeek } from "./heatmap-calendar";
 
+/** A balance for screen readers: the sign alone is easy to miss, so a negative one says so (like `Balance`). */
+function spokenBalance(cents: number, currency: string): string {
+  return `${cents < 0 ? "negative balance " : ""}${money(cents, currency)}`;
+}
+
+/** The week header's accessible name carries everything the visible header shows, including the dip warning. */
+function weekHeaderLabel(week: WeekSummary, currency: string): string {
+  const dip = week.hasNegative ? `, dips below zero, low ${spokenBalance(week.lowestBalanceCents, currency)}` : "";
+  return `Week of ${fmtRange(week.rangeStart, week.rangeEnd)}: opening ${spokenBalance(week.openingBalanceCents, currency)}, income ${money(week.incomeCents, currency)}, bills ${money(week.billsCents, currency)}, closing ${spokenBalance(week.closingBalanceCents, currency)}${dip}. Open week details.`;
+}
+
 function WeekHeader({ week, currency, onSelect }: { week: WeekSummary; currency: string; onSelect: (week: WeekSummary) => void }) {
   return (
     <button
       type="button"
       onClick={() => onSelect(week)}
       data-testid={`week-summary-${week.weekStart}`}
-      aria-label={`Week of ${fmtRange(week.rangeStart, week.rangeEnd)}: opening ${money(week.openingBalanceCents, currency)}, income ${money(week.incomeCents, currency)}, bills ${money(week.billsCents, currency)}, closing ${week.closingBalanceCents < 0 ? "negative balance " : ""}${money(week.closingBalanceCents, currency)}. Open week details.`}
+      aria-label={weekHeaderLabel(week, currency)}
       className={clsx(
         "group flex min-h-11 w-full flex-col gap-1.5 px-3 py-2 text-left transition-colors hover:bg-slate-100",
         "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-600",

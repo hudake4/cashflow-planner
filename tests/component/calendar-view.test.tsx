@@ -49,11 +49,17 @@ const PAYCHECK = event({ id: `INCOME:pay:${PAYDAY}`, date: PAYDAY, kind: "INCOME
 const RENT = event({ id: `BILL:rent:${RENT_DAY}`, date: RENT_DAY, kind: "BILL", name: "Rent", amountCents: 200_000, balanceAfterCents: -50_000 });
 const EVENTS = [PAYCHECK, RENT];
 
+interface ProjectionOptions {
+  events?: LedgerEvent[];
+  startBalance?: number;
+  weekStartsOn?: number;
+}
+
 /** A small consistent projection for whatever range the calendar asks for. */
-function projectionFor(from: string, to: string): ProjectionResponse {
-  let balance = START_BALANCE;
+function projectionFor(from: string, to: string, { events = EVENTS, startBalance = START_BALANCE, weekStartsOn = 0 }: ProjectionOptions = {}): ProjectionResponse {
+  let balance = startBalance;
   const days: DaySummary[] = eachDay(from, to).map((date) => {
-    const todays = EVENTS.filter((e) => e.date === date);
+    const todays = events.filter((e) => e.date === date);
     const net = todays.reduce((sum, e) => sum + e.signedAmountCents, 0);
     const day: DaySummary = {
       date,
@@ -70,7 +76,7 @@ function projectionFor(from: string, to: string): ProjectionResponse {
 
   const weeks: WeekSummary[] = [];
   for (const day of days) {
-    const weekStart = startOfWeek(day.date, 0);
+    const weekStart = startOfWeek(day.date, weekStartsOn);
     let week = weeks.find((w) => w.weekStart === weekStart);
     if (!week) {
       week = {
@@ -104,16 +110,16 @@ function projectionFor(from: string, to: string): ProjectionResponse {
     window: { startDate: TODAY, endDate: addDays(TODAY, 89), maxEndDate: addDays(TODAY, 365) },
     range: { from, to },
     currency: "USD",
-    weekStartsOn: 0,
-    startingBalanceCents: START_BALANCE,
-    events: EVENTS.filter((e) => e.date >= from && e.date <= to),
+    weekStartsOn,
+    startingBalanceCents: startBalance,
+    events: events.filter((e) => e.date >= from && e.date <= to),
     days,
     weeks,
     totals: {
       incomeCents: 0,
       billsCents: 0,
       netCents: 0,
-      openingBalanceCents: START_BALANCE,
+      openingBalanceCents: startBalance,
       endingBalanceCents: balance,
       lowestBalanceCents: 0,
       lowestBalanceDate: from,
@@ -286,5 +292,43 @@ describe("heatmap weeks before the projection start on phones", () => {
       expect(row).not.toHaveAttribute("data-week-collapsed-on-phone");
       expect(row).not.toHaveClass("hidden");
     }
+  });
+});
+
+function mockProjection(options: ProjectionOptions) {
+  getProjection.mockReset().mockImplementation(({ from, to }: { from: string; to: string }) => Promise.resolve(projectionFor(from, to, options)));
+}
+
+describe("week header accessible name", () => {
+  const weekStart = startOfWeek(TODAY, 0);
+
+  it("announces the dip warning with its low value, and a negative closing balance, but not a positive opening", async () => {
+    renderCalendar();
+    const header = await screen.findByTestId(`week-summary-${weekStart}`);
+
+    expect(header).toHaveAccessibleName(/opening \$1,000\.00, income/);
+    expect(header).toHaveAccessibleName(/closing negative balance -\$500\.00/);
+    expect(header).toHaveAccessibleName(/dips below zero, low negative balance -\$500\.00/i);
+    expect(header).toHaveAccessibleName(/Open week details\.$/);
+  });
+
+  it("says negative balance for both a negative opening and a negative closing", async () => {
+    mockProjection({ events: [], startBalance: -70_000 });
+    renderCalendar();
+    const header = await screen.findByTestId(`week-summary-${weekStart}`);
+
+    expect(header).toHaveAccessibleName(/opening negative balance -\$700\.00/);
+    expect(header).toHaveAccessibleName(/closing negative balance -\$700\.00/);
+    expect(header).toHaveAccessibleName(/dips below zero, low negative balance -\$700\.00/i);
+  });
+
+  it("says nothing about negative balances or dips for a healthy week", async () => {
+    mockProjection({ events: [] });
+    renderCalendar();
+    const header = await screen.findByTestId(`week-summary-${weekStart}`);
+
+    expect(header).not.toHaveAccessibleName(/negative balance/);
+    expect(header).not.toHaveAccessibleName(/dips below zero/i);
+    expect(header).toHaveAccessibleName(/opening \$1,000\.00, .*closing \$1,000\.00/);
   });
 });
