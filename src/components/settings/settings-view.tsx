@@ -12,7 +12,9 @@ import {
   type StartingBalanceSource,
 } from "@/contracts/api";
 import { centsToInputValue, formatCents, parseMoneyToCents } from "@/domain/money";
+import { startDateFromAccounts } from "@/domain/starting-balance";
 import { ApiError, api, errorMessage } from "@/lib/api-client";
+import { fmtShort } from "@/lib/dates";
 import { CURRENCIES } from "@/lib/format";
 import { applyTheme, currentTheme, type Theme } from "@/lib/theme";
 import { useApi } from "@/lib/use-api";
@@ -332,7 +334,7 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsDTO; onSaved: () 
                         <Link href="/institutions" className="font-semibold text-brand-700 underline">
                           Institutions page
                         </Link>{" "}
-                        to update it, and set the start date to today.
+                        to update it.
                       </p>
                     </>
                   )}
@@ -352,19 +354,31 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsDTO; onSaved: () 
                   />
                 </Field>
               )}
-              <Field
-                label="Projection start date"
-                hint="Income and bills on or after this date are projected."
-                error={errors.projectionStartDate}
-                testId="settings-start-date"
-              >
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  data-testid="settings-start-date"
-                />
-              </Field>
+              {startDateFromAccounts({ startingBalanceSource: source, accountsBalanceDate: initial.accountsBalanceDate }) &&
+              initial.accountsBalanceDate ? (
+                <div className="flex flex-col gap-1.5" data-testid="settings-start-date-derived">
+                  <span className="text-sm font-semibold text-foreground">Projection start date</span>
+                  <p className="text-lg font-semibold tabular-nums text-foreground">{fmtShort(initial.accountsBalanceDate)}</p>
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    From your last bank refresh: the oldest balance date among your bank accounts. Income and bills on or after this date are
+                    projected.
+                  </p>
+                </div>
+              ) : (
+                <Field
+                  label="Projection start date"
+                  hint="Income and bills on or after this date are projected."
+                  error={errors.projectionStartDate}
+                  testId="settings-start-date"
+                >
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    data-testid="settings-start-date"
+                  />
+                </Field>
+              )}
             </div>
           </FieldGroup>
         </CardBody>

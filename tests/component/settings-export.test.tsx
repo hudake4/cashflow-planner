@@ -21,6 +21,7 @@ const SETTINGS: SettingsDTO = {
   startingBalanceSource: "MANUAL",
   accountsBalanceCents: null,
   accountCount: 0,
+  accountsBalanceDate: null,
   projectionStartDate: "2026-10-24",
   currency: "USD",
   forecastDays: 90,

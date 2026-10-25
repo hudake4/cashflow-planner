@@ -4,6 +4,7 @@ import { TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import type { CalendarView, LedgerEvent, ProjectionResponse, SettingsDTO, WeekSummary } from "@/contracts/api";
+import { effectiveProjectionStartDate } from "@/domain/starting-balance";
 import { api } from "@/lib/api-client";
 import { addDays, addMonths, eachDay, endOfMonth, fmtDate, fmtRange, startOfMonth, startOfWeek, todayLocal } from "@/lib/dates";
 import { useApi } from "@/lib/use-api";
@@ -102,7 +103,7 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
     return { from, to, month: cursor.slice(0, 7) };
   }, [view, cursor, weekStartsOn]);
 
-  const projectionStart = settings.projectionStartDate;
+  const projectionStart = effectiveProjectionStartDate(settings);
   const maxEnd = addDays(projectionStart, 365);
   const fetchFrom = grid.from < projectionStart ? projectionStart : grid.from;
   const fetchTo = grid.to > maxEnd ? maxEnd : grid.to;

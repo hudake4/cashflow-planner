@@ -282,7 +282,11 @@ function DashboardContent({ d }: { d: DashboardResponse }) {
             label="Starting balance"
             sub={
               <>
-                Entered by you, as of {fmtShort(d.settings.projectionStartDate)}.{" "}
+                {`${
+                  d.settings.startingBalanceSource === "ACCOUNTS" && d.settings.accountsBalanceCents !== null
+                    ? "Total of your bank accounts"
+                    : "Entered by you"
+                }, as of ${fmtShort(d.settings.projectionStartDate)}.`}{" "}
                 <Link href="/settings" className="font-semibold text-brand-700 underline">Update</Link>
               </>
             }

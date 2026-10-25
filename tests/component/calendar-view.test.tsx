@@ -24,6 +24,7 @@ const settings = (over: Partial<SettingsDTO> = {}): SettingsDTO => ({
   startingBalanceSource: "MANUAL",
   accountsBalanceCents: null,
   accountCount: 0,
+  accountsBalanceDate: null,
   projectionStartDate: TODAY,
   currency: "USD",
   forecastDays: 90,
@@ -174,6 +175,19 @@ describe("calendar heatmap and register", () => {
     expect(before).toHaveAttribute("data-state", "before-start");
     expect(within(before).getByRole("button")).toBeDisabled();
     expect(before.textContent).not.toMatch(/\$/);
+  });
+
+  it("starts at the oldest bank balance date when balances come from the accounts, not at the typed date", async () => {
+    const bankDate = addDays(TODAY, -3);
+    getSettings.mockResolvedValue(
+      settings({ startingBalanceSource: "ACCOUNTS", accountsBalanceCents: 90_000, accountCount: 1, accountsBalanceDate: bankDate }),
+    );
+    renderCalendar();
+    await screen.findByTestId(`day-cell-${bankDate}`);
+
+    expect(screen.getByTestId(`day-cell-${bankDate}`)).toHaveAttribute("data-state", "projected");
+    expect(screen.getByTestId(`day-cell-${addDays(bankDate, -1)}`)).toHaveAttribute("data-state", "before-start");
+    expect(getProjection.mock.calls.every(([range]) => range.from >= bankDate)).toBe(true);
   });
 
   it("opens that day's ledger when a day is selected, including a day with no events", async () => {

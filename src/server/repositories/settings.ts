@@ -11,9 +11,10 @@ async function accountsTotal(client: DbClient = db) {
   const total = await client.bankAccount.aggregate({
     where: { kind: "BANK", connection: { householdId: HOUSEHOLD_ID } },
     _sum: { balanceCents: true },
+    _min: { balanceDate: true },
     _count: true,
   });
-  return { balanceCents: total._sum.balanceCents, count: total._count };
+  return { balanceCents: total._sum.balanceCents, oldestBalanceDate: total._min.balanceDate, count: total._count };
 }
 
 export async function getSettings(client: DbClient = db): Promise<SettingsDTO> {
@@ -22,7 +23,12 @@ export async function getSettings(client: DbClient = db): Promise<SettingsDTO> {
     accountsTotal(client),
   ]);
   if (row) return toSettingsDTO(row, accounts);
-  return { ...defaultSettings(), accountsBalanceCents: accounts.count ? accounts.balanceCents : null, accountCount: accounts.count };
+  return {
+    ...defaultSettings(),
+    accountsBalanceCents: accounts.count ? accounts.balanceCents : null,
+    accountCount: accounts.count,
+    accountsBalanceDate: accounts.count ? accounts.oldestBalanceDate : null,
+  };
 }
 
 export async function saveSettings(data: SettingsData): Promise<SettingsDTO> {

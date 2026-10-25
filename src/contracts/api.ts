@@ -137,6 +137,12 @@ export interface SettingsDTO {
   accountsBalanceCents: number | null;
   /** How many accounts are labelled BANK (the ones in `accountsBalanceCents`). */
   accountCount: number;
+  /**
+   * The oldest `balanceDate` among the accounts labelled BANK; null when there are none. With the
+   * ACCOUNTS source it is the date the projection starts on (`effectiveProjectionStartDate`).
+   */
+  accountsBalanceDate: string | null;
+  /** The start date the user typed. Used when `startingBalanceSource` is MANUAL (or no accounts are connected). */
   projectionStartDate: string;
   currency: string;
   forecastDays: number;
@@ -498,6 +504,7 @@ const settingsDTOSchema = z.object({
   startingBalanceSource: startingBalanceSourceSchema,
   accountsBalanceCents: signedCentsSchema.nullable(),
   accountCount: z.number().int().min(0),
+  accountsBalanceDate: isoDateSchema.nullable(),
   projectionStartDate: isoDateSchema,
   currency: z.string().regex(/^[A-Z]{3}$/),
   forecastDays: z.number().int().min(MIN_FORECAST_DAYS).max(MAX_FORECAST_DAYS),
