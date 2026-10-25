@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.17.0](https://github.com/hudake4/cashflow-planner/compare/v0.16.0...v0.17.0) (2026-10-25)
+
+
+### Features
+
+* **settings:** start projection at the oldest bank balance date when balances come from accounts ([d2b05b8](https://github.com/hudake4/cashflow-planner/commit/d2b05b839e3652066d008a82434f414af5182617))
+* **settings:** start the projection at the bank balance date when balances come from accounts ([37e1d3d](https://github.com/hudake4/cashflow-planner/commit/37e1d3dfc1748e8f98b0815c5f8b30f9a4dcc2a4))
+
+
+### Bug Fixes
+
+* **settings:** ignore stale bank accounts when choosing the projection start date ([6b8c9e2](https://github.com/hudake4/cashflow-planner/commit/6b8c9e298be372a4bad8c5ee20c3d30e401e5e9d))
+* **settings:** say how to clear stale accounts and mention the one-week rule in the start date note ([dd51c86](https://github.com/hudake4/cashflow-planner/commit/dd51c861d92d5cb1a2ee09cfaf6f2e6a3fe7aa69))
+
 ## [0.16.0](https://github.com/hudake4/cashflow-planner/compare/v0.15.0...v0.16.0) (2026-10-25)
 
 
