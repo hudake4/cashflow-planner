@@ -13,6 +13,7 @@ import type {
   BillOccurrenceDTO,
   ConnectInstitutionInput,
   DashboardResponse,
+  DataRestoreInput,
   IncomeDTO,
   IncomeInput,
   InstitutionDTO,
@@ -167,6 +168,7 @@ export const api = {
 
   loadDemoData: () => request<{ ok: true }>("/data/demo", json("POST")),
   resetAllData: () => request<{ ok: true }>("/data/reset", json("POST")),
+  restoreBackup: (data: DataRestoreInput) => request<{ ok: true }>("/data/restore", json("POST", data)),
   /** The full backup as a JSON file (bank credentials are never included). */
   downloadBackup,
 };

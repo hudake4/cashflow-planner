@@ -608,6 +608,26 @@ export const dataExportSchema = z.object({
   institutions: z.array(exportedInstitutionSchema),
 });
 
+/** Accept every formatVersion 1 file since v0.12.0; ignored fields may be absent or older-shaped. */
+export const dataRestoreSchema = z.object({
+  format: z.literal(DATA_EXPORT_FORMAT),
+  formatVersion: z.literal(DATA_EXPORT_FORMAT_VERSION),
+  appVersion: z.string().min(1),
+  exportedAt: timestampSchema,
+  settings: settingsDTOSchema.extend({
+    accountsBalanceCents: signedCentsSchema.nullable().optional(),
+    accountCount: z.number().int().min(0).optional(),
+    accountsBalanceDate: isoDateSchema.nullable().optional(),
+    accountsStaleCount: z.number().int().min(0).optional(),
+    updatedAt: timestampSchema.nullable().optional(),
+  }),
+  incomes: z.array(incomeDTOSchema),
+  bills: z.array(billDTOSchema),
+  billOccurrences: z.array(billOccurrenceDTOSchema),
+  institutions: z.array(z.unknown()),
+});
+export type DataRestoreInput = z.output<typeof dataRestoreSchema>;
+
 /** InstitutionDTO (id, name, connectedAt, lastSyncedAt, accounts) plus the stored transactions. */
 export interface ExportedInstitutionDTO extends InstitutionDTO {
   transactions: BankTransactionDTO[];
