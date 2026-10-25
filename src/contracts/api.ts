@@ -523,6 +523,35 @@ export interface BillMatchesResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Bill amount estimate (reads the stored bank transactions; never calls SimpleFIN)
+// ---------------------------------------------------------------------------
+
+/** ROLLING: average of the latest complete periods. SEASONAL: average of the same month in earlier years. */
+export type BillEstimateMethod = "ROLLING" | "SEASONAL";
+
+/** Why no estimate was made. */
+export type BillEstimateReason = "NO_BANK_DATA" | "NO_MATCHES" | "TOO_FEW_PERIODS" | "UNSUPPORTED_FREQUENCY";
+
+export interface BillEstimateValueDTO {
+  /** Positive magnitude, integer cents. */
+  amountCents: number;
+  method: BillEstimateMethod;
+  /** How many periods (weeks, 2-week periods or calendar months) the average is over. */
+  periodCount: number;
+  /** First and last bank transaction date that went into it. */
+  firstDate: string;
+  lastDate: string;
+}
+
+/** A suggestion only: nothing is stored or applied until the user saves it as a per-date amount. */
+export interface BillEstimateDTO {
+  estimate: BillEstimateValueDTO | null;
+  /** Set exactly when `estimate` is null. */
+  reason: BillEstimateReason | null;
+  currency: string;
+}
+
+// ---------------------------------------------------------------------------
 // Data export (backup file from GET /api/data/export)
 // ---------------------------------------------------------------------------
 // Everything the user entered plus the stored bank snapshot, as a single JSON file.

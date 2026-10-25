@@ -1,11 +1,11 @@
 "use client";
 
-import { Ban, CircleCheck, Pencil, RotateCcw } from "lucide-react";
+import { Ban, CircleCheck, History, Pencil, RotateCcw } from "lucide-react";
 import { useState, type FormEvent } from "react";
-import type { LedgerEvent, OccurrenceStatus } from "@/contracts/api";
-import { centsToInputValue, parseMoneyToCents } from "@/domain/money";
+import type { BillEstimateDTO, BillEstimateReason, LedgerEvent, OccurrenceStatus } from "@/contracts/api";
+import { centsToInputValue, formatCents, parseMoneyToCents } from "@/domain/money";
 import { api, errorMessage } from "@/lib/api-client";
-import { fmtDayShort } from "@/lib/dates";
+import { fmtDayShort, fmtShort } from "@/lib/dates";
 import { FREQUENCY_LABELS } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -59,6 +59,75 @@ export function EventDetailDialog({
         />
       )}
     </Dialog>
+  );
+}
+
+/** Frequencies the estimate supports, with the word for one billing period. */
+const ESTIMATE_UNITS: Partial<Record<string, string>> = { WEEKLY: "week", BIWEEKLY: "2-week period", MONTHLY: "month" };
+
+const NO_ESTIMATE_TEXT: Record<BillEstimateReason, string> = {
+  NO_BANK_DATA: "No bank history is saved yet. Connect a bank on the Institutions page.",
+  NO_MATCHES: "No payments in your bank history match this bill's name.",
+  TOO_FEW_PERIODS: "Not enough bank history yet: at least two complete periods with matching payments are needed.",
+  UNSUPPORTED_FREQUENCY: "Estimates are available for weekly, every 2 weeks and monthly bills.",
+};
+
+/** Asks for a suggestion on demand and only fills the amount field; the user still presses Save. */
+function EstimateSuggestion({
+  billId,
+  date,
+  frequency,
+  onUse,
+}: {
+  billId: string;
+  date: string;
+  frequency: string;
+  onUse: (cents: number) => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<BillEstimateDTO | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function suggest() {
+    setLoading(true);
+    setError(null);
+    try {
+      setResult(await api.getBillEstimate(billId, date));
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const estimate = result?.estimate ?? null;
+  const unit = ESTIMATE_UNITS[frequency] ?? "period";
+  return (
+    <div className="space-y-2" data-testid="occurrence-estimate">
+      <Button type="button" size="sm" variant="secondary" className="h-auto min-h-11" loading={loading} disabled={loading} onClick={() => void suggest()} data-testid="occurrence-estimate-suggest">
+        <History className="h-4 w-4" aria-hidden="true" /> Suggest from bank history
+      </Button>
+      {error && <InlineStatus tone="error">{error}</InlineStatus>}
+      {result && !estimate && (
+        <p className="text-xs text-slate-600" data-testid="occurrence-estimate-none">
+          {NO_ESTIMATE_TEXT[result.reason ?? "NO_MATCHES"]}
+        </p>
+      )}
+      {estimate && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-control bg-slate-100 px-3 py-2 text-xs text-slate-700" data-testid="occurrence-estimate-result">
+          <p>
+            <span className="font-semibold text-slate-900">{formatCents(estimate.amountCents, { currency: result?.currency })}</span>{" "}
+            {estimate.method === "SEASONAL"
+              ? `average for this month in earlier years (${estimate.periodCount})`
+              : `average per ${unit} over the last ${estimate.periodCount} complete ${unit}s`}
+            , from payments between {fmtShort(estimate.firstDate)} and {fmtShort(estimate.lastDate)}.
+          </p>
+          <Button type="button" size="sm" variant="secondary" className="h-auto min-h-11" onClick={() => onUse(estimate.amountCents)} data-testid="occurrence-estimate-use">
+            Use {formatCents(estimate.amountCents, { currency: result?.currency })}
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -244,6 +313,17 @@ function EventDetailBody({
                 data-testid="occurrence-override"
               />
             </Field>
+            {ESTIMATE_UNITS[event.frequency] && (
+              <EstimateSuggestion
+                billId={event.sourceId}
+                date={event.date}
+                frequency={event.frequency}
+                onUse={(cents) => {
+                  setOverride(centsToInputValue(cents));
+                  setOverrideError(null);
+                }}
+              />
+            )}
             <div className="flex flex-wrap gap-2">
               <Button type="submit" size="sm" variant="primary" loading={busy === "override"} disabled={busy !== null} data-testid="occurrence-override-save">
                 Save amount

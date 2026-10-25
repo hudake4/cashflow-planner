@@ -126,6 +126,7 @@ The domain modules are the contract that the tests are written against. Their ex
 | `src/domain/recurring.ts` | `detectRecurring` and merchant-name normalisation (section 12) |
 | `src/domain/spending.ts` | `categorize`, `merchantKey` and `buildSpending` (section 13) |
 | `src/domain/bill-match.ts` | `matchBillPayments`, bank transactions to unpaid bill occurrences (section 14) |
+| `src/domain/estimate.ts` | `estimateBillAmount`, the suggested amount for a variable bill (section 15) |
 
 Rules for every module: pure functions, no Prisma, no I/O, no `Date.now()` (today is passed in). ESLint enforces this (`eslint.config.mjs`, the `src/domain` block), and bans `parseFloat` across `src/` because money is parsed from strings. If you change an exported signature, update its callers and tests in the same PR and mention it in the PR description.
 
@@ -192,3 +193,16 @@ Offers to mark a bill occurrence paid when a synced bank transaction looks like 
 - **One to one.** Each transaction and each occurrence is used at most once. Pairs are taken closest date first, then closest amount, then bill name and id. If one transaction fits occurrences of two *different* bills equally well (same date gap and amount gap) it is ambiguous and is offered for neither.
 - **Order:** due date, then bill name.
 - **Confirming** keeps the occurrence's existing amount override and note (they are in the offer), so only the status changes. Dismissing ("Not this one") is per page view: nothing is stored, so the offer returns on reload until the occurrence is marked paid or skipped.
+
+## 15. Variable-bill estimate
+
+Suggests an amount for a variable bill (electric, groceries) from the stored bank history. Pure rules in `src/domain/estimate.ts`. It reads the local bank snapshot only and **never calls SimpleFIN**.
+
+- **A suggestion, nothing more.** The estimate is shown on request in the occurrence dialog ("Suggest from bank history"). Using it only fills the "Amount for this date only" field; the user still presses Save, which is the existing per-occurrence override (section 5). The bill's stored amount, existing overrides and the projection are never changed by an estimate, and it is never applied automatically.
+- **Input:** settled (non-pending) transactions in the 89-day history window (section 9), money out only, dated on or before today. Amounts are summed as positive magnitudes in integer cents; refunds are ignored, not netted.
+- **Matching:** a transaction belongs to a bill when one name's words are all in the other's, using the same normalised words as the recurring scan's "already tracked" rule (section 12, `nameTokens` and `namesOverlap`). So a bill named "City Electric" matches "POS DEBIT CITY ELECTRIC #8841". Rename the bill if the bank's description differs.
+- **Periods:** payments are summed per billing period: a week (`WEEKLY`) or two weeks (`BIWEEKLY`), both counted from the bill's anchor date, or a calendar month (`MONTHLY`). Quarterly, yearly and one-time bills are not estimated (`UNSUPPORTED_FREQUENCY`). A period with no matching payment is not counted as zero.
+- **Complete periods only:** a period counts only if it ended before today and started on or after the oldest day of the history window, so a month in progress or cut off by the window never lowers the average.
+- **Rolling average (the default):** the mean of the latest 4 complete periods, rounded half up to whole cents. With 3 or more periods, one under half or over double the median is left out as an outlier (a catch-up payment, a refund-sized dip) if at least 2 remain.
+- **Seasonal average:** for a `MONTHLY` bill, when the history holds the same calendar month as the occurrence's due date in an **earlier year**, the estimate is the mean of those months and `method` is `SEASONAL`. With the 89-day window this never happens; it only applies if history is ever kept longer. Seasonal data is never mixed with the rolling average.
+- **No suggestion** (`estimate: null`, with a `reason`): `NO_BANK_DATA` (no stored transactions), `NO_MATCHES`, `TOO_FEW_PERIODS` (fewer than 2 complete periods with a match) or `UNSUPPORTED_FREQUENCY`. The UI says why and offers nothing to apply.

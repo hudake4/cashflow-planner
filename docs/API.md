@@ -85,6 +85,13 @@ Synced bank transactions that look like the payment of a bill occurrence that is
 
 To accept a match, the client calls the existing `PUT /api/bills/:id/occurrences/:date` with `{ status: "PAID", amountOverrideCents, note }` copied from the match, so the override and note are kept. Marking paid is tracking only and never changes the projection.
 
+## Bill estimate (from bank history)
+A suggested amount for a variable bill, from the stored bank transactions. Rules are in [`CONVENTIONS.md`](CONVENTIONS.md) section 15. It reads the local snapshot only, never calls SimpleFIN, and **saves nothing**: to use a suggestion the client sends the normal `PUT /api/bills/:id/occurrences/:date` with `amountOverrideCents`.
+
+| Method | Path | Body / query | Response |
+|---|---|---|---|
+| GET | `/api/bills/:id/estimate` | `date?` (YYYY-MM-DD, the occurrence being estimated; its month picks the season; default today) | `BillEstimateDTO` `{ estimate, reason, currency }`. `estimate` is `{ amountCents, method, periodCount, firstDate, lastDate }` or `null`. `amountCents` is a positive integer, `method` is `ROLLING` or `SEASONAL`, `periodCount` is how many weeks, 2-week periods or months it averages, and `firstDate`/`lastDate` bound the bank payments used. `reason` is `null` when there is an estimate, otherwise `NO_BANK_DATA`, `NO_MATCHES`, `TOO_FEW_PERIODS` or `UNSUPPORTED_FREQUENCY`. 404 for an unknown bill; 400 `VALIDATION_ERROR` for a malformed `date`. |
+
 ## Spend analyzer (from bank history)
 Last month's and this month's spending by category. Rules are in [`CONVENTIONS.md`](CONVENTIONS.md) section 13. Both endpoints read and write the local database only and never call SimpleFIN.
 

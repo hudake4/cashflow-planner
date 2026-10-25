@@ -16,6 +16,7 @@ You enter a starting balance, your paychecks (weekly, biweekly, monthly or one-t
 - **Income & Bills:** create, edit, delete and deactivate, with optional end dates, categories and notes.
 - **Institutions:** optionally connect a bank read-only through SimpleFIN Bridge, see its accounts and balances, browse the transactions saved from your last sync, refresh on demand, and remove it again.
 - **Find recurring:** on the Dashboard, Bills and Income pages, scan your saved bank transactions for repeating bills and paychecks, then add the ones you pick with frequency and next date filled in. It reads the local copy only and never uses a SimpleFIN request.
+- **Bill estimates:** for a variable bill, an occurrence's detail panel can suggest an amount from the matching payments in your saved bank transactions (a rolling average of recent weeks or months). It only fills the amount field; nothing changes until you save, and it says so when there is too little history. Local data only.
 - **Paid in your bank?:** on the Bills page, when a saved bank transaction looks like the payment of a bill you haven't marked paid (same merchant, within 3 days of the due date, amount within 10%), you are offered to mark it paid. Nothing is marked until you confirm, marking paid is a tracking note only (the projected balance doesn't change), and it never uses a SimpleFIN request.
 - **Settings:** starting balance, projection start date, currency, forecast length (7–366 days), week start day and default calendar view. Also load demo data or clear everything.
 
