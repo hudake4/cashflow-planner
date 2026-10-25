@@ -72,7 +72,7 @@ function DayCell({ day, currency, maxPositiveCents, onSelect }: { day: DayView; 
         data-testid={`day-button-${day.date}`}
         style={projected ? { backgroundColor: heatBackground(heatTint(closing, maxPositiveCents)) } : undefined}
         className={clsx(
-          "flex h-full min-h-14 w-full min-w-0 flex-col justify-between gap-0.5 rounded-control border px-0.5 py-1 text-left transition-colors @min-[20.5rem]:px-1",
+          "flex h-full min-h-14 w-full min-w-0 flex-col justify-between gap-0.5 rounded-control border px-0.5 py-1 text-left transition-colors",
           "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-600",
           projected
             ? "cursor-pointer border-slate-200 text-slate-900 hover:border-slate-400"

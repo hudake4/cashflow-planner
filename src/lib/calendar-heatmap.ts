@@ -5,10 +5,17 @@
 
 const MINUS = "−";
 
-/** Longest balance shown in full (with thousands separators) before switching to "12.5k". */
+/** Longest positive balance shown in full (with thousands separators) before switching to "12.5k". */
 const FULL_LIMIT_DOLLARS = 10_000;
-/** Same, for narrow cells (phones), where "$1,330" no longer fits. */
-const TIGHT_LIMIT_DOLLARS = 1_000;
+/**
+ * Same, for negative balances and narrow cells (phones). The minus sign takes a
+ * character of width, so "−$1,234" no longer fits where "$1,234" does.
+ */
+const SHORT_LIMIT_DOLLARS = 1_000;
+/** Below this many k (or M), a negative balance keeps one decimal; at or above it, whole numbers only. */
+const NEGATIVE_DECIMAL_LIMIT = 10;
+/** Same for positive balances, which have the extra character of room. */
+const POSITIVE_DECIMAL_LIMIT = 100;
 
 function currencySymbol(currency: string): string {
   const part = new Intl.NumberFormat("en-US", { style: "currency", currency }).formatToParts(0).find((p) => p.type === "currency");
@@ -21,21 +28,27 @@ function trimmed(value: number, digits: number): string {
 
 /**
  * A short balance for a heatmap cell: "$265", "$1,330", "$12.5k", "$125k", "$1.2M".
- * Negative balances get a leading true minus sign. `tight` switches to "k" from
- * $1,000 so the text fits a 38px phone cell. Cents are dropped; the full
- * amount lives in the cell's accessible label.
+ * Negative balances get a leading true minus sign and abbreviate sooner
+ * ("−$1.2k", "−$13k") so the longer text still fits. `tight` is for phone cells
+ * (about 38px): it also drops the currency symbol ("1.3k", "−13k"). Cents are
+ * dropped; the full amount lives in the cell's accessible label.
  */
 export function compactBalance(cents: number, currency = "USD", tight = false): string {
   const dollars = Math.round(Math.abs(cents) / 100);
-  const sign = cents < 0 && dollars > 0 ? MINUS : "";
-  const symbol = currencySymbol(currency);
-  const limit = tight ? TIGHT_LIMIT_DOLLARS : FULL_LIMIT_DOLLARS;
+  const negative = cents < 0 && dollars > 0;
+  const sign = negative ? MINUS : "";
+  const symbol = tight ? "" : currencySymbol(currency);
+  const limit = tight || negative ? SHORT_LIMIT_DOLLARS : FULL_LIMIT_DOLLARS;
+  const decimalLimit = negative ? NEGATIVE_DECIMAL_LIMIT : POSITIVE_DECIMAL_LIMIT;
 
   if (dollars < limit) return `${sign}${symbol}${dollars.toLocaleString("en-US")}`;
 
   const thousands = dollars / 1000;
-  if (Math.round(thousands) >= 1000) return `${sign}${symbol}${trimmed(dollars / 1_000_000, 1)}M`;
-  return `${sign}${symbol}${trimmed(thousands, thousands < 100 ? 1 : 0)}k`;
+  if (Math.round(thousands) >= 1000) {
+    const millions = dollars / 1_000_000;
+    return `${sign}${symbol}${trimmed(millions, millions < decimalLimit ? 1 : 0)}M`;
+  }
+  return `${sign}${symbol}${trimmed(thousands, thousands < decimalLimit ? 1 : 0)}k`;
 }
 
 export interface HeatTint {
