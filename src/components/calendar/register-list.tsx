@@ -161,6 +161,7 @@ export function RegisterList({
   weeksByStart,
   eventsById,
   currency,
+  showRangeNotes,
   onSelectWeek,
   onSelectEvent,
 }: {
@@ -168,6 +169,8 @@ export function RegisterList({
   weeksByStart: Map<string, WeekSummary>;
   eventsById: Map<string, LedgerEvent>;
   currency: string;
+  /** Show the "earlier/later weeks" notes. Off when no week is projected: the page already explains that. */
+  showRangeNotes: boolean;
   onSelectWeek: (week: WeekSummary) => void;
   onSelectEvent: (event: LedgerEvent) => void;
 }) {
@@ -189,7 +192,7 @@ export function RegisterList({
         <span className="text-right">Amount</span>
         <span className="text-right">Balance after</span>
       </div>
-      {earlier > 0 && (
+      {showRangeNotes && earlier > 0 && (
         <Note>{`${earlier} earlier ${plural(earlier)} before your projection start.`}</Note>
       )}
       {shown.map(({ key, week }) => {
@@ -214,7 +217,7 @@ export function RegisterList({
           </section>
         );
       })}
-      {later > 0 && <Note>{`${later} later ${plural(later)} beyond the 12-month forecast limit.`}</Note>}
+      {showRangeNotes && later > 0 && <Note>{`${later} later ${plural(later)} beyond the 12-month forecast limit.`}</Note>}
     </section>
   );
 }

@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DaySummary, LedgerEvent, ProjectionResponse, SettingsDTO, WeekSummary } from "@/contracts/api";
@@ -238,12 +238,15 @@ describe("calendar heatmap and register", () => {
     renderCalendar();
     await screen.findByTestId("calendar-register");
 
-    // Today is before the (shifted) projection start, so the current month starts with unprojected weeks.
-    await waitFor(() => expect(screen.getByTestId("calendar-register")).toHaveTextContent(/before your projection start/));
+    // The whole current month is before the (shifted) projection start: the page says so once, and the register adds no note.
+    expect(await screen.findByText(/before your projection start date, so there's no projected balance/)).toBeInTheDocument();
+    expect(screen.getByTestId("calendar-register")).not.toHaveTextContent(/before your projection start/);
     expect(screen.queryByTestId(`week-summary-${startOfWeek(TODAY, 0)}`)).not.toBeInTheDocument();
 
+    // Next month mixes unprojected weeks with the partial first projected week, so the note is useful there.
     await user.click(screen.getByTestId("calendar-next"));
     await waitFor(() => expect(screen.getByTestId("calendar-register")).toHaveTextContent("No income or bills"));
+    expect(screen.getByTestId("calendar-register")).toHaveTextContent(/2 earlier weeks are before your projection start\./);
   });
 
   it("week view shows only the selected week", async () => {
@@ -406,5 +409,52 @@ describe("zero income and bills in the week header", () => {
     expect(screen.getByTestId(`week-income-${weekStart}`)).toHaveTextContent("+$500.00");
     expect(screen.getByTestId(`week-bills-${weekStart}`)).toHaveTextContent("—");
     expect(header).toHaveAccessibleName(/income \$500\.00, no bills/);
+  });
+});
+
+describe("out-of-range message and register notes", () => {
+  const jumpTo = async (date: string) => {
+    fireEvent.change(screen.getByTestId("calendar-jump"), { target: { value: date } });
+    await waitFor(() => expect(screen.getByTestId("calendar-title")).toHaveTextContent(fmtDate(date, "MMMM yyyy")));
+  };
+
+  it("shows only the Settings message, not the earlier-weeks note, when every visible day is before the projection start", async () => {
+    renderCalendar();
+    await screen.findByTestId("calendar-register");
+    await jumpTo("2026-08-10");
+
+    expect(await screen.findByText(/before your projection start date, so there's no projected balance/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Change projection settings" })).toHaveAttribute("href", "/settings");
+    expect(screen.getByTestId("calendar-register")).not.toHaveTextContent(/earlier weeks?/);
+    expect(screen.queryByTestId(/^week-summary-/)).not.toBeInTheDocument();
+  });
+
+  it("shows only the Settings message, not the later-weeks note, when every visible day is beyond the 12-month limit", async () => {
+    renderCalendar();
+    await screen.findByTestId("calendar-register");
+    await jumpTo("2028-01-15");
+
+    expect(await screen.findByText(/These dates are beyond the 12-month forecast limit\./)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Change projection settings" })).toHaveAttribute("href", "/settings");
+    expect(screen.getByTestId("calendar-register")).not.toHaveTextContent(/later weeks?/);
+  });
+
+  it("keeps the later-weeks note, and no Settings message, when the view mixes projected and unprojected weeks", async () => {
+    renderCalendar();
+    await screen.findByTestId("calendar-register");
+    await jumpTo("2027-10-26");
+
+    await waitFor(() => expect(screen.getByTestId("calendar-register")).toHaveTextContent(/2 later weeks are beyond the 12-month forecast limit\./));
+    expect(screen.getAllByTestId(/^week-summary-/).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("link", { name: "Change projection settings" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the earlier-weeks note, and no Settings message, when the view mixes projected and unprojected weeks", async () => {
+    getSettings.mockResolvedValue(settings({ projectionStartDate: addDays(TODAY, 10) }));
+    renderCalendar();
+
+    await waitFor(() => expect(screen.getByTestId("calendar-register")).toHaveTextContent(/\d+ earlier weeks? (is|are) before your projection start\./));
+    expect(screen.getAllByTestId(/^week-summary-/).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("link", { name: "Change projection settings" })).not.toBeInTheDocument();
   });
 });

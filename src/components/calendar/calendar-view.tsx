@@ -254,6 +254,7 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
                 weeksByStart={weeksByStart}
                 eventsById={eventsById}
                 currency={currency}
+                showRangeNotes={canFetch}
                 onSelectWeek={openWeek}
                 onSelectEvent={selectEvent}
               />
