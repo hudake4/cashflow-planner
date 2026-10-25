@@ -47,6 +47,7 @@ export async function restoreData(prisma: PrismaClient, data: DataRestoreInput):
         forecastDays: settings.forecastDays,
         weekStartsOn: settings.weekStartsOn,
         defaultCalendarView: settings.defaultCalendarView,
+        desktopNotifications: settings.desktopNotifications ?? true,
       },
       update: {
         startingBalanceCents: settings.startingBalanceCents,
@@ -56,6 +57,7 @@ export async function restoreData(prisma: PrismaClient, data: DataRestoreInput):
         forecastDays: settings.forecastDays,
         weekStartsOn: settings.weekStartsOn,
         defaultCalendarView: settings.defaultCalendarView,
+        desktopNotifications: settings.desktopNotifications ?? true,
       },
     });
   });

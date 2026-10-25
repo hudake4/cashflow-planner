@@ -36,6 +36,7 @@ export function toSettingsDTO(row: Settings, accounts: AccountsSummary): Setting
     forecastDays: row.forecastDays,
     weekStartsOn: row.weekStartsOn,
     defaultCalendarView: row.defaultCalendarView as CalendarView,
+    desktopNotifications: row.desktopNotifications,
     updatedAt: row.updatedAt.toISOString(),
   };
 }

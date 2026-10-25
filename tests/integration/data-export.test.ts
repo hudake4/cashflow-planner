@@ -117,6 +117,7 @@ describe("GET /api/data/export", () => {
         forecastDays: 90,
         weekStartsOn: 1,
         defaultCalendarView: "week",
+        desktopNotifications: false,
       },
     });
     const income = (

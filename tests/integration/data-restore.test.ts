@@ -46,7 +46,7 @@ describe("POST /api/data/restore", () => {
   });
 
   it("restores a v0.12-shaped backup without derived fields or account kinds", async () => {
-    await testPrisma.settings.create({ data: { householdId: "local", startingBalanceCents: 42000, projectionStartDate: "2026-10-20", currency: "USD", forecastDays: 90 } });
+    await testPrisma.settings.create({ data: { householdId: "local", startingBalanceCents: 42000, projectionStartDate: "2026-10-20", currency: "USD", forecastDays: 90, desktopNotifications: false } });
     await testPrisma.incomeSource.create({ data: { id: "income-v012", householdId: "local", name: "Paycheck", amountCents: 100000, frequency: "BIWEEKLY", anchorDate: "2026-10-30" } });
     await testPrisma.bill.create({ data: { id: "bill-v012", householdId: "local", name: "Rent", amountCents: 90000, frequency: "MONTHLY", anchorDate: "2026-10-01" } });
     await testPrisma.billOccurrence.create({ data: { billId: "bill-v012", dueDate: "2026-10-01", status: "PAID" } });
@@ -54,13 +54,14 @@ describe("POST /api/data/restore", () => {
     const legacy = await exported();
     delete (legacy.settings as Partial<typeof legacy.settings>).accountsBalanceDate;
     delete (legacy.settings as Partial<typeof legacy.settings>).accountsStaleCount;
+    delete (legacy.settings as Partial<typeof legacy.settings>).desktopNotifications;
     for (const institution of legacy.institutions) {
       for (const account of institution.accounts) delete (account as { kind?: unknown }).kind;
     }
 
     expect(await call(restoreRoute.POST, "POST", "/api/data/restore", { body: legacy })).toMatchObject({ status: 200, body: { ok: true } });
     const restored = await exported();
-    expect(restored.settings).toMatchObject({ startingBalanceCents: 42000, projectionStartDate: "2026-10-20", currency: "USD" });
+    expect(restored.settings).toMatchObject({ startingBalanceCents: 42000, projectionStartDate: "2026-10-20", currency: "USD", desktopNotifications: true });
     expect(restored.incomes).toHaveLength(1);
     expect(restored.incomes[0]).toMatchObject({ id: "income-v012", name: "Paycheck" });
     expect(restored.bills).toHaveLength(1);

@@ -126,6 +126,7 @@ export const settingsInputSchema = z.object({
     .min(0, "Week start must be a day from 0 (Sunday) to 6 (Saturday)")
     .max(6, "Week start must be a day from 0 (Sunday) to 6 (Saturday)"),
   defaultCalendarView: calendarViewSchema.default("month"),
+  desktopNotifications: z.boolean({ invalid_type_error: "Desktop notifications must be on or off" }).default(true),
 });
 export type SettingsInput = z.input<typeof settingsInputSchema>;
 
@@ -155,6 +156,8 @@ export interface SettingsDTO {
   forecastDays: number;
   weekStartsOn: number;
   defaultCalendarView: CalendarView;
+  /** Whether the desktop app shows notifications (CONVENTIONS section 16). The web app ignores it. */
+  desktopNotifications: boolean;
   updatedAt: string | null; // null when defaults have never been saved
 }
 
@@ -369,6 +372,30 @@ export interface DashboardResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Alerts (desktop notifications)
+// ---------------------------------------------------------------------------
+
+export type AlertKind = "LOW_BALANCE" | "BILL_DUE";
+
+export interface AlertDTO {
+  /** Stable for the same event, so a client can remember which alerts it already showed. */
+  key: string;
+  kind: AlertKind;
+  title: string;
+  body: string;
+  /** Last date the alert is still relevant (YYYY-MM-DD). A client can forget the key after it. */
+  expiresOn: string;
+}
+
+export interface AlertsResponse {
+  /** Server's local "today". */
+  today: string;
+  /** The "Desktop notifications" setting. When false, `alerts` is empty and a client must not remember anything. */
+  enabled: boolean;
+  alerts: AlertDTO[];
+}
+
+// ---------------------------------------------------------------------------
 // Institutions (SimpleFIN Bridge bank connections, read-only)
 // ---------------------------------------------------------------------------
 // Only src/server/simplefin.ts ever sees a setup token or access URL. No DTO below
@@ -576,6 +603,7 @@ const settingsDTOSchema = z.object({
   forecastDays: z.number().int().min(MIN_FORECAST_DAYS).max(MAX_FORECAST_DAYS),
   weekStartsOn: z.number().int().min(0).max(6),
   defaultCalendarView: calendarViewSchema,
+  desktopNotifications: z.boolean(),
   updatedAt: timestampSchema.nullable(),
 });
 
@@ -677,6 +705,7 @@ export const dataRestoreSchema = z.object({
     accountCount: z.number().int().min(0).optional(),
     accountsBalanceDate: isoDateSchema.nullable().optional(),
     accountsStaleCount: z.number().int().min(0).optional(),
+    desktopNotifications: z.boolean().optional(),
     updatedAt: timestampSchema.nullable().optional(),
   }),
   incomes: z.array(incomeDTOSchema),

@@ -11,6 +11,7 @@ import { bill, income, occ, settings } from "../helpers/fixtures";
 const fullSettings = (over: Partial<SettingsDTO> = {}): SettingsDTO => ({
   ...settings({ forecastDays: 30 }),
   defaultCalendarView: "month",
+  desktopNotifications: true,
   startingBalanceSource: "MANUAL",
   accountsBalanceCents: null,
   accountCount: 0,

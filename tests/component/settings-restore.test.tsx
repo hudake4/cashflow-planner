@@ -15,7 +15,7 @@ vi.mock("@/lib/api-client", async (importOriginal) => {
 const SETTINGS: SettingsDTO = {
   startingBalanceCents: 0, startingBalanceSource: "MANUAL", accountsBalanceCents: null, accountCount: 0,
   accountsBalanceDate: null, accountsStaleCount: 0, projectionStartDate: "2026-10-25", currency: "USD",
-  forecastDays: 90, weekStartsOn: 0, defaultCalendarView: "month", updatedAt: null,
+  forecastDays: 90, weekStartsOn: 0, defaultCalendarView: "month", desktopNotifications: true, updatedAt: null,
 };
 const backup: DataExportDTO = {
   format: "cashflow-planner-export", formatVersion: 1, appVersion: "1.0.0", exportedAt: "2026-10-24T15:00:00.000Z",

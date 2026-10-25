@@ -128,6 +128,7 @@ The domain modules are the contract that the tests are written against. Their ex
 | `src/domain/spending.ts` | `categorize`, `merchantKey` and `buildSpending` (section 13) |
 | `src/domain/bill-match.ts` | `matchBillPayments`, bank transactions to unpaid bill occurrences (section 14) |
 | `src/domain/estimate.ts` | `estimateBillAmount`, the suggested amount for a variable bill (section 15) |
+| `src/domain/alerts.ts` | `buildAlerts`, the desktop notifications' content (section 16) |
 
 Rules for every module: pure functions, no Prisma, no I/O, no `Date.now()` (today is passed in). ESLint enforces this (`eslint.config.mjs`, the `src/domain` block), and bans `parseFloat` across `src/` because money is parsed from strings. If you change an exported signature, update its callers and tests in the same PR and mention it in the PR description.
 
@@ -208,3 +209,14 @@ Suggests an amount for a variable bill (electric, groceries) from the stored ban
 - **Rolling average (the default):** the mean of the latest 4 complete periods, rounded half up to whole cents. With 3 or more periods, one under half or over double the median is left out as an outlier (a catch-up payment, a refund-sized dip) if at least 2 remain.
 - **Seasonal average:** for a `MONTHLY` bill, when the history holds the same calendar month as the occurrence's due date in an **earlier year**, the estimate is the mean of those months and `method` is `SEASONAL`. With the 89-day window this never happens; it only applies if history is ever kept longer. Seasonal data is never mixed with the rolling average.
 - **No suggestion** (`estimate: null`, with a `reason`): `NO_BANK_DATA` (no stored transactions), `NO_MATCHES`, `TOO_FEW_PERIODS` (fewer than 2 complete periods with a match) or `UNSUPPORTED_FREQUENCY`. The UI says why and offers nothing to apply.
+
+## 16. Desktop notifications
+
+The Windows app shows native notifications (Electron `Notification`) for a projected negative balance and for bills due soon. What to say is decided by the pure `buildAlerts` in `src/domain/alerts.ts` from the normal projection, so it always agrees with the dashboard. The app asks its own local server (`GET /api/alerts`, `127.0.0.1` only) and shows what is new. No network call leaves the machine.
+
+- **Reference date** is the dashboard's (section 8): `max(today, projectionStartDate)`. Nothing is reported once today is past the projection window.
+- **Low balance:** the first day in `[reference, reference + 13]` whose end-of-day balance (section 7) is below zero. Title "Balance goes negative today / tomorrow / Friday / Nov 20" (a weekday within the coming 6 days, else the date); the body gives that day's projected balance. A negative stretch that began before today (or a negative starting balance) reads "Balance is negative". One alert at most.
+- **Bills due soon:** bills in `[reference, reference + 3]` that are included in the projection (not skipped) and not marked `PAID`. Title "Rent due in 3 days / tomorrow / today"; the body gives the amount (override applied) and the date.
+- **Once per event.** Every alert has a stable key: `low-balance:<first day of the negative stretch>` (an ongoing stretch keeps its key, a new one gets a new key) and `bill:<billId>:<dueDate>`. The app records shown keys in `notified-alerts.json` in its user data folder (not in the database, so no migration) and forgets a key after its `expiresOn` (the last day of the stretch, or the due date). A bill whose date is edited, or a negative stretch that moves, is a new event and is announced again. Deleting that file repeats the current alerts once.
+- **When:** about 10 seconds after launch, then every 30 minutes while the app is open. Closing the window quits the app, so nothing is shown while it is closed.
+- **Off switch:** Settings → Notifications → "Desktop notifications" (`Settings.desktopNotifications`, on by default, so a database from before the setting keeps its notifications). `GET /api/alerts` returns `enabled: false` and no alerts when it is off, and the app then shows nothing and does not touch `notified-alerts.json`, so turning it on again announces whatever is still relevant. The app reads the setting on every check, so a change applies by the next check (within 30 minutes) without a restart. Only the desktop app uses it; the web app has no notifications. Windows' own notification settings can still mute "CashFlow Planner".

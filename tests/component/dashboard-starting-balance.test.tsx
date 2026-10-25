@@ -19,6 +19,7 @@ vi.mock("@/components/dashboard/trend-chart", () => ({ TrendChart: () => null })
 const fullSettings = (over: Partial<SettingsDTO> = {}): SettingsDTO => ({
   ...settings({ forecastDays: 30 }),
   defaultCalendarView: "month",
+  desktopNotifications: true,
   startingBalanceSource: "MANUAL",
   accountsBalanceCents: null,
   accountCount: 0,

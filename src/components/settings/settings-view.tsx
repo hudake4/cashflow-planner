@@ -293,6 +293,7 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsDTO; onSaved: () 
   const [preset, setPreset] = useState(PRESETS.includes(initial.forecastDays) ? String(initial.forecastDays) : "custom");
   const [weekStartsOn, setWeekStartsOn] = useState(String(initial.weekStartsOn));
   const [view, setView] = useState(initial.defaultCalendarView);
+  const [notify, setNotify] = useState(initial.desktopNotifications);
   const [errors, setErrors] = useState<Record<string, string[] | undefined>>({});
   const [status, setStatus] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -319,6 +320,7 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsDTO; onSaved: () 
       forecastDays: days,
       weekStartsOn: Number(weekStartsOn),
       defaultCalendarView: view,
+      desktopNotifications: notify,
     };
     const parsed = settingsInputSchema.safeParse(payload);
     if (!parsed.success || Object.keys(clientErrors).length) {
@@ -500,6 +502,19 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsDTO; onSaved: () 
               )}
             </div>
           </FieldGroup>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader title="Notifications" description="Only the Windows desktop app shows them." />
+        <CardBody>
+          <Switch
+            checked={notify}
+            onChange={setNotify}
+            label="Desktop notifications"
+            description="Tell me when my balance is projected to go negative within two weeks, and when a bill is due within three days."
+            testId="settings-desktop-notifications"
+          />
         </CardBody>
       </Card>
 

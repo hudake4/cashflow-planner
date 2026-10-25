@@ -27,6 +27,7 @@ const SETTINGS: SettingsDTO = {
   forecastDays: 90,
   weekStartsOn: 0,
   defaultCalendarView: "month",
+  desktopNotifications: true,
   updatedAt: "2026-10-24T12:00:00.000Z",
 };
 
