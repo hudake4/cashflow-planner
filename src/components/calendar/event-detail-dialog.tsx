@@ -118,7 +118,7 @@ function EstimateSuggestion({
               : `average per ${unit} over the last ${estimate.periodCount} complete ${unit}s`}
             , from payments between {fmtShort(estimate.firstDate)} and {fmtShort(estimate.lastDate)}.
           </p>
-          <Button type="button" size="sm" variant="ghost" className="h-auto min-h-11" onClick={() => onUse(estimate.amountCents)} data-testid="occurrence-estimate-use">
+          <Button type="button" size="sm" variant="secondary" className="h-auto min-h-11" onClick={() => onUse(estimate.amountCents)} data-testid="occurrence-estimate-use">
             Use {formatCents(estimate.amountCents, { currency: result?.currency })}
           </Button>
         </div>
