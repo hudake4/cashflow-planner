@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.19.0](https://github.com/hudake4/cashflow-planner/compare/v0.18.0...v0.19.0) (2026-10-25)
+
+
+### Features
+
+* **bills:** offer to mark bills paid when a synced bank transaction matches ([81b7e9e](https://github.com/hudake4/cashflow-planner/commit/81b7e9ec782dc19f892ba55233b519b5cb85d636))
+* **bills:** offer to mark bills paid when a synced bank transaction matches ([bc7a13b](https://github.com/hudake4/cashflow-planner/commit/bc7a13bacce34ae32c7eee44153c95b7273b5b7f))
+* **simplefin:** encrypt the stored Access URL at rest ([cbe2b9c](https://github.com/hudake4/cashflow-planner/commit/cbe2b9c606ac5ba950482e919032c044e0f0f18a))
+* **simplefin:** encrypt the stored Access URL at rest ([2be24b5](https://github.com/hudake4/cashflow-planner/commit/2be24b5bf739fdf116ec52ce38f84ff35be5fee9))
+
 ## [0.18.0](https://github.com/hudake4/cashflow-planner/compare/v0.17.0...v0.18.0) (2026-10-25)
 
 
