@@ -251,3 +251,40 @@ describe("calendar heatmap and register", () => {
     expect(screen.getByTestId("calendar-register").querySelectorAll("[data-testid^='week-summary-']")).toHaveLength(1);
   });
 });
+
+describe("heatmap weeks before the projection start on phones", () => {
+  it("marks fully-before-start weeks to hide below lg, keeps their cells in the DOM, and keeps the partial first week", async () => {
+    renderCalendar();
+    await screen.findByTestId(`day-cell-${TODAY}`);
+
+    const partialWeek = startOfWeek(TODAY, 0);
+    const fullyBefore = [addDays(partialWeek, -21), addDays(partialWeek, -14), addDays(partialWeek, -7)];
+    for (const weekStart of fullyBefore) {
+      const row = screen.getByTestId(`heatmap-week-${weekStart}`);
+      expect(row).toHaveAttribute("data-week-collapsed-on-phone", "true");
+      expect(row).toHaveClass("hidden", "lg:contents");
+      expect(within(row).getAllByTestId(/^day-cell-/)).toHaveLength(7);
+      expect(within(row).getAllByTestId(/^day-cell-/).every((cell) => cell.dataset.state === "before-start")).toBe(true);
+    }
+
+    const partial = screen.getByTestId(`heatmap-week-${partialWeek}`);
+    expect(partial).not.toHaveAttribute("data-week-collapsed-on-phone");
+    expect(partial).toHaveClass("contents");
+    expect(partial).not.toHaveClass("hidden");
+    expect(within(partial).getByTestId(`day-cell-${addDays(partialWeek, 1)}`)).toHaveAttribute("data-state", "before-start");
+    expect(screen.getByTestId(`heatmap-week-${addDays(partialWeek, 7)}`)).not.toHaveAttribute("data-week-collapsed-on-phone");
+  });
+
+  it("hides nothing when every visible week is before the projection start", async () => {
+    getSettings.mockResolvedValue(settings({ projectionStartDate: addDays(TODAY, 60) }));
+    renderCalendar();
+    await screen.findByTestId(`day-cell-${TODAY}`);
+
+    const rows = screen.getByTestId("calendar-heatmap").querySelectorAll("[data-testid^='heatmap-week-']");
+    expect(rows.length).toBeGreaterThanOrEqual(4);
+    for (const row of rows) {
+      expect(row).not.toHaveAttribute("data-week-collapsed-on-phone");
+      expect(row).not.toHaveClass("hidden");
+    }
+  });
+});

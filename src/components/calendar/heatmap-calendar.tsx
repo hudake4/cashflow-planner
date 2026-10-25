@@ -176,6 +176,12 @@ export function HeatmapCalendar({
     for (const w of weeks) for (const d of w.days) if (d.state === "projected" && d.summary && d.summary.closingBalanceCents > max) max = d.summary.closingBalanceCents;
     return max;
   }, [weeks]);
+  // Below `lg` the hatched weeks that end before the projection start only push the register down the
+  // screen, so they are hidden (the nodes stay in the DOM). Keep them when nothing else would be left.
+  const collapsibleWeeks = useMemo(() => {
+    const before = weeks.filter((w) => w.days.every((d) => d.state === "before-start"));
+    return before.length === weeks.length ? new Set<string>() : new Set(before.map((w) => w.weekStart));
+  }, [weeks]);
   const headerDays = Array.from({ length: 7 }, (_, i) => WEEKDAY_NAMES[(weekStartsOn + i) % 7].slice(0, 3));
 
   return (
@@ -188,9 +194,21 @@ export function HeatmapCalendar({
         ))}
       </div>
       <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
-        {weeks.flatMap((w) =>
-          w.days.map((d) => <DayCell key={d.date} day={d} currency={currency} maxPositiveCents={maxPositiveCents} onSelect={onSelectDay} />),
-        )}
+        {weeks.map((w) => {
+          const collapsed = collapsibleWeeks.has(w.weekStart);
+          return (
+            <div
+              key={w.weekStart}
+              data-testid={`heatmap-week-${w.weekStart}`}
+              data-week-collapsed-on-phone={collapsed || undefined}
+              className={collapsed ? "hidden lg:contents" : "contents"}
+            >
+              {w.days.map((d) => (
+                <DayCell key={d.date} day={d} currency={currency} maxPositiveCents={maxPositiveCents} onSelect={onSelectDay} />
+              ))}
+            </div>
+          );
+        })}
       </div>
       <HeatmapLegend />
     </section>
