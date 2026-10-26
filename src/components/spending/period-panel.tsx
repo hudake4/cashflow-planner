@@ -137,7 +137,7 @@ export function PeriodPanel({
   const transferCount = period.transactions.filter((t) => t.category === "TRANSFERS").length;
   const rows: { category: SpendingCategory; totalCents: number; transactionCount: number }[] =
     period.transfersCents > 0
-      ? [...spending, { category: "TRANSFERS", totalCents: period.transfersCents, transactionCount: transferCount }].sort(
+      ? [...spending, { category: "TRANSFERS" as const, totalCents: period.transfersCents, transactionCount: transferCount }].sort(
           (a, b) => b.totalCents - a.totalCents,
         )
       : spending;
