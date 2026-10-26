@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.24.1](https://github.com/hudake4/cashflow-planner/compare/v0.24.0...v0.24.1) (2026-10-26)
+
+
+### Bug Fixes
+
+* **dashboard:** clear the what-if scenario preview immediately ([d443ac2](https://github.com/hudake4/cashflow-planner/commit/d443ac2ca814f95d408ea1a766e1777c7357ffa9))
+
 ## [0.24.0](https://github.com/hudake4/cashflow-planner/compare/v0.23.0...v0.24.0) (2026-10-26)
 
 
