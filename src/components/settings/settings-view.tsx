@@ -1,22 +1,27 @@
 "use client";
 
-import { Database, Download, HardDrive, Trash } from "lucide-react";
+import { Database, Download, HardDrive, Trash, Upload } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   MAX_FORECAST_DAYS,
   MIN_FORECAST_DAYS,
   settingsInputSchema,
+  dataRestoreSchema,
+  type DataRestoreInput,
   type SettingsDTO,
   type SettingsInput,
   type StartingBalanceSource,
 } from "@/contracts/api";
 import { centsToInputValue, formatCents, parseMoneyToCents } from "@/domain/money";
+import { startDateFromAccounts } from "@/domain/starting-balance";
 import { ApiError, api, errorMessage } from "@/lib/api-client";
+import { fmtShort } from "@/lib/dates";
 import { CURRENCIES } from "@/lib/format";
 import { applyTheme, currentTheme, type Theme } from "@/lib/theme";
 import { useApi } from "@/lib/use-api";
 import { PageHeader } from "@/components/app-shell";
+import { StaleAccountsNote } from "@/components/stale-accounts-note";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -30,7 +35,8 @@ const PRESETS = [30, 60, 90, 180, 365];
 
 export function SettingsView({ appVersion }: { appVersion: string }) {
   const settings = useApi<SettingsDTO>("settings", api.getSettings);
-  const [confirm, setConfirm] = useState<"demo" | "reset" | null>(null);
+  const [confirm, setConfirm] = useState<"demo" | "reset" | "restore" | null>(null);
+  const [restoreData, setRestoreData] = useState<DataRestoreInput | null>(null);
   const [formVersion, setFormVersion] = useState(0);
   const toast = useToast();
 
@@ -67,7 +73,7 @@ export function SettingsView({ appVersion }: { appVersion: string }) {
 
         <div className="flex min-w-0 flex-col gap-6">
           <AppearanceCard />
-          <DataCard onConfirmDemo={() => setConfirm("demo")} onConfirmReset={() => setConfirm("reset")} />
+          <DataCard onConfirmDemo={() => setConfirm("demo")} onConfirmReset={() => setConfirm("reset")} onRestore={(data) => { setRestoreData(data); setConfirm("restore"); }} />
         </div>
       </div>
 
@@ -75,6 +81,26 @@ export function SettingsView({ appVersion }: { appVersion: string }) {
         CashFlow Planner version <span className="tabular-nums">{appVersion}</span>
       </p>
 
+      <ConfirmDialog
+        open={confirm === "restore"}
+        onClose={() => { setConfirm(null); setRestoreData(null); }}
+        title="Restore backup?"
+        confirmLabel="Replace with backup"
+        tone="primary"
+        testId="confirm-restore-dialog"
+        description={restoreData ? (
+          <span className="flex flex-col gap-3">
+            <span>This replaces income, bills, paid/skipped marks and settings with the backup from <strong className="font-semibold text-foreground">{fmtShort(localDate(restoreData.exportedAt))}</strong> ({restoreData.incomes.length} paychecks, {restoreData.bills.length} bills).</span>
+            <span>Connected banks and their transactions are kept as they are now. This can&apos;t be undone; download a backup first if you may want to return to your current data.</span>
+          </span>
+        ) : null}
+        onConfirm={async () => {
+          if (!restoreData) return;
+          await api.restoreBackup(restoreData);
+          await afterDataChange("Backup restored.");
+        }}
+        onError={(message) => toast(message, "error")}
+      />
       <ConfirmDialog
         open={confirm === "demo"}
         onClose={() => setConfirm(null)}
@@ -119,6 +145,21 @@ export function SettingsView({ appVersion }: { appVersion: string }) {
   );
 }
 
+function localDate(timestamp: string) {
+  const date = new Date(timestamp);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function readFile(file: File): Promise<string> {
+  if (typeof file.text === "function") return file.text();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(file);
+  });
+}
+
 /** Saves a blob through a temporary download link. */
 function saveFile(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -132,8 +173,9 @@ function saveFile(blob: Blob, filename: string) {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-function DataCard({ onConfirmDemo, onConfirmReset }: { onConfirmDemo: () => void; onConfirmReset: () => void }) {
+function DataCard({ onConfirmDemo, onConfirmReset, onRestore }: { onConfirmDemo: () => void; onConfirmReset: () => void; onRestore: (data: DataRestoreInput) => void }) {
   const toast = useToast();
+  const fileInput = useRef<HTMLInputElement>(null);
   const [exporting, setExporting] = useState(false);
 
   async function downloadBackup() {
@@ -146,6 +188,23 @@ function DataCard({ onConfirmDemo, onConfirmReset }: { onConfirmDemo: () => void
       toast(errorMessage(err), "error");
     } finally {
       setExporting(false);
+    }
+  }
+
+  async function chooseBackup(file: File | undefined) {
+    if (!file) return;
+    try {
+      const raw: unknown = JSON.parse(await readFile(file));
+      const parsed = dataRestoreSchema.safeParse(raw);
+      if (!parsed.success) {
+        toast("That file isn't a CashFlow Planner backup.", "error");
+        return;
+      }
+      onRestore(parsed.data);
+    } catch {
+      toast("That file isn't a CashFlow Planner backup.", "error");
+    } finally {
+      if (fileInput.current) fileInput.current.value = "";
     }
   }
 
@@ -172,6 +231,13 @@ function DataCard({ onConfirmDemo, onConfirmReset }: { onConfirmDemo: () => void
           <p className="text-xs leading-relaxed text-muted-foreground">
             Saves every paycheck, bill, status and bank snapshot as a JSON file. Bank credentials are never included.
           </p>
+        </div>
+        <div className="flex flex-col gap-2">
+          <Button className="w-full" variant="secondary" onClick={() => fileInput.current?.click()} data-testid="settings-restore">
+            <Upload aria-hidden="true" data-icon="inline-start" /> Restore from backup
+          </Button>
+          <input ref={fileInput} className="sr-only" type="file" accept="application/json,.json" aria-label="Choose backup file" onChange={(event) => void chooseBackup(event.currentTarget.files?.[0])} />
+          <p className="text-xs leading-relaxed text-muted-foreground">Replaces income, bills and settings from a backup. Connected banks and their transactions stay as they are now.</p>
         </div>
         <div className="flex flex-col gap-2">
           <Button className="w-full" variant="secondary" onClick={onConfirmDemo} data-testid="load-demo-button">
@@ -227,6 +293,7 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsDTO; onSaved: () 
   const [preset, setPreset] = useState(PRESETS.includes(initial.forecastDays) ? String(initial.forecastDays) : "custom");
   const [weekStartsOn, setWeekStartsOn] = useState(String(initial.weekStartsOn));
   const [view, setView] = useState(initial.defaultCalendarView);
+  const [notify, setNotify] = useState(initial.desktopNotifications);
   const [errors, setErrors] = useState<Record<string, string[] | undefined>>({});
   const [status, setStatus] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -253,6 +320,7 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsDTO; onSaved: () 
       forecastDays: days,
       weekStartsOn: Number(weekStartsOn),
       defaultCalendarView: view,
+      desktopNotifications: notify,
     };
     const parsed = settingsInputSchema.safeParse(payload);
     if (!parsed.success || Object.keys(clientErrors).length) {
@@ -332,7 +400,7 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsDTO; onSaved: () 
                         <Link href="/institutions" className="font-semibold text-brand-700 underline">
                           Institutions page
                         </Link>{" "}
-                        to update it, and set the start date to today.
+                        to update it.
                       </p>
                     </>
                   )}
@@ -352,19 +420,36 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsDTO; onSaved: () 
                   />
                 </Field>
               )}
-              <Field
-                label="Projection start date"
-                hint="Income and bills on or after this date are projected."
-                error={errors.projectionStartDate}
-                testId="settings-start-date"
-              >
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  data-testid="settings-start-date"
-                />
-              </Field>
+              {startDateFromAccounts({ startingBalanceSource: source, accountsBalanceDate: initial.accountsBalanceDate }) &&
+              initial.accountsBalanceDate ? (
+                <div className="flex flex-col gap-1.5" data-testid="settings-start-date-derived">
+                  <span className="text-sm font-semibold text-foreground">Projection start date</span>
+                  <p className="text-lg font-semibold tabular-nums text-foreground">{fmtShort(initial.accountsBalanceDate)}</p>
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    From your last bank refresh: the oldest balance date among bank accounts refreshed in the last week (the oldest overall if none were), never later than today. Income and bills
+                    dated on this date are still projected, so one your bank already shows for that day may be counted twice on that day.
+                  </p>
+                  {initial.accountsStaleCount > 0 && (
+                    <p className="text-xs leading-relaxed text-foreground">
+                      <StaleAccountsNote count={initial.accountsStaleCount} />
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <Field
+                  label="Projection start date"
+                  hint="Income and bills on or after this date are projected."
+                  error={errors.projectionStartDate}
+                  testId="settings-start-date"
+                >
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    data-testid="settings-start-date"
+                  />
+                </Field>
+              )}
             </div>
           </FieldGroup>
         </CardBody>
@@ -417,6 +502,19 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsDTO; onSaved: () 
               )}
             </div>
           </FieldGroup>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader title="Notifications" description="Only the Windows desktop app shows them." />
+        <CardBody>
+          <Switch
+            checked={notify}
+            onChange={setNotify}
+            label="Desktop notifications"
+            description="Tell me when my balance is projected to go negative within two weeks, and when a bill is due within three days."
+            testId="settings-desktop-notifications"
+          />
         </CardBody>
       </Card>
 

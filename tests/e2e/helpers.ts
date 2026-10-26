@@ -54,6 +54,7 @@ export const E2E_SETTINGS = {
   forecastDays: 90,
   weekStartsOn: 0,
   defaultCalendarView: "month",
+  desktopNotifications: true,
 };
 
 /** Second guard (the first is in playwright.config.ts) in case a spec runs with a different config. */

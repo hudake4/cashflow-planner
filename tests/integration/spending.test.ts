@@ -48,6 +48,47 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+async function seedAccount(key: string, kind: string, txs: { id: string; date: string; amount: number; description: string }[]) {
+  const connection = await testPrisma.bankConnection.findFirstOrThrow();
+  const accountId = `${connection.id}:${key}`;
+  await testPrisma.bankAccount.create({
+    data: {
+      id: accountId,
+      connectionId: connection.id,
+      providerAccountId: key,
+      institutionName: "Demo Bank",
+      name: key,
+      kind,
+      currency: "USD",
+      balanceCents: 0,
+      balanceDate: "2026-10-24",
+    },
+  });
+  await testPrisma.bankTransaction.createMany({
+    data: txs.map((t) => ({ id: `${accountId}:${t.id}`, accountId, date: t.date, amountCents: t.amount, description: t.description, pending: false })),
+  });
+}
+
+describe("GET /api/spending and credit cards", () => {
+  it("counts card purchases once: the bank-side card payment is a transfer, loans and other accounts are left out", async () => {
+    await seedBank([
+      { id: "pay", date: "2026-10-03", amount: -12000, description: "ACME BILLING 8841" },
+      { id: "k", date: "2026-10-04", amount: -2500, description: "KROGER" },
+    ]);
+    await seedAccount("card", "CREDIT", [
+      { id: "credit", date: "2026-10-04", amount: 12000, description: "AUTOMATIC PAYMENT" },
+      { id: "shop", date: "2026-10-02", amount: -12000, description: "TARGET #55" },
+    ]);
+    await seedAccount("loan", "LOAN", [{ id: "interest", date: "2026-10-02", amount: -700, description: "INTEREST CHARGE" }]);
+    await seedAccount("other", "OTHER", [{ id: "fee", date: "2026-10-02", amount: -300, description: "MAINTENANCE FEE" }]);
+
+    const { body } = await spending();
+    expect(body.transactionCount).toBe(4);
+    expect(body.thisMonth).toMatchObject({ totalCents: 14500, transactionCount: 2, transfersCents: 12000 });
+    expect(body.thisMonth.categories.map((c) => c.category).sort()).toEqual(["GROCERIES", "SHOPPING"]);
+  });
+});
+
 describe("GET /api/spending", () => {
   it("reports no connections when no bank is linked", async () => {
     const res = await spending();
