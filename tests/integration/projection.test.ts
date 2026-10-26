@@ -22,6 +22,7 @@ const SETTINGS = {
   forecastDays: 90,
   weekStartsOn: 0,
   defaultCalendarView: "month",
+  desktopNotifications: true,
 };
 const projection = async (qs = "") => {
   const res = await call<ProjectionResponse>(projectionRoute.GET, "GET", `/api/projection${qs}`);

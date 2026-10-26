@@ -3,6 +3,7 @@
  * from `src/domain`; nothing computed by a client is ever trusted.
  */
 import {
+  type AlertsResponse,
   DATA_EXPORT_FORMAT,
   DATA_EXPORT_FORMAT_VERSION,
   dataExportSchema,
@@ -10,10 +11,11 @@ import {
   type DataExportDTO,
   type ProjectionResponse,
 } from "../contracts/api";
+import { buildAlerts } from "../domain/alerts";
 import { buildDashboard } from "../domain/dashboard";
 import { todayLocal } from "../domain/dates";
 import { computeProjection } from "../domain/projection";
-import { effectiveStartingBalanceCents } from "../domain/starting-balance";
+import { effectiveProjectionStartDate, effectiveStartingBalanceCents } from "../domain/starting-balance";
 import { db } from "./db";
 import { listAllOccurrences, listBills } from "./repositories/bills";
 import { listIncome } from "./repositories/income";
@@ -27,9 +29,14 @@ async function loadInputs() {
     listBills(),
     listAllOccurrences(),
   ]);
-  // The engine and every view see one balance: the typed one, or the bank accounts' total.
+  // The engine and every view see one balance and one start date: the typed ones, or the bank
+  // accounts' total and their oldest balance date. Only this copy is changed, never the stored row.
   return {
-    settings: { ...settings, startingBalanceCents: effectiveStartingBalanceCents(settings) },
+    settings: {
+      ...settings,
+      startingBalanceCents: effectiveStartingBalanceCents(settings),
+      projectionStartDate: effectiveProjectionStartDate(settings),
+    },
     incomes,
     bills,
     occurrences,
@@ -44,10 +51,16 @@ export async function getDashboard(today: string = todayLocal()): Promise<Dashbo
   return buildDashboard({ ...(await loadInputs()), today });
 }
 
+export async function getAlerts(today: string = todayLocal()): Promise<AlertsResponse> {
+  const { desktopNotifications } = await getSettings();
+  if (!desktopNotifications) return { today, enabled: false, alerts: [] };
+  return { today, enabled: true, alerts: buildAlerts(await getProjection(), today) };
+}
+
 /**
  * Everything stored for the household, for the backup download. Bank connections are
  * built from InstitutionDTO, which never carries the access URL (CONVENTIONS section 9).
- * Settings are exported as stored: the typed balance, not the accounts' total.
+ * Settings are exported as stored: the typed balance and start date, not the accounts' total and date.
  */
 export async function getDataExport(appVersion: string, now: Date = new Date()): Promise<DataExportDTO> {
   // One read transaction, so the file is a single consistent snapshot even if a sync or edit lands mid-export.
