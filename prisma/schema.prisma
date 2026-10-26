@@ -104,6 +104,11 @@ model BankAccount {
   institutionName       String // the SimpleFIN connection (bank) name
   name                  String
   kind                  String            @default("BANK") // "BANK" | "CREDIT" | "LOAN" | "OTHER"; user's label, only BANK counts toward the starting balance
+  // Credit-card fields (user-entered; SimpleFIN supplies none of them). Null for non-card accounts.
+  statementClosingDay   Int? // day of month the statement closes (1-31)
+  paymentDueDay         Int? // day of month the payment is due (1-31)
+  aprBasisPoints       Int? // APR in basis points (100 = 1.00%), e.g. 2499 = 24.99%
+  minimumPaymentRule    String? // optional issuer rule label/text; null means pay in full
   currency              String // 3-letter code, "USD" when SimpleFIN gives a non-ISO currency
   balanceCents          Int
   availableBalanceCents Int?

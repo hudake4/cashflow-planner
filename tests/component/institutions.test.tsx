@@ -32,6 +32,10 @@ const INSTITUTION: InstitutionDTO = {
       balanceCents: 123456,
       availableBalanceCents: 100000,
       balanceDate: "2026-10-24",
+      statementClosingDay: null,
+      paymentDueDay: null,
+      aprBasisPoints: null,
+      minimumPaymentRule: null,
     },
     {
       id: "conn1:a2",
@@ -42,6 +46,10 @@ const INSTITUTION: InstitutionDTO = {
       balanceCents: -5000,
       availableBalanceCents: null,
       balanceDate: "2026-10-23",
+      statementClosingDay: null,
+      paymentDueDay: null,
+      aprBasisPoints: null,
+      minimumPaymentRule: null,
     },
   ],
 };

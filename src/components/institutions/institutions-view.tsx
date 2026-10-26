@@ -356,6 +356,11 @@ function AccountRow({
 }) {
   const toast = useToast();
   const [saving, setSaving] = useState(false);
+  const [closingDay, setClosingDay] = useState<string>(account.statementClosingDay?.toString() ?? "");
+  const [dueDay, setDueDay] = useState<string>(account.paymentDueDay?.toString() ?? "");
+  const [apr, setApr] = useState<string>(account.aprBasisPoints != null ? (account.aprBasisPoints / 100).toString() : "");
+  const [estimating, setEstimating] = useState(false);
+  const [estimate, setEstimate] = useState<{ closingDate: string; dueDate: string; projectedBillCents: number; minimumPaymentCents: number | null } | null>(null);
 
   async function changeKind(kind: AccountKind) {
     setSaving(true);
@@ -366,6 +371,41 @@ function AccountRow({
       toast(errorMessage(err), "error");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function saveCardFields() {
+    setSaving(true);
+    try {
+      await api.setAccountCardFields(institutionId, account.id, {
+        statementClosingDay: closingDay ? Number(closingDay) : null,
+        paymentDueDay: dueDay ? Number(dueDay) : null,
+        aprBasisPoints: apr ? Math.round(Number(apr) * 100) : null,
+      });
+      toast("Saved card details.", "success");
+      await onKindChanged();
+    } catch (err) {
+      toast(errorMessage(err), "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function runEstimate() {
+    setEstimating(true);
+    try {
+      const res = await api.estimateCardBill(institutionId, account.id);
+      setEstimate({
+        closingDate: res.closingDate,
+        dueDate: res.dueDate,
+        projectedBillCents: res.projectedBillCents,
+        minimumPaymentCents: res.minimumPaymentCents,
+      });
+      toast("Estimated bill updated.", "success");
+    } catch (err) {
+      toast(errorMessage(err), "error");
+    } finally {
+      setEstimating(false);
     }
   }
 
@@ -419,6 +459,60 @@ function AccountRow({
             </p>
           )}
         </div>
+        {account.kind === "CREDIT" && (
+          <div className="mt-3 space-y-2 border-t border-border pt-3" data-testid={`card-details-${account.id}`}>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <Field label="Closing day">
+                <input
+                  type="number"
+                  min={1}
+                  max={31}
+                  value={closingDay}
+                  onChange={(e) => setClosingDay(e.target.value)}
+                  className="h-8 w-full rounded-control border border-border bg-background px-2 text-sm"
+                  data-testid={`card-closing-${account.id}`}
+                />
+              </Field>
+              <Field label="Due day">
+                <input
+                  type="number"
+                  min={1}
+                  max={31}
+                  value={dueDay}
+                  onChange={(e) => setDueDay(e.target.value)}
+                  className="h-8 w-full rounded-control border border-border bg-background px-2 text-sm"
+                  data-testid={`card-due-${account.id}`}
+                />
+              </Field>
+              <Field label="APR %">
+                <input
+                  type="number"
+                  step="0.01"
+                  value={apr}
+                  onChange={(e) => setApr(e.target.value)}
+                  className="h-8 w-full rounded-control border border-border bg-background px-2 text-sm"
+                  data-testid={`card-apr-${account.id}`}
+                />
+              </Field>
+              <div className="flex items-end">
+                <Button size="sm" variant="secondary" onClick={() => void saveCardFields()} loading={saving} data-testid={`card-save-${account.id}`}>
+                  Save
+                </Button>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" onClick={() => void runEstimate()} loading={estimating} data-testid={`card-estimate-${account.id}`}>
+                Estimate bill
+              </Button>
+              {estimate && (
+                <p className="text-sm text-muted-foreground" data-testid={`card-estimate-result-${account.id}`}>
+                  Est. bill <Balance cents={estimate.projectedBillCents} currency={account.currency} className="font-semibold" /> due {estimate.dueDate}
+                  {estimate.minimumPaymentCents !== null && ` (min ${ (estimate.minimumPaymentCents / 100).toFixed(2) })`}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
       </Card>
     </li>
   );

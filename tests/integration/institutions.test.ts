@@ -115,6 +115,10 @@ describe("connecting", () => {
         balanceCents: 123456,
         availableBalanceCents: 100000,
         balanceDate: "2026-10-24",
+        statementClosingDay: null,
+        paymentDueDay: null,
+        aprBasisPoints: null,
+        minimumPaymentRule: null,
       },
     ]);
 
@@ -367,6 +371,10 @@ describe("account labels", () => {
       balanceCents: 123456,
       availableBalanceCents: 100000,
       balanceDate: "2026-10-24",
+      statementClosingDay: null,
+      paymentDueDay: null,
+      aprBasisPoints: null,
+      minimumPaymentRule: null,
     });
     expect((await testPrisma.bankAccount.findUniqueOrThrow({ where: { id: acc } })).kind).toBe("OTHER");
     const list = await call<InstitutionDTO[]>(listRoute.GET as never, "GET", "/api/institutions");

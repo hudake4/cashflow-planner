@@ -436,6 +436,33 @@ export type AccountKind = z.infer<typeof accountKindSchema>;
 export const accountKindInputSchema = z.object({ kind: accountKindSchema });
 export type AccountKindInput = z.input<typeof accountKindInputSchema>;
 
+export const accountCardFieldsInputSchema = z.object({
+  statementClosingDay: z.number().int().min(1).max(31).nullable().optional(),
+  paymentDueDay: z.number().int().min(1).max(31).nullable().optional(),
+  aprBasisPoints: z.number().int().min(0).max(100000).nullable().optional(),
+  minimumPaymentRule: z.string().trim().max(200).nullable().optional(),
+});
+export type AccountCardFieldsInput = z.input<typeof accountCardFieldsInputSchema>;
+
+export const accountUpdateInputSchema = z
+  .object({
+    kind: accountKindSchema.optional(),
+    statementClosingDay: z.number().int().min(1).max(31).nullable().optional(),
+    paymentDueDay: z.number().int().min(1).max(31).nullable().optional(),
+    aprBasisPoints: z.number().int().min(0).max(100000).nullable().optional(),
+    minimumPaymentRule: z.string().trim().max(200).nullable().optional(),
+  })
+  .refine(
+    (v) =>
+      v.kind !== undefined ||
+      v.statementClosingDay !== undefined ||
+      v.paymentDueDay !== undefined ||
+      v.aprBasisPoints !== undefined ||
+      v.minimumPaymentRule !== undefined,
+    { path: ["kind"], message: "At least one field is required" },
+  );
+export type AccountUpdateInput = z.input<typeof accountUpdateInputSchema>;
+
 export interface BankAccountDTO {
   id: string;
   name: string;
@@ -448,6 +475,11 @@ export interface BankAccountDTO {
   availableBalanceCents: number | null;
   /** YYYY-MM-DD: when the bank reported this balance (UTC date). */
   balanceDate: string;
+  /** Credit-card fields (user-entered). Null/undefined for non-card accounts or unset. */
+  statementClosingDay: number | null;
+  paymentDueDay: number | null;
+  aprBasisPoints: number | null;
+  minimumPaymentRule: string | null;
 }
 
 export interface InstitutionDTO {
@@ -653,6 +685,10 @@ const bankAccountDTOSchema = z
     balanceCents: signedCentsSchema,
     availableBalanceCents: signedCentsSchema.nullable(),
     balanceDate: isoDateSchema,
+    statementClosingDay: z.number().int().min(1).max(31).nullable(),
+    paymentDueDay: z.number().int().min(1).max(31).nullable(),
+    aprBasisPoints: z.number().int().min(0).max(100000).nullable(),
+    minimumPaymentRule: z.string().nullable(),
   })
   .strict();
 

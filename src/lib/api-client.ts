@@ -157,6 +157,21 @@ export const api = {
       `/institutions/${encodeURIComponent(id)}/accounts/${encodeURIComponent(accountId)}`,
       json("PATCH", { kind }),
     ),
+  setAccountCardFields: (id: string, accountId: string, fields: {
+    statementClosingDay?: number | null;
+    paymentDueDay?: number | null;
+    aprBasisPoints?: number | null;
+    minimumPaymentRule?: string | null;
+  }) =>
+    request<BankAccountDTO>(
+      `/institutions/${encodeURIComponent(id)}/accounts/${encodeURIComponent(accountId)}`,
+      json("PATCH", fields),
+    ),
+  estimateCardBill: (id: string, accountId: string, variableSpendCents?: number) =>
+    request<{ accountId: string; closingDate: string; dueDate: string; projectedBillCents: number; minimumPaymentCents: number | null; billId: string }>(
+      `/institutions/${encodeURIComponent(id)}/accounts/${encodeURIComponent(accountId)}/card-bill`,
+      json("POST", { variableSpendCents }),
+    ),
   listBankTransactions: (id: string, { accountId, offset = 0 }: { accountId: string; offset?: number }) => {
     const qs = new URLSearchParams({ accountId, offset: String(offset) });
     return request<BankTransactionsResponse>(`/institutions/${encodeURIComponent(id)}/transactions?${qs.toString()}`);

@@ -44,6 +44,10 @@ const toAccountDTO = (a: BankAccount): BankAccountDTO => ({
   balanceCents: a.balanceCents,
   availableBalanceCents: a.availableBalanceCents,
   balanceDate: a.balanceDate,
+  statementClosingDay: a.statementClosingDay,
+  paymentDueDay: a.paymentDueDay,
+  aprBasisPoints: a.aprBasisPoints,
+  minimumPaymentRule: a.minimumPaymentRule,
 });
 
 const toTransactionDTO = (t: BankTransaction): BankTransactionDTO => ({
@@ -146,7 +150,7 @@ async function runSync(row: BankConnection, now: Date): Promise<string[]> {
       // `kind` is set only on create: a sync never overwrites the user's label.
       await tx.bankAccount.upsert({
         where: { id },
-        create: { id, connectionId: row.id, kind: guessAccountKind(a.name), ...fields },
+        create: { id, connectionId: row.id, kind: guessAccountKind(a.name, a.balanceCents), ...fields },
         update: fields,
       });
       if (a.incomplete) continue;
@@ -245,6 +249,25 @@ export async function setAccountKind(connectionId: string, accountId: string, ki
   });
   if (!account) throw notFound("Account");
   return toAccountDTO(await db.bankAccount.update({ where: { id: accountId }, data: { kind } }));
+}
+
+/** Sets credit-card fields for one account. 404 when the account isn't part of the connection. */
+export async function setAccountCardFields(
+  connectionId: string,
+  accountId: string,
+  fields: { statementClosingDay?: number | null; paymentDueDay?: number | null; aprBasisPoints?: number | null; minimumPaymentRule?: string | null },
+): Promise<BankAccountDTO> {
+  const account = await db.bankAccount.findFirst({
+    where: { id: accountId, connectionId, connection: { householdId: HOUSEHOLD_ID } },
+    select: { id: true },
+  });
+  if (!account) throw notFound("Account");
+  const data: Record<string, unknown> = {};
+  if (fields.statementClosingDay !== undefined) data.statementClosingDay = fields.statementClosingDay;
+  if (fields.paymentDueDay !== undefined) data.paymentDueDay = fields.paymentDueDay;
+  if (fields.aprBasisPoints !== undefined) data.aprBasisPoints = fields.aprBasisPoints;
+  if (fields.minimumPaymentRule !== undefined) data.minimumPaymentRule = fields.minimumPaymentRule;
+  return toAccountDTO(await db.bankAccount.update({ where: { id: accountId }, data }));
 }
 
 /** Stored transactions of one account from the last HISTORY_DAYS days, newest first. 404 when the account isn't part of the connection. */

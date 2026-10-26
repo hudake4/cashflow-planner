@@ -25,6 +25,8 @@ export interface ScanTransaction {
   description: string;
   /** Signed like the bank: money in positive, money out negative. */
   amountCents: number;
+  /** Optional account id, used to run the scan for a single account. */
+  accountId?: string;
 }
 
 /** The part of an existing bill or income source that decides whether a suggestion is a duplicate. */
@@ -42,6 +44,8 @@ export interface DetectInput {
   bills: ExistingSchedule[];
   /** Server-local calendar date. */
   today: string;
+  /** Optional account id: only transactions for this account are considered. */
+  accountId?: string;
 }
 
 interface Cadence {
@@ -217,9 +221,10 @@ interface Group {
   byDate: Map<string, number>;
 }
 
-export function detectRecurring({ transactions, incomes, bills, today }: DetectInput): RecurringSuggestionDTO[] {
+export function detectRecurring({ transactions, incomes, bills, today, accountId }: DetectInput): RecurringSuggestionDTO[] {
+  const scoped = accountId ? transactions.filter((t) => t.accountId === accountId) : transactions;
   const groups = new Map<string, Group>();
-  const ordered = [...transactions].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  const ordered = [...scoped].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
   for (const t of ordered) {
     if (t.amountCents === 0 || t.date > today) continue;
