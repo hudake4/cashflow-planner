@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.22.0](https://github.com/hudake4/cashflow-planner/compare/v0.21.0...v0.22.0) (2026-10-26)
+
+
+### Features
+
+* **spending:** show transfers as a category row in the spend analyzer ([d868a0c](https://github.com/hudake4/cashflow-planner/commit/d868a0cbf05aee456c1c39773d70e97700a224c0))
+* **spending:** show transfers as a category row in the spend analyzer ([080fe15](https://github.com/hudake4/cashflow-planner/commit/080fe158cfe964e7f3cba3b8fc70e1cb66c0d049))
+
+
+### Bug Fixes
+
+* **institutions:** hide zero Available balance on credit and loan accounts ([c08c2fd](https://github.com/hudake4/cashflow-planner/commit/c08c2fd1cdd1e13020bb8160ce968a1fe292c3dd))
+* **institutions:** hide zero Available balance on credit and loan accounts ([a820e97](https://github.com/hudake4/cashflow-planner/commit/a820e97447ea8887b08da79d073009d9f5f7f9ee))
+* **institutions:** keep available balance narrowed for typecheck ([4618db3](https://github.com/hudake4/cashflow-planner/commit/4618db38f37b64278db84ebd57a0fe35a077cd36))
+* **spending:** keep the Transfers row's category literal typed ([7923b77](https://github.com/hudake4/cashflow-planner/commit/7923b775eec4f9aed2358401a37d1d5f515af0dd))
+* **spending:** restore en dashes corrupted during conflict resolution ([2e1a2c7](https://github.com/hudake4/cashflow-planner/commit/2e1a2c72b4f9522c1fbeb5192f17f45e7d859459))
+
 ## [0.21.0](https://github.com/hudake4/cashflow-planner/compare/v0.20.0...v0.21.0) (2026-10-25)
 
 
