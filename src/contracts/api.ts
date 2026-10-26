@@ -558,6 +558,32 @@ export interface RecurringScanResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Subscription audit (reads the stored bank transactions and the tracked bills; never calls SimpleFIN)
+// ---------------------------------------------------------------------------
+
+/** The subscription audit: detected recurring charges (bills only) plus the subscriptions the user already tracks. */
+export interface SubscriptionAuditResponse {
+  /** Detected recurring charges (BILL kind only), excluding any the user dismissed as "not a subscription". */
+  suggestions: RecurringSuggestionDTO[];
+  /** The user's tracked bills (any frequency); the view marks them as already tracked. */
+  tracked: BillDTO[];
+  /** Currency for display (the app's currency setting). */
+  currency: string;
+  /** Bank connections stored locally; 0 means there is nothing to scan yet. */
+  connectionCount: number;
+  /** Settled transactions examined (pending ones are ignored). */
+  transactionCount: number;
+  /** ISO timestamp of the most recent successful sync across connections; null if none has succeeded. */
+  lastSyncedAt: string | null;
+}
+
+export const dismissSubscriptionInputSchema = z.object({
+  /** Stable suggestion key, e.g. "BILL:netflix com". */
+  key: z.string().min(1).max(200),
+});
+export type DismissSubscriptionInput = z.infer<typeof dismissSubscriptionInputSchema>;
+
+// ---------------------------------------------------------------------------
 // Bill payment matches (reads the stored bank transactions; never calls SimpleFIN)
 // ---------------------------------------------------------------------------
 

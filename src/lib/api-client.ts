@@ -30,6 +30,7 @@ import type {
   SavingsGoalInput,
   SpendingCategoryInput,
   SpendingResponse,
+  SubscriptionAuditResponse,
 } from "@/contracts/api";
 
 export class ApiError extends Error {
@@ -186,11 +187,10 @@ export const api = {
 
   /** Finds repeating payments/deposits in the stored bank history. Reads local data only. */
   scanRecurring: () => request<RecurringScanResponse>("/recurring"),
-  /** Subscription audit: recurring charges detected in the stored bank history. Reads local data only. */
-  scanRecurringAudit: () => request<RecurringScanResponse>("/recurring/audit"),
-  getSubscriptions: () => request<RecurringScanResponse>("/subscriptions"),
-  getSubscriptionAudit: () => request<RecurringScanResponse>("/subscription-audit"),
-  getRecurringAudit: () => request<RecurringScanResponse>("/recurring/audit"),
+  /** Subscription audit: detected recurring charges plus the user's tracked bills. Reads local data only. */
+  getSubscriptions: () => request<SubscriptionAuditResponse>("/subscriptions"),
+  /** Marks a recurring charge as "not a subscription" so the audit stops showing it. */
+  dismissSubscription: (key: string) => request<void>("/subscriptions/dismiss", json("POST", { key })),
 
   /** Suggested amount for a bill from the stored bank history. Nothing is saved. Reads local data only. */
   getBillEstimate: (billId: string, date: string) =>

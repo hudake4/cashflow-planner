@@ -171,3 +171,15 @@ model SavingsGoal {
 
   @@index([householdId])
 }
+
+// A recurring charge the user said is not a subscription, so the subscription audit stops
+// suggesting it. Keyed by the suggestion's stable `key` (see RecurringSuggestionDTO).
+model DismissedRecurring {
+  id          String   @id @default(cuid())
+  householdId String   @default("local")
+  key         String
+  createdAt   DateTime @default(now())
+
+  @@unique([householdId, key])
+  @@index([householdId])
+}
