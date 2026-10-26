@@ -893,3 +893,38 @@ export interface ApiErrorBody {
     fieldErrors?: Record<string, string[]>;
   };
 }
+
+// ---------------------------------------------------------------------------
+// Scenarios (what-if)
+// ---------------------------------------------------------------------------
+
+export const SCENARIO_KINDS = ["ADD_BILL", "ADD_INCOME", "REMOVE_BILL", "REMOVE_INCOME"] as const;
+export const scenarioKindSchema = z.enum(SCENARIO_KINDS, {
+  errorMap: () => ({ message: "Scenario kind must be ADD_BILL, ADD_INCOME, REMOVE_BILL, or REMOVE_INCOME" }),
+});
+export type ScenarioKind = z.infer<typeof scenarioKindSchema>;
+
+export const scenarioInputSchema = z
+  .object({
+    kind: scenarioKindSchema,
+    name: nameSchema.optional(),
+    amountCents: amountCentsSchema.optional(),
+    /** Alias for amountCents (cents). */
+    amount: z.number().int().positive().max(MAX_AMOUNT_CENTS).optional(),
+    date: isoDateSchema.optional(),
+    dueDate: isoDateSchema.optional(),
+    anchorDate: isoDateSchema.optional(),
+    onDate: isoDateSchema.optional(),
+    frequency: z.string().trim().max(20).optional(),
+    id: z.string().optional(),
+    sourceId: z.string().optional(),
+    billId: z.string().optional(),
+    incomeId: z.string().optional(),
+    targetId: z.string().optional(),
+    removeId: z.string().optional(),
+  })
+  .passthrough();
+export type Scenario = z.infer<typeof scenarioInputSchema>;
+export type ScenarioInput = z.input<typeof scenarioInputSchema>;
+
+export const scenarioSchema = scenarioInputSchema;

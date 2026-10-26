@@ -10,11 +10,13 @@ import {
   type DashboardResponse,
   type DataExportDTO,
   type ProjectionResponse,
+  type ScenarioInput,
 } from "../contracts/api";
 import { buildAlerts } from "../domain/alerts";
 import { buildDashboard } from "../domain/dashboard";
 import { todayLocal } from "../domain/dates";
-import { computeProjection } from "../domain/projection";
+import { computeProjection, type ProjectionInput } from "../domain/projection";
+import { applyScenario } from "../domain/scenario";
 import { effectiveProjectionStartDate, effectiveStartingBalanceCents } from "../domain/starting-balance";
 import { db } from "./db";
 import { listAllOccurrences, listBills } from "./repositories/bills";
@@ -49,6 +51,31 @@ export async function getProjection(from?: string, to?: string): Promise<Project
 
 export async function getDashboard(today: string = todayLocal()): Promise<DashboardResponse> {
   return buildDashboard({ ...(await loadInputs()), today });
+}
+
+export async function getScenarioProjection(
+  scenario: ScenarioInput | ScenarioInput[],
+  from?: string,
+  to?: string,
+): Promise<ProjectionResponse> {
+  const base = await loadInputs();
+  const input = applyScenario({ ...base, from, to }, scenario);
+  return computeProjection({ ...input, from: from ?? input.from, to: to ?? input.to });
+}
+
+export async function getScenarioDashboard(
+  scenario: ScenarioInput | ScenarioInput[],
+  today: string = todayLocal(),
+): Promise<DashboardResponse> {
+  const base = await loadInputs();
+  const input = applyScenario({ ...base } as ProjectionInput, scenario);
+  return buildDashboard({
+    settings: base.settings,
+    incomes: input.incomes,
+    bills: input.bills,
+    occurrences: input.occurrences,
+    today,
+  });
 }
 
 export async function getAlerts(today: string = todayLocal()): Promise<AlertsResponse> {
