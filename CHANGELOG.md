@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.22.1](https://github.com/hudake4/cashflow-planner/compare/v0.22.0...v0.22.1) (2026-10-26)
+
+
+### Bug Fixes
+
+* **institutions:** write the middle-dot separator as an escape ([3b2f43f](https://github.com/hudake4/cashflow-planner/commit/3b2f43f90590f7b14561707908bd7b037ab885ea))
+* **institutions:** write the middle-dot separator as an escape ([fb4fdc5](https://github.com/hudake4/cashflow-planner/commit/fb4fdc5d8ba27b71d4d9f30da5b5e03378fefc19))
+
 ## [0.22.0](https://github.com/hudake4/cashflow-planner/compare/v0.21.0...v0.22.0) (2026-10-26)
 
 
