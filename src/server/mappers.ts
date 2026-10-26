@@ -2,7 +2,7 @@
  * Prisma row → DTO mappers. Enum-like columns are plain strings in SQLite; they
  * are only ever written after Zod validation, so the casts here are safe.
  */
-import type { Bill, BillOccurrence, IncomeSource, Settings } from "@prisma/client";
+import type { Bill, BillOccurrence, IncomeSource, SavingsGoal, Settings } from "@prisma/client";
 import type {
   BillDTO,
   BillFrequency,
@@ -11,6 +11,7 @@ import type {
   IncomeDTO,
   IncomeFrequency,
   OccurrenceStatus,
+  SavingsGoalDTO,
   SettingsDTO,
   StartingBalanceSource,
 } from "../contracts/api";
@@ -37,6 +38,7 @@ export function toSettingsDTO(row: Settings, accounts: AccountsSummary): Setting
     weekStartsOn: row.weekStartsOn,
     defaultCalendarView: row.defaultCalendarView as CalendarView,
     desktopNotifications: row.desktopNotifications,
+    balanceFloorCents: row.balanceFloorCents,
     updatedAt: row.updatedAt.toISOString(),
   };
 }
@@ -79,6 +81,17 @@ export function toOccurrenceDTO(row: BillOccurrence): BillOccurrenceDTO {
     status: row.status as OccurrenceStatus,
     amountOverrideCents: row.amountOverrideCents,
     note: row.note,
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+export function toSavingsGoalDTO(row: SavingsGoal): SavingsGoalDTO {
+  return {
+    id: row.id,
+    name: row.name,
+    targetAmountCents: row.targetAmountCents,
+    targetDate: row.targetDate,
+    createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
 }

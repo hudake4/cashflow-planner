@@ -127,6 +127,7 @@ export const settingsInputSchema = z.object({
     .max(6, "Week start must be a day from 0 (Sunday) to 6 (Saturday)"),
   defaultCalendarView: calendarViewSchema.default("month"),
   desktopNotifications: z.boolean({ invalid_type_error: "Desktop notifications must be on or off" }).default(true),
+  balanceFloorCents: balanceCentsSchema.default(0),
 });
 export type SettingsInput = z.input<typeof settingsInputSchema>;
 
@@ -158,6 +159,8 @@ export interface SettingsDTO {
   defaultCalendarView: CalendarView;
   /** Whether the desktop app shows notifications (CONVENTIONS section 16). The web app ignores it. */
   desktopNotifications: boolean;
+  /** Lowest projected balance the user wants to stay above (safe-to-spend). */
+  balanceFloorCents: number;
   updatedAt: string | null; // null when defaults have never been saved
 }
 
@@ -369,6 +372,8 @@ export interface DashboardResponse {
   totals: ProjectionTotals; // over the full forecast window
   /** End-of-day balance for every date in the window (for the trend chart). */
   trend: { date: string; balanceCents: number }[];
+  /** Most the user can spend today without any future end-of-day balance dropping below the configured floor. */
+  safeToSpendCents: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -636,6 +641,7 @@ const settingsDTOSchema = z.object({
   weekStartsOn: z.number().int().min(0).max(6),
   defaultCalendarView: calendarViewSchema,
   desktopNotifications: z.boolean(),
+  balanceFloorCents: balanceCentsSchema,
   updatedAt: timestampSchema.nullable(),
 });
 
@@ -742,6 +748,7 @@ export const dataRestoreSchema = z.object({
     accountsBalanceDate: isoDateSchema.nullable().optional(),
     accountsStaleCount: z.number().int().min(0).optional(),
     desktopNotifications: z.boolean().optional(),
+    balanceFloorCents: balanceCentsSchema.optional(),
     updatedAt: timestampSchema.nullable().optional(),
   }),
   incomes: z.array(incomeDTOSchema),
@@ -874,6 +881,25 @@ export interface SpendingResponse extends SpendingAnalysisDTO {
 }
 
 // ---------------------------------------------------------------------------
+// Savings goals
+// ---------------------------------------------------------------------------
+
+export const savingsGoalInputSchema = z.object({
+  name: optionalText(80, "Name"),
+  targetAmountCents: amountCentsSchema,
+  targetDate: isoDateSchema,
+});
+export type SavingsGoalInput = z.input<typeof savingsGoalInputSchema>;
+
+export interface SavingsGoalDTO {
+  id: string;
+  name: string | null;
+  targetAmountCents: number;
+  targetDate: string;
+  createdAt: string;
+  updatedAt: string;
+}
+// ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------
 
@@ -893,3 +919,38 @@ export interface ApiErrorBody {
     fieldErrors?: Record<string, string[]>;
   };
 }
+
+// ---------------------------------------------------------------------------
+// Scenarios (what-if)
+// ---------------------------------------------------------------------------
+
+export const SCENARIO_KINDS = ["ADD_BILL", "ADD_INCOME", "REMOVE_BILL", "REMOVE_INCOME"] as const;
+export const scenarioKindSchema = z.enum(SCENARIO_KINDS, {
+  errorMap: () => ({ message: "Scenario kind must be ADD_BILL, ADD_INCOME, REMOVE_BILL, or REMOVE_INCOME" }),
+});
+export type ScenarioKind = z.infer<typeof scenarioKindSchema>;
+
+export const scenarioInputSchema = z
+  .object({
+    kind: scenarioKindSchema,
+    name: nameSchema.optional(),
+    amountCents: amountCentsSchema.optional(),
+    /** Alias for amountCents (cents). */
+    amount: z.number().int().positive().max(MAX_AMOUNT_CENTS).optional(),
+    date: isoDateSchema.optional(),
+    dueDate: isoDateSchema.optional(),
+    anchorDate: isoDateSchema.optional(),
+    onDate: isoDateSchema.optional(),
+    frequency: z.string().trim().max(20).optional(),
+    id: z.string().optional(),
+    sourceId: z.string().optional(),
+    billId: z.string().optional(),
+    incomeId: z.string().optional(),
+    targetId: z.string().optional(),
+    removeId: z.string().optional(),
+  })
+  .passthrough();
+export type Scenario = z.infer<typeof scenarioInputSchema>;
+export type ScenarioInput = z.input<typeof scenarioInputSchema>;
+
+export const scenarioSchema = scenarioInputSchema;

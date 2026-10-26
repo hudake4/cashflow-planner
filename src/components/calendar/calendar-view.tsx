@@ -2,8 +2,8 @@
 
 import { TriangleAlert } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
-import type { CalendarView, LedgerEvent, ProjectionResponse, SettingsDTO, WeekSummary } from "@/contracts/api";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { BillDTO, CalendarView, IncomeDTO, LedgerEvent, ProjectionResponse, ScenarioInput, SettingsDTO, WeekSummary } from "@/contracts/api";
 import { effectiveProjectionStartDate, startDateFromAccounts } from "@/domain/starting-balance";
 import { api } from "@/lib/api-client";
 import { addDays, addMonths, eachDay, endOfMonth, fmtDate, fmtRange, startOfMonth, startOfWeek, todayLocal } from "@/lib/dates";
@@ -12,6 +12,9 @@ import { PageHeader } from "@/components/app-shell";
 import { EditSourceDialog } from "@/components/forms/edit-source-dialog";
 import type { ScheduleKind } from "@/components/forms/schedule-form-dialog";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ScenarioDialog } from "@/components/scenario/scenario-dialog";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/ui/states";
 import { CalendarToolbar } from "./calendar-toolbar";
@@ -79,6 +82,10 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [period, setPeriod] = useState<PeriodDetail | null>(null);
   const [editTarget, setEditTarget] = useState<{ kind: ScheduleKind; id: string } | null>(null);
+  const [scenario, setScenario] = useState<ScenarioInput | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [bills, setBills] = useState<BillDTO[]>([]);
+  const [incomes, setIncomes] = useState<IncomeDTO[]>([]);
   const periodTrigger = useRef<HTMLElement | null>(null);
   const editFocusTarget = useRef<HTMLElement | null>(null);
   const lastEventTrigger = useRef<HTMLElement | null>(null);
@@ -143,6 +150,12 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
 
   const selectedEvent = selectedEventId ? (eventsById.get(selectedEventId) ?? null) : null;
 
+  useEffect(() => {
+    if (!dialogOpen) return;
+    void api.listBills().then(setBills).catch(() => setBills([]));
+    void api.listIncome().then(setIncomes).catch(() => setIncomes([]));
+  }, [dialogOpen]);
+
   const title = view === "month" ? fmtDate(`${grid.month}-01`, "MMMM yyyy") : fmtRange(grid.from, grid.to);
 
   const openWeek = (w: WeekSummary) => {
@@ -203,10 +216,16 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
       : period;
   }, [period, fresh, weeksByStart, daysByDate]);
 
-  const visibleNegative = (fresh?.weeks ?? []).find((w) => w.hasNegative);
+  const floor = settings.balanceFloorCents ?? 0;
+  const visibleNegative = (fresh?.weeks ?? []).find((w) => w.lowestBalanceCents < floor);
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button size="sm" onClick={() => setDialogOpen(true)} data-testid="what-if-button">What-if</Button>
+        {scenario && <Badge data-testid="scenario-active">Scenario active</Badge>}
+        {scenario && <Button size="sm" variant="outline" onClick={() => setScenario(null)} data-testid="scenario-clear">Clear scenario</Button>}
+      </div>
       <CalendarToolbar
         view={view}
         title={title}
@@ -291,6 +310,7 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
         }}
       />
       <EditSourceDialog restoreFocusTarget={() => editFocusTarget.current} target={editTarget} onClose={() => setEditTarget(null)} onSaved={() => void projection.reload()} />
+      <ScenarioDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onApply={(s) => setScenario(s)} bills={bills} incomes={incomes} />
     </div>
   );
 }

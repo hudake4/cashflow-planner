@@ -19,6 +19,7 @@ export async function resetTables() {
   await testPrisma.billOccurrence.deleteMany();
   await testPrisma.bill.deleteMany();
   await testPrisma.incomeSource.deleteMany();
+  await testPrisma.savingsGoal.deleteMany();
   await testPrisma.settings.deleteMany();
 }
 

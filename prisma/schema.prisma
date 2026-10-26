@@ -25,6 +25,7 @@ model Settings {
   weekStartsOn          Int      @default(0) // 0 = Sunday ... 6 = Saturday
   defaultCalendarView   String   @default("month") // "month" | "week"
   desktopNotifications  Boolean  @default(true) // desktop app: notify about low balance and bills due soon (CONVENTIONS section 16)
+  balanceFloorCents     Int      @default(0) // lowest projected balance the user wants to stay above (safe-to-spend)
   updatedAt             DateTime @updatedAt
 }
 
@@ -157,4 +158,16 @@ model MerchantCategoryRule {
   updatedAt   DateTime @updatedAt
 
   @@unique([householdId, merchantKey])
+}
+
+model SavingsGoal {
+  id               String   @id @default(cuid())
+  householdId      String   @default("local")
+  name             String?
+  targetAmountCents Int
+  targetDate       String // YYYY-MM-DD
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([householdId])
 }

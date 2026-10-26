@@ -35,6 +35,7 @@ describe("/api/settings", () => {
       weekStartsOn: 0,
       defaultCalendarView: "month",
       desktopNotifications: true,
+  balanceFloorCents: 0,
       updatedAt: null,
     });
   });

@@ -23,8 +23,11 @@ import type {
   OccurrenceUpdateInput,
   ProjectionResponse,
   RecurringScanResponse,
+  ScenarioInput,
   SettingsDTO,
   SettingsInput,
+  SavingsGoalDTO,
+  SavingsGoalInput,
   SpendingCategoryInput,
   SpendingResponse,
 } from "@/contracts/api";
@@ -145,7 +148,11 @@ export const api = {
     const q = qs.toString();
     return request<ProjectionResponse>(`/projection${q ? `?${q}` : ""}`);
   },
+  getScenarioProjection: (scenario: ScenarioInput | ScenarioInput[], range?: { from?: string; to?: string }) =>
+    request<ProjectionResponse>("/projection/scenario", json("POST", { scenario, from: range?.from, to: range?.to })),
   getDashboard: () => request<DashboardResponse>("/dashboard"),
+  getScenarioDashboard: (scenario: ScenarioInput | ScenarioInput[], today?: string) =>
+    request<DashboardResponse>("/dashboard/scenario", json("POST", { scenario, today })),
 
   listInstitutions: () => request<InstitutionDTO[]>("/institutions"),
   /** Claims a SimpleFIN setup token (one use only) and runs the first sync. */
@@ -179,6 +186,11 @@ export const api = {
 
   /** Finds repeating payments/deposits in the stored bank history. Reads local data only. */
   scanRecurring: () => request<RecurringScanResponse>("/recurring"),
+  /** Subscription audit: recurring charges detected in the stored bank history. Reads local data only. */
+  scanRecurringAudit: () => request<RecurringScanResponse>("/recurring/audit"),
+  getSubscriptions: () => request<RecurringScanResponse>("/subscriptions"),
+  getSubscriptionAudit: () => request<RecurringScanResponse>("/subscription-audit"),
+  getRecurringAudit: () => request<RecurringScanResponse>("/recurring/audit"),
 
   /** Suggested amount for a bill from the stored bank history. Nothing is saved. Reads local data only. */
   getBillEstimate: (billId: string, date: string) =>
@@ -189,6 +201,12 @@ export const api = {
   /** Sets (null = back to automatic) the category of one transaction; by default it is learned for the whole merchant. Returns the refreshed analysis. */
   setTransactionCategory: (transactionId: string, input: SpendingCategoryInput) =>
     request<SpendingResponse>(`/spending/transactions/${encodeURIComponent(transactionId)}/category`, json("PUT", input)),
+
+  listSavingsGoals: () => request<SavingsGoalDTO[]>("/savings-goals"),
+  getSavingsGoal: (id: string) => request<SavingsGoalDTO>(`/savings-goals/${encodeURIComponent(id)}`),
+  createSavingsGoal: (input: SavingsGoalInput) => request<SavingsGoalDTO>("/savings-goals", json("POST", input)),
+  updateSavingsGoal: (id: string, input: SavingsGoalInput) => request<SavingsGoalDTO>(`/savings-goals/${encodeURIComponent(id)}`, json("PUT", input)),
+  deleteSavingsGoal: (id: string) => request<void>(`/savings-goals/${encodeURIComponent(id)}`, json("DELETE")),
 
   loadDemoData: () => request<{ ok: true }>("/data/demo", json("POST")),
   resetAllData: () => request<{ ok: true }>("/data/reset", json("POST")),

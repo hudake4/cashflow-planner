@@ -20,6 +20,7 @@ const fullSettings = (over: Partial<SettingsDTO> = {}): SettingsDTO => ({
   ...settings({ forecastDays: 30 }),
   defaultCalendarView: "month",
   desktopNotifications: true,
+  balanceFloorCents: 0,
   startingBalanceSource: "MANUAL",
   accountsBalanceCents: null,
   accountCount: 0,
