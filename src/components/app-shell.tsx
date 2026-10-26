@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { CommandPalette } from "@/components/command-palette";
-import { CalendarDays, ChartPie, CreditCard, HandCoins, Landmark, LayoutDashboard, Receipt, Settings } from "lucide-react";
+import { CalendarDays, ChartPie, CreditCard, HandCoins, Landmark, LayoutDashboard, Receipt, Settings, Target } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
@@ -16,6 +16,7 @@ const NAV = [
   { href: "/debt-payoff", label: "Debt payoff", mobileLabel: "Debt", icon: CreditCard, testId: "nav-debt-payoff" },
   { href: "/income", label: "Income", mobileLabel: "Income", icon: HandCoins, testId: "nav-income" },
   { href: "/institutions", label: "Institutions", mobileLabel: "Banks", icon: Landmark, testId: "nav-institutions" },
+  { href: "/savings-goals", label: "Savings Goals", mobileLabel: "Goals", icon: Target, testId: "nav-savings-goals" },
   { href: "/settings", label: "Settings", mobileLabel: "Settings", icon: Settings, testId: "nav-settings" },
 ] as const;
 

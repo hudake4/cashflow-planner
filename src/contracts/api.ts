@@ -881,6 +881,25 @@ export interface SpendingResponse extends SpendingAnalysisDTO {
 }
 
 // ---------------------------------------------------------------------------
+// Savings goals
+// ---------------------------------------------------------------------------
+
+export const savingsGoalInputSchema = z.object({
+  name: optionalText(80, "Name"),
+  targetAmountCents: amountCentsSchema,
+  targetDate: isoDateSchema,
+});
+export type SavingsGoalInput = z.input<typeof savingsGoalInputSchema>;
+
+export interface SavingsGoalDTO {
+  id: string;
+  name: string | null;
+  targetAmountCents: number;
+  targetDate: string;
+  createdAt: string;
+  updatedAt: string;
+}
+// ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------
 
