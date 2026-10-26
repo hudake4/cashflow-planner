@@ -23,6 +23,7 @@ import type {
   OccurrenceUpdateInput,
   ProjectionResponse,
   RecurringScanResponse,
+  ScenarioInput,
   SettingsDTO,
   SettingsInput,
   SpendingCategoryInput,
@@ -145,7 +146,11 @@ export const api = {
     const q = qs.toString();
     return request<ProjectionResponse>(`/projection${q ? `?${q}` : ""}`);
   },
+  getScenarioProjection: (scenario: ScenarioInput | ScenarioInput[], range?: { from?: string; to?: string }) =>
+    request<ProjectionResponse>("/projection/scenario", json("POST", { scenario, from: range?.from, to: range?.to })),
   getDashboard: () => request<DashboardResponse>("/dashboard"),
+  getScenarioDashboard: (scenario: ScenarioInput | ScenarioInput[], today?: string) =>
+    request<DashboardResponse>("/dashboard/scenario", json("POST", { scenario, today })),
 
   listInstitutions: () => request<InstitutionDTO[]>("/institutions"),
   /** Claims a SimpleFIN setup token (one use only) and runs the first sync. */

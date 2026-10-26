@@ -1,10 +1,11 @@
 "use client";
 
 import { clsx } from "clsx";
+import { useEffect, useState } from "react";
 import { CalendarDays, HandCoins, Info, Receipt, RefreshCw, TriangleAlert, Wallet } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import type { DashboardResponse } from "@/contracts/api";
+import type { BillDTO, DashboardResponse, IncomeDTO, ScenarioInput } from "@/contracts/api";
 import { api } from "@/lib/api-client";
 import { fmtDate, fmtDayShort, fmtRange, fmtShort } from "@/lib/dates";
 import { money } from "@/lib/format";
@@ -20,11 +21,26 @@ import { AnimatedBalance, Balance, EventAmount } from "@/components/ui/money";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/ui/states";
 import { TrendChart } from "./trend-chart";
+import { ScenarioDialog } from "@/components/scenario/scenario-dialog";
 
 const DISCLAIMER = "Projected balance assumes all scheduled income arrives and all listed bills are paid on time.";
 
 export function DashboardView() {
   const dash = useApi<DashboardResponse>("dashboard", api.getDashboard);
+  const [scenario, setScenario] = useState<ScenarioInput | null>(null);
+  const scenarioState = useApi<DashboardResponse>(
+    scenario ? `dashboard:scenario:${JSON.stringify(scenario)}` : null,
+    () => api.getScenarioDashboard(scenario!),
+  );
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [bills, setBills] = useState<BillDTO[]>([]);
+  const [incomes, setIncomes] = useState<IncomeDTO[]>([]);
+
+  useEffect(() => {
+    if (!dialogOpen) return;
+    void api.listBills().then(setBills).catch(() => setBills([]));
+    void api.listIncome().then(setIncomes).catch(() => setIncomes([]));
+  }, [dialogOpen]);
 
   return (
     <>
@@ -34,6 +50,28 @@ export function DashboardView() {
         actions={
           <div className="flex w-full flex-wrap gap-2 sm:w-auto">
             <RecurringScanButton onAdded={() => void dash.reload()} className="flex-1 sm:flex-none" />
+            <Button
+              size="sm"
+              onClick={() => setDialogOpen(true)}
+              className="min-h-11 flex-1 sm:flex-none"
+              data-testid="what-if-button"
+            >
+              What-if
+            </Button>
+            {scenario && (
+              <Badge tone="info" data-testid="scenario-active">Scenario active</Badge>
+            )}
+            {scenario && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setScenario(null)}
+                className="min-h-11 flex-1 sm:flex-none"
+                data-testid="scenario-clear"
+              >
+                Clear scenario
+              </Button>
+            )}
             <Button
               size="sm"
               loading={dash.refreshing}
@@ -67,11 +105,12 @@ export function DashboardView() {
       )}
       {dash.data ? (
         <div aria-busy={dash.refreshing || undefined}>
-          <DashboardContent d={dash.data} />
+          <DashboardContent d={dash.data} scenarioDashboard={scenarioState.data ?? null} />
         </div>
       ) : dash.error ? null : (
         <DashboardSkeleton />
       )}
+      <ScenarioDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onApply={(s) => setScenario(s)} bills={bills} incomes={incomes} />
       <p className="mt-10 flex max-w-[80ch] items-start gap-2 text-xs leading-relaxed text-slate-600" data-testid="disclaimer">
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         {DISCLAIMER} Figures are projections from what you entered, not a live bank balance.
@@ -166,7 +205,7 @@ function RegisterLine({
   );
 }
 
-function DashboardContent({ d }: { d: DashboardResponse }) {
+function DashboardContent({ d, scenarioDashboard }: { d: DashboardResponse; scenarioDashboard?: DashboardResponse | null }) {
   const currency = d.settings.currency;
   const t = d.totals;
   const fromAccounts = d.settings.startingBalanceSource === "ACCOUNTS" && d.settings.accountsBalanceCents !== null;
@@ -314,7 +353,7 @@ function DashboardContent({ d }: { d: DashboardResponse }) {
         <Card>
           <CardHeader title="Projected balance" description={`End-of-day balance, ${fmtRange(d.window.startDate, d.window.endDate)}`} />
           <CardBody>
-            <TrendChart dashboard={d} />
+            <TrendChart dashboard={d} scenarioDashboard={scenarioDashboard} />
           </CardBody>
         </Card>
 
