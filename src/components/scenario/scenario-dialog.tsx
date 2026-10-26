@@ -2,11 +2,10 @@
 
 import { useEffect, useState } from "react";
 import type { BillDTO, IncomeDTO, ScenarioInput } from "@/contracts/api";
+import { parseMoneyToCents } from "@/domain/money";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-// native select used inline
+import { Field, Input, MoneyInput, Select } from "@/components/ui/field";
 
 const KINDS = [
   { value: "ADD_BILL", label: "Add a bill" },
@@ -14,6 +13,10 @@ const KINDS = [
   { value: "REMOVE_BILL", label: "Remove a bill" },
   { value: "REMOVE_INCOME", label: "Remove income" },
 ] as const;
+
+type ScenarioKind = ScenarioInput["kind"];
+
+const firstId = (items: { id: string }[]) => items[0]?.id ?? "";
 
 export function ScenarioDialog({
   open,
@@ -28,11 +31,12 @@ export function ScenarioDialog({
   bills: BillDTO[];
   incomes: IncomeDTO[];
 }) {
-  const [kind, setKind] = useState<string>("ADD_BILL");
+  const [kind, setKind] = useState<ScenarioKind>("ADD_BILL");
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState("");
   const [targetId, setTargetId] = useState("");
+  const [errors, setErrors] = useState<{ amount?: string; date?: string }>({});
 
   useEffect(() => {
     if (open) {
@@ -40,61 +44,78 @@ export function ScenarioDialog({
       setName("");
       setAmount("");
       setDate("");
-      setTargetId(bills[0]?.id ?? incomes[0]?.id ?? "");
+      setErrors({});
+      setTargetId(firstId(bills));
     }
   }, [open, bills, incomes]);
 
   const isRemove = kind === "REMOVE_BILL" || kind === "REMOVE_INCOME";
   const list = kind === "REMOVE_BILL" ? bills : incomes;
 
+  const changeKind = (next: ScenarioKind) => {
+    setKind(next);
+    setErrors({});
+    if (next === "REMOVE_BILL") setTargetId(firstId(bills));
+    else if (next === "REMOVE_INCOME") setTargetId(firstId(incomes));
+  };
+
   const apply = () => {
-    const scenario: ScenarioInput =
-      isRemove
-        ? { kind: kind as ScenarioInput["kind"], id: targetId }
-        : {
-            kind: kind as ScenarioInput["kind"],
-            name: name || (kind === "ADD_BILL" ? "Scenario bill" : "Scenario income"),
-            amountCents: Math.round(Number(amount) * 100),
-            date,
-          };
-    onApply(scenario);
+    if (isRemove) {
+      onApply({ kind, id: targetId });
+      onClose();
+      return;
+    }
+
+    const cents = parseMoneyToCents(amount);
+    const nextErrors: { amount?: string; date?: string } = {};
+    if (amount.trim() === "") nextErrors.amount = "Amount is required";
+    else if (cents === null) nextErrors.amount = "Enter an amount like 1250 or 1,250.00 (up to 2 decimals)";
+    else if (cents <= 0) nextErrors.amount = "Amount must be greater than zero";
+    if (date === "") nextErrors.date = "Date is required";
+    if (nextErrors.amount || nextErrors.date) {
+      setErrors(nextErrors);
+      return;
+    }
+
+    onApply({
+      kind,
+      name: name.trim() || (kind === "ADD_BILL" ? "Scenario bill" : "Scenario income"),
+      // Validation above guarantees a positive whole-cent value; the fallback is unreachable.
+      amountCents: cents ?? 0,
+      date,
+    });
     onClose();
   };
 
   return (
     <Dialog open={open} onClose={onClose} title="What-if scenario" description="Preview a hypothetical change. Nothing is saved." testId="scenario-dialog">
       <div className="space-y-4">
-        <div>
-          <Label htmlFor="scenario-kind">Type</Label>
-          <select id="scenario-kind" value={kind} onChange={(e) => setKind(e.target.value)} className="w-full rounded border border-border bg-background px-3 py-2 text-sm">
+        <Field label="Type" testId="scenario-kind">
+          <Select value={kind} onChange={(e) => changeKind(e.target.value as ScenarioKind)} data-testid="scenario-kind">
             {KINDS.map((k) => (
               <option key={k.value} value={k.value}>{k.label}</option>
             ))}
-          </select>
-        </div>
+          </Select>
+        </Field>
         {isRemove ? (
-          <div>
-            <Label htmlFor="scenario-target">Item</Label>
-            <select id="scenario-target" value={targetId} onChange={(e) => setTargetId(e.target.value)} className="w-full rounded border border-border bg-background px-3 py-2 text-sm">
+          <Field label="Item" testId="scenario-target">
+            <Select value={targetId} onChange={(e) => setTargetId(e.target.value)} data-testid="scenario-target">
               {list.map((x) => (
                 <option key={x.id} value={x.id}>{x.name}</option>
               ))}
-            </select>
-          </div>
+            </Select>
+          </Field>
         ) : (
           <>
-            <div>
-              <Label htmlFor="scenario-name">Name</Label>
-              <Input id="scenario-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. New purchase" />
-            </div>
-            <div>
-              <Label htmlFor="scenario-amount">Amount</Label>
-              <Input id="scenario-amount" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" />
-            </div>
-            <div>
-              <Label htmlFor="scenario-date">Date</Label>
-              <Input id="scenario-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-            </div>
+            <Field label="Name" testId="scenario-name">
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. New purchase" maxLength={80} data-testid="scenario-name" />
+            </Field>
+            <Field label="Amount" error={errors.amount} testId="scenario-amount">
+              <MoneyInput value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" data-testid="scenario-amount" />
+            </Field>
+            <Field label="Date" error={errors.date} testId="scenario-date">
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} data-testid="scenario-date" />
+            </Field>
           </>
         )}
       </div>

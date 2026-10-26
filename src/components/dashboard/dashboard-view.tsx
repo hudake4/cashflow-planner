@@ -103,6 +103,14 @@ export function DashboardView() {
           className="mb-6"
         />
       )}
+      {scenarioState.error && (
+        <ErrorState
+          message={scenarioState.error}
+          onRetry={() => void scenarioState.reload()}
+          title="Couldn't preview the scenario"
+          className="mb-6"
+        />
+      )}
       {dash.data ? (
         <div aria-busy={dash.refreshing || undefined}>
           <DashboardContent d={dash.data} scenarioDashboard={scenarioState.data ?? null} />
