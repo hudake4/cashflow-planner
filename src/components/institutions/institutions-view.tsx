@@ -290,7 +290,7 @@ function InstitutionCard({
             title={institution.lastSyncedAt ? new Date(institution.lastSyncedAt).toLocaleString() : undefined}
             data-testid={`institution-synced-${institution.id}`}
           >
-            {lastSyncedText(institution)} · Connected {fmtShort(institution.connectedAt.slice(0, 10))}
+            {lastSyncedText(institution)} &middot; Connected {fmtShort(institution.connectedAt.slice(0, 10))}
           </p>
         </div>
         <div className="flex items-center gap-1">
@@ -381,7 +381,7 @@ function AccountRow({
           <span className="sr-only"> transactions</span>
         </Link>
         <p className="text-xs text-muted-foreground">
-          {showInstitution && `${account.institutionName} · `}As of {fmtShort(account.balanceDate)}
+          {showInstitution && `${account.institutionName} \u00b7 `}As of {fmtShort(account.balanceDate)}
         </p>
         <Select
           value={account.kind}
