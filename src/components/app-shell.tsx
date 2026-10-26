@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { CommandPalette } from "@/components/command-palette";
 import { CalendarDays, ChartPie, HandCoins, Landmark, LayoutDashboard, Receipt, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -130,6 +131,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           })}
         </ul>
       </nav>
+      <CommandPalette />
     </div>
   );
 }
