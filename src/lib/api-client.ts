@@ -179,6 +179,11 @@ export const api = {
 
   /** Finds repeating payments/deposits in the stored bank history. Reads local data only. */
   scanRecurring: () => request<RecurringScanResponse>("/recurring"),
+  /** Subscription audit: recurring charges detected in the stored bank history. Reads local data only. */
+  scanRecurringAudit: () => request<RecurringScanResponse>("/recurring/audit"),
+  getSubscriptions: () => request<RecurringScanResponse>("/subscriptions"),
+  getSubscriptionAudit: () => request<RecurringScanResponse>("/subscription-audit"),
+  getRecurringAudit: () => request<RecurringScanResponse>("/recurring/audit"),
 
   /** Suggested amount for a bill from the stored bank history. Nothing is saved. Reads local data only. */
   getBillEstimate: (billId: string, date: string) =>
