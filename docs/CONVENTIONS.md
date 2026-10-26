@@ -161,13 +161,22 @@ Finds repeating payments and deposits in the stored bank history (section 9, Sim
 - Quarterly and yearly payments are **not detectable**: they don't repeat inside 89 days.
 - **Amount:** the latest occurrence. `amountVaries` is true when amounts differ by more than 2% of the median.
 - **Next date:** the first expected date on or after today. Weekly and biweekly step 7 or 14 days from the last sighting. Monthly uses the usual day of month; a clamped month-end does not override a 31st (section 4).
-- **Already tracked (hidden):** an existing bill or income of the same kind that is not one-time and not ended (paused counts) when any of these hold:
+- **Already tracked (left out of the suggestions):** an existing bill or income of the same kind that is not one-time and not ended (paused counts) when any of these hold:
   1. one name's words (ignoring bank boilerplate) are all in the other name;
   2. same first word (5+ letters) and amount within 25%;
   3. same frequency, amount within 3%, and a scheduled date within 3 days (monthly) or 1 day (weekly, biweekly) of the suggested next date.
 - **Order:** next date, then income before bills, then name.
 - **Skip is per scan.** Nothing is stored, so skipped suggestions reappear on the next scan.
 - **Adding** a suggestion uses the normal `POST /api/bills` or `POST /api/income`, with the notes "Found in your bank history."
+
+### Subscription audit (the Subscriptions page)
+
+The same history also drives the subscription audit, which shows the user's subscriptions as a whole. It reads the local snapshot only and never calls SimpleFIN.
+
+- **Scope:** detected recurring charges **and** the bills the user already tracks. Income is left out — this view is about money out. Detected rows show the number of sightings and a "Not a subscription" action; tracked rows are marked "Tracked" (or "Paused" when inactive). One-time bills are not subscriptions, so they are not listed.
+- **Annual cost:** amount × cadence (weekly 52, every-2-weeks 26, monthly 12, quarterly 4, yearly 1). Paused bills count 0. The header total is the detected charges plus the active tracked bills.
+- **Cancel candidate (cadence-aware):** a detected charge is a cancel candidate when it has been idle longer than its interval plus a grace period — weekly 7 + 4 days, every-2-weeks 14 + 7 days, monthly 30 + 7 days. A monthly bill on its due date is never flagged, and tracked bills are never candidates.
+- **Not a subscription:** the user can mark a detected charge as "not a subscription". The suggestion's `key` is stored (`DismissedRecurring`) and the audit stops showing it; nothing else is changed. Marking something tracked as a bill is the existing `POST /api/bills`.
 
 ## 13. Spend analyzer
 

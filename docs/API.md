@@ -78,6 +78,14 @@ Finds repeating payments and deposits in the stored bank transactions and sugges
 
 Adding a suggestion uses the existing `POST /api/bills` or `POST /api/income`, with the notes "Found in your bank history."
 
+## Subscription audit (from bank history and the tracked bills)
+The Subscriptions page. Detected recurring charges plus the bills the user already tracks. Reads the local snapshot only and never calls SimpleFIN.
+
+| Method | Path | Body / query | Response |
+|---|---|---|---|
+| GET | `/api/subscriptions` | — | `SubscriptionAuditResponse` `{ suggestions, tracked, currency, connectionCount, transactionCount, lastSyncedAt }`. `suggestions` are the detected recurring charges (BILL kind only, income excluded), each a `RecurringSuggestionDTO`, with anything the user dismissed left out. `tracked` is the user's bills (any frequency; the view marks them "Tracked" or "Paused"). One-time bills appear in neither. |
+| POST | `/api/subscriptions/dismiss` | `{ key }` (the suggestion `key`) | `204`. Marks the charge "not a subscription" so the audit stops showing it. 400 `VALIDATION_ERROR` without a `key`. |
+
 ## Bill payment matches (from bank history)
 Synced bank transactions that look like the payment of a bill occurrence that is not yet marked paid. Rules are in [`CONVENTIONS.md`](CONVENTIONS.md) section 14. The endpoint reads the local database only, never calls SimpleFIN and changes nothing.
 
