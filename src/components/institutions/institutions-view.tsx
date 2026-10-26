@@ -139,7 +139,7 @@ export function InstitutionsView() {
           if (!removing) return;
           const name = removing.name;
           await api.removeInstitution(removing.id);
-          toast(`Removed â€œ${name}â€ from this app.`, "success");
+          toast(`Removed “${name}” from this app.`, "success");
           await list.reload();
         }}
         onError={(message) => toast(message, "error")}
@@ -290,7 +290,7 @@ function InstitutionCard({
             title={institution.lastSyncedAt ? new Date(institution.lastSyncedAt).toLocaleString() : undefined}
             data-testid={`institution-synced-${institution.id}`}
           >
-            {lastSyncedText(institution)} Â· Connected {fmtShort(institution.connectedAt.slice(0, 10))}
+            {lastSyncedText(institution)} &middot; Connected {fmtShort(institution.connectedAt.slice(0, 10))}
           </p>
         </div>
         <div className="flex items-center gap-1">
@@ -386,14 +386,14 @@ function AccountRow({
               <span className="sr-only"> transactions</span>
             </Link>
             <p className="text-xs text-muted-foreground">
-              {showInstitution && `${account.institutionName} Â· `}As of {fmtShort(account.balanceDate)}
+              {showInstitution && `${account.institutionName} \u00b7 `}As of {fmtShort(account.balanceDate)}
             </p>
           </div>
           <div className="shrink-0 text-right">
             <Balance cents={account.balanceCents} currency={account.currency} className="font-semibold" />
             {available !== null && (
               <p className="text-xs text-muted-foreground">
-                Available <Balance cents={available}currency={account.currency} className="font-normal" />
+                Available <Balance cents={available} currency={account.currency} className="font-normal" />
               </p>
             )}
           </div>
