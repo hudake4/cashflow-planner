@@ -19,6 +19,9 @@ export async function scanRecurring(accountId?: string, now: Date = new Date()):
   const [connections, rows, bills, incomes, settings] = await Promise.all([
     db.bankConnection.findMany({ where: { householdId: HOUSEHOLD_ID }, select: { lastSyncedAt: true } }),
     db.bankTransaction.findMany({
+      // Bank accounts only, like the starting balance: a bill or income suggestion has to move money
+      // through one. Card purchases are paid for by the card payment, and the payment received on the
+      // card would look like a monthly income. A single account can be scanned by passing its id.
       where: { pending: false, date: { gte: historyCutoff(today) }, account: accountFilter },
       select: { date: true, description: true, amountCents: true, accountId: true },
     }),

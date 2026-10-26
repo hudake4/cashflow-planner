@@ -88,7 +88,7 @@ export function InstitutionsView() {
           testId="institutions-empty"
         />
       ) : (
-        <ul className="grid grid-cols-1 gap-4 lg:grid-cols-2" data-testid="institutions-list">
+        <ul className="flex flex-col gap-8" data-testid="institutions-list">
           {items.map((inst) => (
             <li key={inst.id} className="min-w-0">
               <InstitutionCard
@@ -281,7 +281,7 @@ function InstitutionCard({
   }
 
   return (
-    <Card className="p-5" data-testid={`institution-card-${institution.id}`}>
+    <section aria-label={institution.name} data-testid={`institution-card-${institution.id}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="font-semiwide truncate text-base font-bold text-foreground">{institution.name}</h2>
@@ -290,7 +290,7 @@ function InstitutionCard({
             title={institution.lastSyncedAt ? new Date(institution.lastSyncedAt).toLocaleString() : undefined}
             data-testid={`institution-synced-${institution.id}`}
           >
-            {lastSyncedText(institution)} · Connected {fmtShort(institution.connectedAt.slice(0, 10))}
+            {lastSyncedText(institution)} &middot; Connected {fmtShort(institution.connectedAt.slice(0, 10))}
           </p>
         </div>
         <div className="flex items-center gap-1">
@@ -318,10 +318,10 @@ function InstitutionCard({
           </Button>
         </div>
       </div>
-      <ul className="mt-4 divide-y divide-border border-t border-border text-sm">
-        {institution.accounts.length === 0 && (
-          <li className="py-2 text-muted-foreground">No accounts yet. Press Refresh to load them from SimpleFIN.</li>
-        )}
+      {institution.accounts.length === 0 && (
+        <p className="mt-3 text-sm text-muted-foreground">No accounts yet. Press Refresh to load them from SimpleFIN.</p>
+      )}
+      <ul className="mt-3 grid grid-cols-1 gap-3 text-sm md:grid-cols-2 xl:grid-cols-3">
         {institution.accounts.map((a) => (
           <AccountRow
             key={a.id}
@@ -332,7 +332,7 @@ function InstitutionCard({
           />
         ))}
       </ul>
-    </Card>
+    </section>
   );
 }
 
@@ -409,102 +409,111 @@ function AccountRow({
     }
   }
 
+  // SimpleFIN sends 0 for cards and loans whose provider doesn't report available credit, so a zero there means "unknown", not "nothing left".
+  const available = account.kind === "CREDIT" || account.kind === "LOAN" ? account.availableBalanceCents || null : account.availableBalanceCents;
+
   return (
-    <li className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-3" data-testid={`account-row-${account.id}`}>
-      <div className="min-w-0">
-        <Link
-          href={`/institutions/${encodeURIComponent(institutionId)}?account=${encodeURIComponent(account.id)}`}
-          className="rounded-control font-medium text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          data-testid={`account-link-${account.id}`}
-        >
-          {account.name}
-          <span className="sr-only"> transactions</span>
-        </Link>
-        <p className="text-xs text-muted-foreground">
-          {showInstitution && `${account.institutionName} · `}As of {fmtShort(account.balanceDate)}
-        </p>
-        <Select
-          value={account.kind}
-          onChange={(e) => void changeKind(e.target.value as AccountKind)}
-          disabled={saving}
-          aria-label={`Account type for ${account.name}`}
-          className="mt-1.5 h-8 w-auto max-w-full py-0 text-sm"
-          data-testid={`account-kind-${account.id}`}
-        >
-          {ACCOUNT_KINDS.map((k) => (
-            <option key={k} value={k}>
-              {KIND_LABELS[k]}
-            </option>
-          ))}
-        </Select>
-        {account.kind !== "BANK" && (
-          <p className="mt-1 text-xs text-muted-foreground" data-testid={`account-excluded-${account.id}`}>
-            Not counted in your starting balance
-          </p>
-        )}
-      </div>
-      <div className="text-right">
-        <Balance cents={account.balanceCents} currency={account.currency} className="font-semibold" />
-        {account.availableBalanceCents !== null && (
-          <p className="text-xs text-muted-foreground">
-            Available <Balance cents={account.availableBalanceCents} currency={account.currency} className="font-normal" />
-          </p>
-        )}
-      </div>
-      {account.kind === "CREDIT" && (
-        <div className="mt-3 w-full space-y-2 border-t border-border pt-3" data-testid={`card-details-${account.id}`}>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <Field label="Closing day">
-              <input
-                type="number"
-                min={1}
-                max={31}
-                value={closingDay}
-                onChange={(e) => setClosingDay(e.target.value)}
-                className="h-8 w-full rounded-control border border-border bg-background px-2 text-sm"
-                data-testid={`card-closing-${account.id}`}
-              />
-            </Field>
-            <Field label="Due day">
-              <input
-                type="number"
-                min={1}
-                max={31}
-                value={dueDay}
-                onChange={(e) => setDueDay(e.target.value)}
-                className="h-8 w-full rounded-control border border-border bg-background px-2 text-sm"
-                data-testid={`card-due-${account.id}`}
-              />
-            </Field>
-            <Field label="APR %">
-              <input
-                type="number"
-                step="0.01"
-                value={apr}
-                onChange={(e) => setApr(e.target.value)}
-                className="h-8 w-full rounded-control border border-border bg-background px-2 text-sm"
-                data-testid={`card-apr-${account.id}`}
-              />
-            </Field>
-            <div className="flex items-end">
-              <Button size="sm" variant="secondary" onClick={() => void saveCardFields()} loading={saving} data-testid={`card-save-${account.id}`}>
-                Save
-              </Button>
-            </div>
+    <li className="min-w-0" data-testid={`account-row-${account.id}`}>
+      <Card className="flex h-full flex-col gap-2 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <Link
+              href={`/institutions/${encodeURIComponent(institutionId)}?account=${encodeURIComponent(account.id)}`}
+              className="rounded-control font-medium text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              data-testid={`account-link-${account.id}`}
+            >
+              {account.name}
+              <span className="sr-only"> transactions</span>
+            </Link>
+            <p className="text-xs text-muted-foreground">
+              {showInstitution && `${account.institutionName} \u00b7 `}As of {fmtShort(account.balanceDate)}
+            </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" onClick={() => void runEstimate()} loading={estimating} data-testid={`card-estimate-${account.id}`}>
-              Estimate bill
-            </Button>
-            {estimate && (
-              <p className="text-sm text-muted-foreground" data-testid={`card-estimate-result-${account.id}`}>
-                Est. bill <Balance cents={estimate.projectedBillCents} currency={account.currency} className="font-semibold" /> due {estimate.dueDate}
-                {estimate.minimumPaymentCents !== null && ` (min ${ (estimate.minimumPaymentCents / 100).toFixed(2) })`}
+          <div className="shrink-0 text-right">
+            <Balance cents={account.balanceCents} currency={account.currency} className="font-semibold" />
+            {available !== null && (
+              <p className="text-xs text-muted-foreground">
+                Available <Balance cents={available} currency={account.currency} className="font-normal" />
               </p>
             )}
           </div>
         </div>
-      )}
+        <div className="mt-auto">
+          <Select
+            value={account.kind}
+            onChange={(e) => void changeKind(e.target.value as AccountKind)}
+            disabled={saving}
+            aria-label={`Account type for ${account.name}`}
+            className="h-8 w-auto max-w-full py-0 text-sm"
+            data-testid={`account-kind-${account.id}`}
+          >
+            {ACCOUNT_KINDS.map((k) => (
+              <option key={k} value={k}>
+                {KIND_LABELS[k]}
+              </option>
+            ))}
+          </Select>
+          {account.kind !== "BANK" && (
+            <p className="mt-1 text-xs text-muted-foreground" data-testid={`account-excluded-${account.id}`}>
+              Not counted in your starting balance
+            </p>
+          )}
+        </div>
+        {account.kind === "CREDIT" && (
+          <div className="mt-3 space-y-2 border-t border-border pt-3" data-testid={`card-details-${account.id}`}>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <Field label="Closing day">
+                <input
+                  type="number"
+                  min={1}
+                  max={31}
+                  value={closingDay}
+                  onChange={(e) => setClosingDay(e.target.value)}
+                  className="h-8 w-full rounded-control border border-border bg-background px-2 text-sm"
+                  data-testid={`card-closing-${account.id}`}
+                />
+              </Field>
+              <Field label="Due day">
+                <input
+                  type="number"
+                  min={1}
+                  max={31}
+                  value={dueDay}
+                  onChange={(e) => setDueDay(e.target.value)}
+                  className="h-8 w-full rounded-control border border-border bg-background px-2 text-sm"
+                  data-testid={`card-due-${account.id}`}
+                />
+              </Field>
+              <Field label="APR %">
+                <input
+                  type="number"
+                  step="0.01"
+                  value={apr}
+                  onChange={(e) => setApr(e.target.value)}
+                  className="h-8 w-full rounded-control border border-border bg-background px-2 text-sm"
+                  data-testid={`card-apr-${account.id}`}
+                />
+              </Field>
+              <div className="flex items-end">
+                <Button size="sm" variant="secondary" onClick={() => void saveCardFields()} loading={saving} data-testid={`card-save-${account.id}`}>
+                  Save
+                </Button>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" onClick={() => void runEstimate()} loading={estimating} data-testid={`card-estimate-${account.id}`}>
+                Estimate bill
+              </Button>
+              {estimate && (
+                <p className="text-sm text-muted-foreground" data-testid={`card-estimate-result-${account.id}`}>
+                  Est. bill <Balance cents={estimate.projectedBillCents} currency={account.currency} className="font-semibold" /> due {estimate.dueDate}
+                  {estimate.minimumPaymentCents !== null && ` (min ${ (estimate.minimumPaymentCents / 100).toFixed(2) })`}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+      </Card>
     </li>
   );
 }

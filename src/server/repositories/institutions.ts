@@ -4,7 +4,8 @@
  * The app keeps a local snapshot (accounts, balances, transactions) and only talks to
  * SimpleFIN when the user connects or presses Refresh, because SimpleFIN allows 24
  * requests/day and refreshes bank data roughly once a day. `accessUrl` holds credentials:
- * it is read only here (to hand to ../simplefin) and is never part of a DTO.
+ * it is stored encrypted when a sealer exists (see ../secret-box), decrypted only here
+ * (to hand to ../simplefin) and is never part of a DTO.
  */
 import type { BankAccount, BankConnection, BankTransaction } from "@prisma/client";
 import type { z } from "zod";
@@ -22,6 +23,7 @@ import { guessAccountKind } from "../../domain/account-kind";
 import { todayLocal } from "../../domain/dates";
 import { db, HOUSEHOLD_ID, type DbClient } from "../db";
 import { ApiError, notFound } from "../http";
+import { isEncrypted, open, seal, SecretUnavailableError } from "../secret-box";
 import * as simplefin from "../simplefin";
 import { historyCutoff, planSyncWindow } from "../simplefin-mapping";
 
@@ -97,9 +99,36 @@ const syncing = new Set<string>();
  * stored transactions (an empty list from a failing bank must not wipe history).
  * `lastSyncedAt` moves only after a successful fetch, so a failed sync can be retried.
  */
+/**
+ * Decrypts the stored Access URL. A legacy plaintext value is upgraded in place (best effort)
+ * as soon as a sealer is available, so existing connections are encrypted on their next use.
+ */
+async function readAccessUrl(row: BankConnection): Promise<string> {
+  let accessUrl: string;
+  try {
+    accessUrl = open(row.accessUrl);
+  } catch (err) {
+    if (!(err instanceof SecretUnavailableError)) throw err;
+    throw new ApiError(
+      409,
+      "CONFLICT",
+      "The stored SimpleFIN credentials cannot be decrypted here. Remove this connection and connect again with a new setup token.",
+    );
+  }
+  if (!isEncrypted(row.accessUrl)) {
+    try {
+      const sealed = seal(accessUrl);
+      if (isEncrypted(sealed)) await db.bankConnection.update({ where: { id: row.id }, data: { accessUrl: sealed } });
+    } catch {
+      // Not fatal: the plaintext value keeps working and is upgraded on the next sync.
+    }
+  }
+  return accessUrl;
+}
+
 async function runSync(row: BankConnection, now: Date): Promise<string[]> {
   const window = planSyncWindow(row.lastSyncedAt, now);
-  const set = await simplefin.fetchAccountSet(row.accessUrl, {
+  const set = await simplefin.fetchAccountSet(await readAccessUrl(row), {
     start: window.start,
     end: window.end,
     pending: true,
@@ -187,7 +216,7 @@ export async function syncConnection(id: string, now: Date = new Date()): Promis
  */
 export async function connect(input: ConnectData, now: Date = new Date()): Promise<InstitutionSyncDTO> {
   const accessUrl = await simplefin.claimSetupToken(input.setupToken);
-  const created = await db.bankConnection.create({ data: { householdId: HOUSEHOLD_ID, accessUrl } });
+  const created = await db.bankConnection.create({ data: { householdId: HOUSEHOLD_ID, accessUrl: seal(accessUrl) } });
 
   let warnings: string[];
   syncing.add(created.id);

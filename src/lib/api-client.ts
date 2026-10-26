@@ -9,10 +9,13 @@ import type {
   BankAccountDTO,
   BillDTO,
   BillInput,
+  BillMatchesResponse,
   BankTransactionsResponse,
+  BillEstimateDTO,
   BillOccurrenceDTO,
   ConnectInstitutionInput,
   DashboardResponse,
+  DataRestoreInput,
   IncomeDTO,
   IncomeInput,
   InstitutionDTO,
@@ -132,6 +135,9 @@ export const api = {
   resetOccurrence: (billId: string, date: string) =>
     request<void>(`/bills/${encodeURIComponent(billId)}/occurrences/${date}`, json("DELETE")),
 
+  /** Synced bank transactions that look like payments of unpaid bill occurrences. Reads local data only; marking one paid is a separate `setOccurrence` call. */
+  listBillMatches: () => request<BillMatchesResponse>("/bills/matches"),
+
   getProjection: (range?: { from?: string; to?: string }) => {
     const qs = new URLSearchParams();
     if (range?.from) qs.set("from", range.from);
@@ -174,6 +180,10 @@ export const api = {
   /** Finds repeating payments/deposits in the stored bank history. Reads local data only. */
   scanRecurring: () => request<RecurringScanResponse>("/recurring"),
 
+  /** Suggested amount for a bill from the stored bank history. Nothing is saved. Reads local data only. */
+  getBillEstimate: (billId: string, date: string) =>
+    request<BillEstimateDTO>(`/bills/${encodeURIComponent(billId)}/estimate?date=${date}`),
+
   /** Last month's and this month's spending by category from the stored bank history. Reads local data only. */
   getSpending: () => request<SpendingResponse>("/spending"),
   /** Sets (null = back to automatic) the category of one transaction; by default it is learned for the whole merchant. Returns the refreshed analysis. */
@@ -182,6 +192,7 @@ export const api = {
 
   loadDemoData: () => request<{ ok: true }>("/data/demo", json("POST")),
   resetAllData: () => request<{ ok: true }>("/data/reset", json("POST")),
+  restoreBackup: (data: DataRestoreInput) => request<{ ok: true }>("/data/restore", json("POST", data)),
   /** The full backup as a JSON file (bank credentials are never included). */
   downloadBackup,
 };

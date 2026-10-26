@@ -176,8 +176,15 @@ function nextDate(frequency: RecurringFrequency, dates: string[], today: string)
 // Already tracked?
 // ---------------------------------------------------------------------------
 
-const within = (a: number, b: number, fraction: number) => Math.abs(a - b) <= Math.max(a, b) * fraction;
+/** True when two amounts are within `fraction` of the larger one. */
+export const within = (a: number, b: number, fraction: number) => Math.abs(a - b) <= Math.max(a, b) * fraction;
 const isSubset = (small: string[], big: string[]) => small.length > 0 && small.every((t) => big.includes(t));
+
+/** One name's words (see `nameTokens`) are all in the other: "Netflix" and "NETFLIX.COM" are the same merchant. */
+export const namesOverlap = (a: string[], b: string[]) => isSubset(a, b) || isSubset(b, a);
+
+/** Same first word of 5+ letters: "Netflix Premium" and "NETFLIX.COM". Weaker than `namesOverlap`; callers pair it with an amount check. */
+export const sharesLeadWord = (a: string[], b: string[]) => a[0] !== undefined && a[0] === b[0] && a[0].length >= 5;
 
 function isTracked(
   tokens: string[],
@@ -190,9 +197,9 @@ function isTracked(
   return existing.some((e) => {
     if (e.frequency === "ONE_TIME" || (e.endDate && e.endDate < today)) return false;
     const theirs = nameTokens(e.name);
-    if (isSubset(theirs, tokens) || isSubset(tokens, theirs)) return true;
+    if (namesOverlap(theirs, tokens)) return true;
     // "Netflix Premium" already tracked and the bank says "NETFLIX.COM": same first word, similar amount.
-    if (theirs[0] && theirs[0] === tokens[0] && theirs[0].length >= 5 && within(e.amountCents, amountCents, 0.25)) return true;
+    if (sharesLeadWord(theirs, tokens) && within(e.amountCents, amountCents, 0.25)) return true;
     // Named differently ("Rent" vs a landlord's name) but the same amount on the same schedule.
     if (e.frequency !== frequency || !within(e.amountCents, amountCents, 0.03)) return false;
     const slack = frequency === "MONTHLY" ? 3 : 1;
