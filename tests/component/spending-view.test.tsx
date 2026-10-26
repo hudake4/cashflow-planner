@@ -195,22 +195,36 @@ describe("SpendingView", () => {
     render(<SpendingView />);
     await screen.findByTestId("spending-view");
 
-    expect(lastPanel()).toHaveTextContent("Transfers and card payments ($1,234.56) aren't counted as spending.");
+    expect(lastPanel()).toHaveTextContent("Transfers and card payments aren't counted in Total spent or the percentages.");
     expect(thisPanel()).not.toHaveTextContent(/transfers and card payments/i);
   });
 
-  it("never renders TRANSFERS as a category row", async () => {
+  it("lists Transfers as a category row, in amount order, outside the total and percentages", async () => {
+    const withTransfers: SpendingPeriodDTO = { ...THIS_MONTH, transfersCents: 99900 };
+    getSpending.mockResolvedValue(response({ thisMonth: withTransfers }));
+    render(<SpendingView />);
+    await screen.findByTestId("spending-view");
+
+    const rows = within(thisPanel()).getAllByTestId("spending-category-row");
+    expect(rows).toHaveLength(4);
+    expect(rows[0]).toHaveTextContent("Transfers");
+    expect(rows[0]).toHaveTextContent("$999.00");
+    expect(rows[0]).toHaveTextContent("not in total");
+    expect(rows[1]).toHaveTextContent("Groceries");
+    expect(screen.getByTestId("spending-total-this-month")).toHaveTextContent("$1,450.00");
+  });
+
+  it("does not list Transfers twice if a response also puts it in categories", async () => {
     const withTransfers: SpendingPeriodDTO = {
       ...THIS_MONTH,
+      transfersCents: 99900,
       categories: [{ category: "TRANSFERS", totalCents: 99900, transactionCount: 2 }, ...THIS_MONTH.categories],
     };
     getSpending.mockResolvedValue(response({ thisMonth: withTransfers }));
     render(<SpendingView />);
     await screen.findByTestId("spending-view");
 
-    const rows = within(thisPanel()).getAllByTestId("spending-category-row");
-    expect(rows).toHaveLength(3);
-    rows.forEach((row) => expect(row).not.toHaveTextContent(/transfers/i));
+    expect(within(thisPanel()).getAllByTestId("spending-category-row")).toHaveLength(4);
   });
 
   it.each([

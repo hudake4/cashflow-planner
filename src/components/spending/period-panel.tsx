@@ -2,7 +2,7 @@
 
 import { ArrowLeftRight, ChevronDown, ChevronRight } from "lucide-react";
 import { useId, useState, type ReactNode } from "react";
-import type { SpendingPeriodDTO, SpendingTransactionDTO } from "@/contracts/api";
+import type { SpendingCategory, SpendingPeriodDTO, SpendingTransactionDTO } from "@/contracts/api";
 import { fmtDate, fmtShort } from "@/lib/dates";
 import { money } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
@@ -105,8 +105,16 @@ export function PeriodPanel({
   onEditTransaction: (transaction: SpendingTransactionDTO) => void;
 }) {
   const headingId = `spending-${id}-heading`;
-  // TRANSFERS is never spending, so it never gets a row even if a response included it.
-  const categories = period.categories.filter((c) => c.category !== "TRANSFERS");
+  // The API keeps TRANSFERS out of `categories` and `totalCents`; it gets its own row, sorted in by amount,
+  // so a big card payment is visible without being counted as spending.
+  const spending = period.categories.filter((c) => c.category !== "TRANSFERS");
+  const transferCount = period.transactions.filter((t) => t.category === "TRANSFERS").length;
+  const rows: { category: SpendingCategory; totalCents: number; transactionCount: number }[] =
+    period.transfersCents > 0
+      ? [...spending, { category: "TRANSFERS", totalCents: period.transfersCents, transactionCount: transferCount }].sort(
+          (a, b) => b.totalCents - a.totalCents,
+        )
+      : spending;
 
   return (
     <Card className="min-w-0" data-testid={`spending-period-${id}`}>
@@ -129,16 +137,17 @@ export function PeriodPanel({
             {comparison}
           </div>
 
-          {categories.length === 0 ? (
+          {rows.length === 0 ? (
             <p className="text-sm text-muted-foreground">No spending in this period.</p>
           ) : (
             <>
               <div>
                 <h3 className="text-sm font-semibold text-foreground">By category</h3>
                 <ul className="mt-3 flex flex-col gap-4">
-                  {categories.map((c) => {
+                  {rows.map((c) => {
                     const Icon = CATEGORY_ICONS[c.category];
-                    const share = period.totalCents > 0 ? Math.min(100, (c.totalCents / period.totalCents) * 100) : 0;
+                    const isTransfers = c.category === "TRANSFERS";
+                    const share = period.totalCents > 0 ? Math.min(100, (c.totalCents / period.totalCents) * 100) : isTransfers ? 100 : 0;
                     return (
                       <li key={c.category} data-testid="spending-category-row">
                         <div className="flex items-baseline justify-between gap-3 text-sm">
@@ -148,12 +157,17 @@ export function PeriodPanel({
                           </span>
                           <span className="shrink-0 tabular-nums text-foreground">
                             <span className="font-semibold">{money(c.totalCents, currency)}</span>
-                            <span className="ml-2 text-muted-foreground">{percentLabel(c.totalCents, period.totalCents)}</span>
+                            <span className="ml-2 text-muted-foreground">
+                              {isTransfers ? "not in total" : percentLabel(c.totalCents, period.totalCents)}
+                            </span>
                           </span>
                         </div>
                         {/* The label, amount and percent above carry the data; the bar is a visual aid. */}
                         <div className="mt-1.5 h-2 overflow-hidden rounded-chip bg-slate-200" aria-hidden="true">
-                          <div className="h-full rounded-chip bg-brand-600" style={{ width: `${share}%` }} />
+                          <div
+                            className={isTransfers ? "h-full rounded-chip bg-slate-400" : "h-full rounded-chip bg-brand-600"}
+                            style={{ width: `${share}%` }}
+                          />
                         </div>
                       </li>
                     );
@@ -196,7 +210,7 @@ export function PeriodPanel({
           {period.transfersCents > 0 && (
             <p className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground" data-testid={`spending-transfers-${id}`}>
               <ArrowLeftRight className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-              Transfers and card payments ({money(period.transfersCents, currency)}) aren&apos;t counted as spending.
+              Transfers and card payments aren&apos;t counted in Total spent or the percentages.
             </p>
           )}
         </section>
