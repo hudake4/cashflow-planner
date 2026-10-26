@@ -11,9 +11,9 @@ import { Card, CardBody } from "@/components/ui/card";
 import { Balance } from "@/components/ui/money";
 import { CATEGORY_ICONS, CATEGORY_LABELS } from "./categories";
 
-/** "Oct 1 â€“ Oct 24" (a period never crosses a year, so the year is left off). */
+/** "Oct 1 – Oct 24" (a period never crosses a year, so the year is left off). */
 function periodLabel(from: string, to: string): string {
-  return from === to ? fmtDate(from, "MMM d") : `${fmtDate(from, "MMM d")} â€“ ${fmtDate(to, "MMM d")}`;
+  return from === to ? fmtDate(from, "MMM d") : `${fmtDate(from, "MMM d")} – ${fmtDate(to, "MMM d")}`;
 }
 
 /** Share of the period total, rounded; a nonzero amount never reads as 0%. */
