@@ -28,10 +28,11 @@ const DISCLAIMER = "Projected balance assumes all scheduled income arrives and a
 export function DashboardView() {
   const dash = useApi<DashboardResponse>("dashboard", api.getDashboard);
   const [scenario, setScenario] = useState<ScenarioInput | null>(null);
-  const scenarioState = useApi<DashboardResponse>(
-    scenario ? `dashboard:scenario:${JSON.stringify(scenario)}` : null,
-    () => api.getScenarioDashboard(scenario!),
-  );
+  const scenarioKey = scenario ? `dashboard:scenario:${JSON.stringify(scenario)}` : null;
+  const scenarioState = useApi<DashboardResponse>(scenarioKey, () => api.getScenarioDashboard(scenario!));
+  // `useApi` keeps the last response in `data` when the key becomes null, so gate the
+  // preview on the scenario still being active and the data matching the current key.
+  const scenarioDashboard = scenario && scenarioState.dataKey === scenarioKey ? (scenarioState.data ?? null) : null;
   const [dialogOpen, setDialogOpen] = useState(false);
   const [bills, setBills] = useState<BillDTO[]>([]);
   const [incomes, setIncomes] = useState<IncomeDTO[]>([]);
@@ -113,7 +114,7 @@ export function DashboardView() {
       )}
       {dash.data ? (
         <div aria-busy={dash.refreshing || undefined}>
-          <DashboardContent d={dash.data} scenarioDashboard={scenarioState.data ?? null} />
+          <DashboardContent d={dash.data} scenarioDashboard={scenarioDashboard} />
         </div>
       ) : dash.error ? null : (
         <DashboardSkeleton />
