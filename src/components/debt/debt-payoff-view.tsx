@@ -20,7 +20,7 @@ function toCards(institutions: InstitutionDTO[]) {
       .filter((a) => a.kind === "CREDIT")
       .map((a) => ({
         id: a.id,
-        name: `${a.name}${inst.accounts.length > 1 ? "" : ""}`,
+        name: a.name,
         balanceCents: Math.abs(a.balanceCents),
         aprBasisPoints: a.aprBasisPoints ?? 0,
         minimumPaymentCents: null as number | null,
@@ -45,7 +45,12 @@ export function DebtPayoffView() {
   const avalanche = useMemo(() => (cards.length ? planDebtPayoff(cards, paymentCents, "avalanche") : null), [cards, paymentCents]);
 
   if (institutions.error && !institutions.data) {
-    return <ErrorState message={institutions.error} onRetry={institutions.reload} title="Couldn't load your cards" />;
+    return (
+      <>
+        <PageHeader title="Debt payoff" description="Compare snowball and avalanche payoff plans for your credit cards." />
+        <ErrorState message={institutions.error} onRetry={institutions.reload} title="Couldn't load your cards" />
+      </>
+    );
   }
   if (!data) {
     return (
@@ -94,7 +99,7 @@ export function DebtPayoffView() {
               />
             </div>
             <p className="text-sm text-muted-foreground">
-              Split across {cards.length} card{cards.length === 1 ? "" : "s"}. Minimum payments are estimated at 2% of balance (floor $25.00) when no rule is set.
+              Split across {cards.length} card{cards.length === 1 ? "" : "s"}. Minimum payments are estimated at 2% of balance (floor $25.00).
             </p>
           </div>
         </CardBody>
@@ -111,27 +116,36 @@ export function DebtPayoffView() {
             </CardHeader>
             <CardBody>
               {plan ? (
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Months to payoff</p>
-                      <p className="text-2xl font-bold" data-testid={`debt-months-${label.includes("Snowball") ? "snowball" : "avalanche"}`}>
-                        {plan.monthsToPayoff}
-                      </p>
+                plan.payoffPossible ? (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Months to payoff</p>
+                        <p className="text-2xl font-bold" data-testid={`debt-months-${label.includes("Snowball") ? "snowball" : "avalanche"}`}>
+                          {plan.monthsToPayoff}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Total interest</p>
+                        <p className="text-2xl font-bold">{money(plan.totalInterestCents)}</p>
+                      </div>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground">Total interest</p>
-                      <p className="text-2xl font-bold">{money(plan.totalInterestCents)}</p>
+                      <p className="text-xs text-muted-foreground">Total paid</p>
+                      <p className="font-medium">{money(plan.totalPaidCents)}</p>
                     </div>
+                    <p className="text-xs text-muted-foreground">
+                      {plan.paidOff ? "All cards paid off." : "Not fully paid within the projection horizon."}
+                    </p>
                   </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Total paid</p>
-                    <p className="font-medium">{money(plan.totalPaidCents)}</p>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {plan.paidOff ? "All cards paid off." : "Not fully paid within the projection horizon."}
+                ) : (
+                  <p
+                    className="text-sm font-medium text-amber-600 dark:text-amber-400"
+                    data-testid={`debt-warning-${label.includes("Snowball") ? "snowball" : "avalanche"}`}
+                  >
+                    At this payment the balance will not go down, so it will never be paid off. Increase the payment to see a plan.
                   </p>
-                </div>
+                )
               ) : (
                 <p className="text-sm text-muted-foreground">Enter a monthly payment to see a plan.</p>
               )}
@@ -140,7 +154,7 @@ export function DebtPayoffView() {
         ))}
       </div>
 
-      {snowball && avalanche && (
+      {snowball && avalanche && snowball.payoffPossible && (
         <Card className="mt-6">
           <CardHeader>
             <h2 className="text-base font-semibold">Comparison</h2>
