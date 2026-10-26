@@ -90,6 +90,13 @@ export type DebtPayoffSchedule = DebtPayoffMonth[] & {
   totalInterestCents: number;
   totalPaidCents: number;
   paidOff: boolean;
+  /**
+   * True when the plan actually reduces the debt (the monthly budget exceeds the
+   * interest that accrues). False when the budget only covers interest — the
+   * balance can never shrink, so `planDebtPayoff` stops projecting early instead
+   * of compounding interest over the full horizon.
+   */
+  payoffPossible: boolean;
   cards: DebtPayoffCard[];
   schedule: DebtPayoffSchedule;
 };
@@ -235,6 +242,7 @@ export function planDebtPayoff(
   let totalInterestCents = 0;
   let totalPaidCents = 0;
   let allPaid = cards.length === 0;
+  let nonAmortizing = false;
 
   for (let month = 1; month <= MAX_MONTHS && !allPaid; month++) {
     const startingBalances = [...balances];
@@ -245,6 +253,15 @@ export function planDebtPayoff(
 
     for (let i = 0; i < cards.length; i++) {
       if (!paidOff[i] && balances[i] > 0) balances[i] += interestThis[i];
+    }
+
+    const monthInterestTotal = interestThis.reduce((s, x) => s + x, 0);
+    if (budget <= 0 || (monthInterestTotal > 0 && budget <= monthInterestTotal)) {
+      // No progress: either nothing is paid, or the whole budget only covers
+      // interest. The balance can never shrink, so stop instead of compounding
+      // interest across the full horizon.
+      nonAmortizing = true;
+      break;
     }
 
     const minDues = balances.map((b, i) => {
@@ -307,7 +324,6 @@ export function planDebtPayoff(
       }
     }
 
-    const monthInterestTotal = interestThis.reduce((s, x) => s + x, 0);
     totalInterestCents += monthInterestTotal;
     const monthPaymentTotal = payments.reduce((s, x) => s + x, 0);
     totalPaidCents += monthPaymentTotal;
@@ -349,6 +365,7 @@ export function planDebtPayoff(
   result.totalInterestCents = totalInterestCents;
   result.totalPaidCents = totalPaidCents;
   result.paidOff = allPaid || cards.length === 0;
+  result.payoffPossible = !nonAmortizing;
   result.cards = cards;
   result.schedule = result;
   return result;
