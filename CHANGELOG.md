@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.24.0](https://github.com/hudake4/cashflow-planner/compare/v0.23.0...v0.24.0) (2026-10-26)
+
+
+### Features
+
+* **subscriptions:** show tracked bills and dismiss false charges ([24fcb42](https://github.com/hudake4/cashflow-planner/commit/24fcb42beb31e9b35adbc3d4d736328630cf0daa))
+
+
+### Bug Fixes
+
+* handle non-amortizing debt payoff plans ([515edb5](https://github.com/hudake4/cashflow-planner/commit/515edb571ff00ac25fbc4b27022718e9515588cf))
+* validate and apply what-if scenarios correctly ([d8f8c48](https://github.com/hudake4/cashflow-planner/commit/d8f8c480f3d06561bd0627c01fa055180dc5e85f))
+
 ## [0.23.0](https://github.com/hudake4/cashflow-planner/compare/v0.22.1...v0.23.0) (2026-10-26)
 
 
