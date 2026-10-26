@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.23.0](https://github.com/hudake4/cashflow-planner/compare/v0.22.1...v0.23.0) (2026-10-26)
+
+
+### Features
+
+* **cards:** track credit cards - balances, due dates, estimated bill (issue [#61](https://github.com/hudake4/cashflow-planner/issues/61)) ([d1152a3](https://github.com/hudake4/cashflow-planner/commit/d1152a3cff1be7644fd5430c52ebe1ce81243a9d))
+* **cards:** track credit cards (issue [#61](https://github.com/hudake4/cashflow-planner/issues/61)) ([f8e6885](https://github.com/hudake4/cashflow-planner/commit/f8e6885fd8871033f014ab9da98677d31b9d697e))
+* close issues [#40](https://github.com/hudake4/cashflow-planner/issues/40), [#41](https://github.com/hudake4/cashflow-planner/issues/41), [#47](https://github.com/hudake4/cashflow-planner/issues/47), [#49](https://github.com/hudake4/cashflow-planner/issues/49), [#50](https://github.com/hudake4/cashflow-planner/issues/50), [#53](https://github.com/hudake4/cashflow-planner/issues/53) ([14b3bd6](https://github.com/hudake4/cashflow-planner/commit/14b3bd699b3caf7c7b4480c62a081b63017ec4b7))
+* implement issue [#40](https://github.com/hudake4/cashflow-planner/issues/40) ([ea6d113](https://github.com/hudake4/cashflow-planner/commit/ea6d113dec4c797ca350c48d5cb59a84781c8115))
+* implement issue [#41](https://github.com/hudake4/cashflow-planner/issues/41) ([5e0fe6c](https://github.com/hudake4/cashflow-planner/commit/5e0fe6c08624742c32a9c44c91cbabf760825f8c))
+* implement issue [#47](https://github.com/hudake4/cashflow-planner/issues/47) ([91059e6](https://github.com/hudake4/cashflow-planner/commit/91059e69a1783c5f3d949b60a982d645193516cd))
+* implement issue [#49](https://github.com/hudake4/cashflow-planner/issues/49) ([6677042](https://github.com/hudake4/cashflow-planner/commit/6677042ee62853e35551aeb46b95e7cd1d1088d5))
+* implement issue [#50](https://github.com/hudake4/cashflow-planner/issues/50) ([72cc259](https://github.com/hudake4/cashflow-planner/commit/72cc2598fab9328898efd0265f2b1e9c1812e44a))
+* implement issue [#53](https://github.com/hudake4/cashflow-planner/issues/53) ([218baec](https://github.com/hudake4/cashflow-planner/commit/218baecbab3075b21b4b19e253ba0da91318b6af))
+
 ## [0.22.1](https://github.com/hudake4/cashflow-planner/compare/v0.22.0...v0.22.1) (2026-10-26)
 
 
