@@ -216,7 +216,8 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
       : period;
   }, [period, fresh, weeksByStart, daysByDate]);
 
-  const visibleNegative = (fresh?.weeks ?? []).find((w) => w.hasNegative);
+  const floor = settings.balanceFloorCents ?? 0;
+  const visibleNegative = (fresh?.weeks ?? []).find((w) => w.lowestBalanceCents < floor);
 
   return (
     <div className="space-y-4">

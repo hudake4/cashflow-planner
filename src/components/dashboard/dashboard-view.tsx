@@ -261,6 +261,22 @@ function DashboardContent({ d, scenarioDashboard }: { d: DashboardResponse; scen
         </Alert>
       )}
 
+      <Card data-testid="safe-to-spend" className="min-w-0">
+        <CardBody className="p-5 sm:p-6">
+          <h2 className="text-lg font-semibold text-foreground">Safe to spend today</h2>
+          <div
+            className="font-semiwide mt-3 min-w-0 text-4xl leading-tight font-bold tracking-tight tabular-nums sm:text-[2.5rem]"
+            data-testid="safe-to-spend-value"
+          >
+            <Balance cents={d.safeToSpendCents} currency={currency} iconClassName="h-7 w-7 sm:h-8 sm:w-8" />
+          </div>
+          <p className="mt-3 text-sm text-muted-foreground">
+            You can spend this today without your projected balance dropping below{" "}
+            {money(d.settings.balanceFloorCents, currency)}.
+          </p>
+        </CardBody>
+      </Card>
+
       <div className="grid items-start gap-x-12 gap-y-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,25rem)]">
         {/* Hero: the one number the app exists to answer. */}
         <section aria-labelledby="this-week-heading" className="flex min-w-0 flex-col">

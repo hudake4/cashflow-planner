@@ -10,6 +10,7 @@ beforeEach(() => {
   fetchMock.mockImplementation(() => Promise.resolve(new Response(JSON.stringify({
     startingBalanceCents: 100000, projectionStartDate: "2026-10-24", forecastDays: 90,
     weekStartsOn: 0, currency: "USD", defaultCalendarView: "month", desktopNotifications: true,
+  balanceFloorCents: 0,
   }), { status: 200, headers: { "content-type": "application/json" } })));
   vi.stubGlobal("fetch", fetchMock);
 });

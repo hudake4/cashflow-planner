@@ -32,6 +32,7 @@ const settings = (over: Partial<SettingsDTO> = {}): SettingsDTO => ({
   weekStartsOn: 0,
   defaultCalendarView: "month",
   desktopNotifications: true,
+  balanceFloorCents: 0,
   updatedAt: null,
   ...over,
 });
