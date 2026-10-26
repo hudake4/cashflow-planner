@@ -118,10 +118,19 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
 
   const projectionKey = canFetch ? `projection:${fetchFrom}:${fetchTo}` : null;
   const projection = useApi<ProjectionResponse>(projectionKey, () => api.getProjection({ from: fetchFrom, to: fetchTo }));
-  const data = canFetch ? projection.data : undefined;
+  const scenarioKey = scenario ? JSON.stringify(scenario) : null;
+  const scenarioProjection = useApi<ProjectionResponse>(
+    scenarioKey && canFetch ? `projection:scenario:${scenarioKey}:${fetchFrom}:${fetchTo}` : null,
+    () => api.getScenarioProjection(scenario!, { from: fetchFrom, to: fetchTo }),
+  );
+  const activeProjection = scenario ? scenarioProjection : projection;
+  const activeKey = scenario
+    ? scenarioKey && canFetch ? `projection:scenario:${scenarioKey}:${fetchFrom}:${fetchTo}` : null
+    : projectionKey;
+  const data = canFetch ? activeProjection.data : undefined;
   const currency = data?.currency ?? settings.currency;
   // Only trust data whose range matches what we asked for (avoids flashing stale numbers on navigation).
-  const fresh = data && projection.dataKey === projectionKey ? data : undefined;
+  const fresh = data && activeProjection.dataKey === activeKey ? data : undefined;
 
   const eventsById = useMemo(() => new Map((fresh?.events ?? []).map((e) => [e.id, e])), [fresh]);
   const daysByDate = useMemo(() => new Map((fresh?.days ?? []).map((d) => [d.date, d])), [fresh]);
@@ -229,7 +238,7 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
       <CalendarToolbar
         view={view}
         title={title}
-        refreshing={projection.refreshing}
+        refreshing={activeProjection.refreshing}
         onViewChange={setView}
         onStep={(dir) => setCursor((c) => (view === "week" ? addDays(c, 7 * dir) : addMonths(c, dir)))}
         onToday={() => setCursor(today)}
@@ -246,9 +255,9 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
         </p>
       )}
 
-      <div aria-busy={canFetch && !fresh && !projection.error} data-testid={`calendar-${view}`}>
-        {canFetch && projection.error && !fresh ? (
-          <ErrorState message={projection.error} onRetry={projection.reload} />
+      <div aria-busy={canFetch && !fresh && !activeProjection.error} data-testid={`calendar-${view}`}>
+        {canFetch && activeProjection.error && !fresh ? (
+          <ErrorState message={activeProjection.error} onRetry={activeProjection.reload} />
         ) : canFetch && !fresh ? (
           <LoadingRegion label="Loading projected calendar">
             <CalendarRangeSkeleton />
@@ -301,7 +310,7 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
         currency={currency}
         balanceFromAccounts={startDateFromAccounts(settings)}
         onClose={closeEvent}
-        onChanged={projection.reload}
+        onChanged={activeProjection.reload}
         onEditSource={(e) => {
           editFocusTarget.current = period ? periodTrigger.current : lastEventTrigger.current;
           setSelectedEventId(null);
@@ -309,7 +318,7 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
           setEditTarget({ kind: e.kind === "BILL" ? "bill" : "income", id: e.sourceId });
         }}
       />
-      <EditSourceDialog restoreFocusTarget={() => editFocusTarget.current} target={editTarget} onClose={() => setEditTarget(null)} onSaved={() => void projection.reload()} />
+      <EditSourceDialog restoreFocusTarget={() => editFocusTarget.current} target={editTarget} onClose={() => setEditTarget(null)} onSaved={() => void activeProjection.reload()} />
       <ScenarioDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onApply={(s) => setScenario(s)} bills={bills} incomes={incomes} />
     </div>
   );
