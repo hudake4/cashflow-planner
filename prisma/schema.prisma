@@ -158,3 +158,15 @@ model MerchantCategoryRule {
 
   @@unique([householdId, merchantKey])
 }
+
+model SavingsGoal {
+  id               String   @id @default(cuid())
+  householdId      String   @default("local")
+  name             String?
+  targetAmountCents Int
+  targetDate       String // YYYY-MM-DD
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([householdId])
+}

@@ -25,6 +25,8 @@ import type {
   RecurringScanResponse,
   SettingsDTO,
   SettingsInput,
+  SavingsGoalDTO,
+  SavingsGoalInput,
   SpendingCategoryInput,
   SpendingResponse,
 } from "@/contracts/api";
@@ -189,6 +191,12 @@ export const api = {
   /** Sets (null = back to automatic) the category of one transaction; by default it is learned for the whole merchant. Returns the refreshed analysis. */
   setTransactionCategory: (transactionId: string, input: SpendingCategoryInput) =>
     request<SpendingResponse>(`/spending/transactions/${encodeURIComponent(transactionId)}/category`, json("PUT", input)),
+
+  listSavingsGoals: () => request<SavingsGoalDTO[]>("/savings-goals"),
+  getSavingsGoal: (id: string) => request<SavingsGoalDTO>(`/savings-goals/${encodeURIComponent(id)}`),
+  createSavingsGoal: (input: SavingsGoalInput) => request<SavingsGoalDTO>("/savings-goals", json("POST", input)),
+  updateSavingsGoal: (id: string, input: SavingsGoalInput) => request<SavingsGoalDTO>(`/savings-goals/${encodeURIComponent(id)}`, json("PUT", input)),
+  deleteSavingsGoal: (id: string) => request<void>(`/savings-goals/${encodeURIComponent(id)}`, json("DELETE")),
 
   loadDemoData: () => request<{ ok: true }>("/data/demo", json("POST")),
   resetAllData: () => request<{ ok: true }>("/data/reset", json("POST")),
