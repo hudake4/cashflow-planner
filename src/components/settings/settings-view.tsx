@@ -294,6 +294,7 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsDTO; onSaved: () 
   const [weekStartsOn, setWeekStartsOn] = useState(String(initial.weekStartsOn));
   const [view, setView] = useState(initial.defaultCalendarView);
   const [notify, setNotify] = useState(initial.desktopNotifications);
+  const [floor, setFloor] = useState(centsToInputValue(initial.balanceFloorCents));
   const [errors, setErrors] = useState<Record<string, string[] | undefined>>({});
   const [status, setStatus] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -310,6 +311,8 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsDTO; onSaved: () 
     const cents = source === "ACCOUNTS" ? (manualCents ?? initial.startingBalanceCents) : manualCents;
     const clientErrors: Record<string, string[]> = {};
     if (cents === null) clientErrors.startingBalanceCents = ["Enter a balance like 1250.00 or -40.00 (up to 2 decimals)"];
+    const floorCents = parseMoneyToCents(floor, { allowNegative: true });
+    if (floorCents === null) clientErrors.balanceFloorCents = ["Enter an amount like 0.00 or 500.00 (up to 2 decimals)"];
     const days = /^\d+$/.test(forecastDays.trim()) ? Number(forecastDays) : Number.NaN;
 
     const payload: SettingsInput = {
@@ -321,6 +324,7 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsDTO; onSaved: () 
       weekStartsOn: Number(weekStartsOn),
       defaultCalendarView: view,
       desktopNotifications: notify,
+      balanceFloorCents: floorCents ?? Number.NaN,
     };
     const parsed = settingsInputSchema.safeParse(payload);
     if (!parsed.success || Object.keys(clientErrors).length) {
@@ -451,6 +455,19 @@ function SettingsForm({ initial, onSaved }: { initial: SettingsDTO; onSaved: () 
                 </Field>
               )}
             </div>
+            <Field
+              label="Balance floor"
+              hint="Lowest projected balance you want to stay above. Used for safe-to-spend and calendar warnings."
+              error={errors.balanceFloorCents}
+              testId="settings-balance-floor"
+            >
+              <MoneyInput
+                value={floor}
+                onChange={(e) => setFloor(e.target.value)}
+                prefix={currency === "USD" ? "$" : currency}
+                data-testid="settings-balance-floor"
+              />
+            </Field>
           </FieldGroup>
         </CardBody>
       </Card>

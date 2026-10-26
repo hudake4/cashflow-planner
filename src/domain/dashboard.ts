@@ -14,7 +14,7 @@ export type DashboardInput = Omit<ProjectionInput, "from" | "to" | "settings"> &
 
 export function buildDashboard(input: DashboardInput): DashboardResponse {
   const { settings, today } = input;
-  // Full forecast window (no from/to → [start, start + forecastDays - 1]).
+  // Full forecast window (no from/to -> [start, start + forecastDays - 1]).
   const projection = computeProjection({ ...input, from: undefined, to: undefined });
   const { startDate, endDate } = projection.window;
 
@@ -24,6 +24,12 @@ export function buildDashboard(input: DashboardInput): DashboardResponse {
 
   const currentIndex = projection.weeks.findIndex((w) => w.weekStart <= referenceDate && referenceDate <= w.weekEnd);
   const paycheck = projection.events.find((e) => e.kind === "INCOME" && e.date >= referenceDate);
+
+  const futureDays = projection.days.filter((d) => d.date >= referenceDate);
+  const lowestFutureBalance = futureDays.length
+    ? Math.min(...futureDays.map((d) => d.closingBalanceCents))
+    : projection.totals.lowestBalanceCents;
+  const safeToSpendCents = Math.max(0, lowestFutureBalance - settings.balanceFloorCents);
 
   return {
     today,
@@ -40,5 +46,6 @@ export function buildDashboard(input: DashboardInput): DashboardResponse {
     nextWeek: currentIndex >= 0 ? (projection.weeks[currentIndex + 1] ?? null) : null,
     totals: projection.totals,
     trend: projection.days.map((d) => ({ date: d.date, balanceCents: d.closingBalanceCents })),
+    safeToSpendCents,
   };
 }

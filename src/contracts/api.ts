@@ -127,6 +127,7 @@ export const settingsInputSchema = z.object({
     .max(6, "Week start must be a day from 0 (Sunday) to 6 (Saturday)"),
   defaultCalendarView: calendarViewSchema.default("month"),
   desktopNotifications: z.boolean({ invalid_type_error: "Desktop notifications must be on or off" }).default(true),
+  balanceFloorCents: balanceCentsSchema.default(0),
 });
 export type SettingsInput = z.input<typeof settingsInputSchema>;
 
@@ -158,6 +159,8 @@ export interface SettingsDTO {
   defaultCalendarView: CalendarView;
   /** Whether the desktop app shows notifications (CONVENTIONS section 16). The web app ignores it. */
   desktopNotifications: boolean;
+  /** Lowest projected balance the user wants to stay above (safe-to-spend). */
+  balanceFloorCents: number;
   updatedAt: string | null; // null when defaults have never been saved
 }
 
@@ -369,6 +372,8 @@ export interface DashboardResponse {
   totals: ProjectionTotals; // over the full forecast window
   /** End-of-day balance for every date in the window (for the trend chart). */
   trend: { date: string; balanceCents: number }[];
+  /** Most the user can spend today without any future end-of-day balance dropping below the configured floor. */
+  safeToSpendCents: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -636,6 +641,7 @@ const settingsDTOSchema = z.object({
   weekStartsOn: z.number().int().min(0).max(6),
   defaultCalendarView: calendarViewSchema,
   desktopNotifications: z.boolean(),
+  balanceFloorCents: balanceCentsSchema,
   updatedAt: timestampSchema.nullable(),
 });
 
@@ -742,6 +748,7 @@ export const dataRestoreSchema = z.object({
     accountsBalanceDate: isoDateSchema.nullable().optional(),
     accountsStaleCount: z.number().int().min(0).optional(),
     desktopNotifications: z.boolean().optional(),
+    balanceFloorCents: balanceCentsSchema.optional(),
     updatedAt: timestampSchema.nullable().optional(),
   }),
   incomes: z.array(incomeDTOSchema),

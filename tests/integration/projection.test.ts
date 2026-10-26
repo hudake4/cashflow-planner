@@ -23,6 +23,7 @@ const SETTINGS = {
   weekStartsOn: 0,
   defaultCalendarView: "month",
   desktopNotifications: true,
+  balanceFloorCents: 0,
 };
 const projection = async (qs = "") => {
   const res = await call<ProjectionResponse>(projectionRoute.GET, "GET", `/api/projection${qs}`);

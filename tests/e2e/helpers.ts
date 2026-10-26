@@ -55,6 +55,7 @@ export const E2E_SETTINGS = {
   weekStartsOn: 0,
   defaultCalendarView: "month",
   desktopNotifications: true,
+  balanceFloorCents: 0,
 };
 
 /** Second guard (the first is in playwright.config.ts) in case a spec runs with a different config. */

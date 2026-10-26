@@ -20,6 +20,7 @@ export function defaultSettings(today: string = todayLocal()): SettingsDTO {
     weekStartsOn: 0,
     defaultCalendarView: "month",
     desktopNotifications: true,
+    balanceFloorCents: 0,
     updatedAt: null,
   };
 }

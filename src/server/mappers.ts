@@ -37,6 +37,7 @@ export function toSettingsDTO(row: Settings, accounts: AccountsSummary): Setting
     weekStartsOn: row.weekStartsOn,
     defaultCalendarView: row.defaultCalendarView as CalendarView,
     desktopNotifications: row.desktopNotifications,
+    balanceFloorCents: row.balanceFloorCents,
     updatedAt: row.updatedAt.toISOString(),
   };
 }
