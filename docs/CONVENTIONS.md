@@ -127,6 +127,7 @@ The domain modules are the contract that the tests are written against. Their ex
 | `src/domain/recurring.ts` | `detectRecurring` and merchant-name normalisation (section 12) |
 | `src/domain/spending.ts` | `categorize`, `merchantKey` and `buildSpending` (section 13) |
 | `src/domain/card-bill.ts` | `estimateCardBill` credit-card bill estimator (issue #61) |
+| `src/domain/debt-payoff.ts` | `planDebtPayoff` debt payoff planner, snowball vs. avalanche (issue #50) |
 | `src/domain/bill-match.ts` | `matchBillPayments`, bank transactions to unpaid bill occurrences (section 14) |
 | `src/domain/estimate.ts` | `estimateBillAmount`, the suggested amount for a variable bill (section 15) |
 | `src/domain/alerts.ts` | `buildAlerts`, the desktop notifications' content (section 16) |

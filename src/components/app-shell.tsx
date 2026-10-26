@@ -12,6 +12,7 @@ const NAV = [
   { href: "/spending", label: "Spend Analyzer", mobileLabel: "Spend", icon: ChartPie, testId: "nav-spending" },
   { href: "/subscriptions", label: "Subscriptions", mobileLabel: "Subs", icon: CreditCard, testId: "nav-subscriptions" },
   { href: "/bills", label: "Bills", mobileLabel: "Bills", icon: Receipt, testId: "nav-bills" },
+  { href: "/debt-payoff", label: "Debt payoff", mobileLabel: "Debt", icon: CreditCard, testId: "nav-debt-payoff" },
   { href: "/income", label: "Income", mobileLabel: "Income", icon: HandCoins, testId: "nav-income" },
   { href: "/institutions", label: "Institutions", mobileLabel: "Banks", icon: Landmark, testId: "nav-institutions" },
   { href: "/settings", label: "Settings", mobileLabel: "Settings", icon: Settings, testId: "nav-settings" },
