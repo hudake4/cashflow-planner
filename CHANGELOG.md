@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.25.0](https://github.com/hudake4/cashflow-planner/compare/v0.24.1...v0.25.0) (2026-10-27)
+
+
+### Features
+
+* **dashboard:** reserve savings-goal contributions in safe to spend ([a0bf359](https://github.com/hudake4/cashflow-planner/commit/a0bf3591787ded0686cbb224f11ddd9a08235987))
+* **dashboard:** show bills causing the lowest point ([823ada8](https://github.com/hudake4/cashflow-planner/commit/823ada8200219955429463766f3dfb84932c49ca))
+
+
+### Bug Fixes
+
+* **institutions:** pick card closing and due dates on a calendar ([866bcf6](https://github.com/hudake4/cashflow-planner/commit/866bcf63750c4915fa1bb2fae5d1ca1b0b667b39)), closes [#82](https://github.com/hudake4/cashflow-planner/issues/82)
+* **subscriptions:** show the last-updated date in local time ([4dcb156](https://github.com/hudake4/cashflow-planner/commit/4dcb156437cdc634f813adc0cd1c20020c34fe1e)), closes [#78](https://github.com/hudake4/cashflow-planner/issues/78)
+
 ## [0.24.1](https://github.com/hudake4/cashflow-planner/compare/v0.24.0...v0.24.1) (2026-10-26)
 
 
