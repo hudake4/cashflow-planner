@@ -1,4 +1,4 @@
-import type { BillDTO, RecurringFrequency, RecurringSuggestionDTO } from "../contracts/api";
+import type { BillDTO, BillFrequency, RecurringFrequency, RecurringSuggestionDTO } from "../contracts/api";
 import { addDays, diffDays } from "./dates";
 import { generateOccurrences } from "./recurrence";
 
@@ -56,7 +56,7 @@ export interface SubscriptionAuditInput {
   currency?: string;
 }
 
-const FREQUENCY_MULTIPLIER: Record<string, number> = {
+const FREQUENCY_MULTIPLIER: Record<BillFrequency, number> = {
   WEEKLY: 52,
   BIWEEKLY: 26,
   MONTHLY: 12,
@@ -65,8 +65,8 @@ const FREQUENCY_MULTIPLIER: Record<string, number> = {
   ONE_TIME: 1,
 };
 
-export function annualCostCents(amountCents: number, frequency: string): number {
-  return amountCents * (FREQUENCY_MULTIPLIER[frequency] ?? 1);
+export function annualCostCents(amountCents: number, frequency: BillFrequency): number {
+  return amountCents * FREQUENCY_MULTIPLIER[frequency];
 }
 
 /** The usual gap, in days, between consecutive charges of each cadence. */
