@@ -374,6 +374,31 @@ export interface DashboardResponse {
   trend: { date: string; balanceCents: number }[];
   /** Most the user can spend today without any future end-of-day balance dropping below the configured floor. */
   safeToSpendCents: number;
+  /** Bills in the pay period ending at the forecast low point and their moved-date impact. */
+  lowPoint: LowPointInsight | null;
+}
+
+export interface LowPointBill {
+  /** Projection event and source bill identifiers. */
+  eventId: string;
+  billId: string;
+  /** Bill label, original due date, and occurrence amount. */
+  name: string;
+  date: string;
+  amountCents: number;
+  /** Lowest end-of-day balance over the window if this one occurrence were due on payday. */
+  lowestIfMovedCents: number;
+  /** Date of the recomputed window low after moving this occurrence. */
+  lowestIfMovedDate: string;
+}
+export interface LowPointInsight {
+  /** Date and balance of the projected window low. */
+  date: string;
+  balanceCents: number;
+  /** First income event after the low point. */
+  payday: { date: string; name: string; amountCents: number };
+  /** Eligible bills whose move improves the window low. */
+  bills: LowPointBill[];
 }
 
 // ---------------------------------------------------------------------------

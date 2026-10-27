@@ -5,6 +5,7 @@
 import type { DashboardResponse, SettingsDTO } from "../contracts/api";
 import { addDays, clampDate, maxDate } from "./dates";
 import { computeProjection, type ProjectionInput } from "./projection";
+import { buildLowPointInsight } from "./low-point";
 
 /** How many days ahead of the reference date "upcoming bills" covers (inclusive span of 14 days). */
 export const UPCOMING_BILL_DAYS = 14;
@@ -47,5 +48,6 @@ export function buildDashboard(input: DashboardInput): DashboardResponse {
     totals: projection.totals,
     trend: projection.days.map((d) => ({ date: d.date, balanceCents: d.closingBalanceCents })),
     safeToSpendCents,
+    lowPoint: buildLowPointInsight(projection, input, referenceDate),
   };
 }

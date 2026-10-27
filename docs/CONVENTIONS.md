@@ -82,6 +82,8 @@ The ledger is sorted by:
 
 `referenceDate = max(today, projectionStartDate)`, clamped to the window end. "Current week" is the week containing the reference date, and "next week" is the one after it. The next paycheck is the first income event on or after the reference date. Upcoming bills are non-skipped bill events in `[referenceDate, referenceDate + 13]`, up to 8 of them.
 
+Low-point bills use the full-window projection's lowest balance and date. If the low point is before the reference date, or no later paycheck exists in the window, there is no insight. The pay period starts at the last income on or before the low point (or the window start); eligible included UPCOMING bills fall from `max(period start, reference date)` through the low point. For each, skip that occurrence and add a one-time bill on the first paycheck after the low point, then recompute the full window with the projection engine. Keep only moves that improve the window low, ordered by improved low descending then ledger order; show at most five. Each bill result includes the new low's date. No separate balance arithmetic is allowed.
+
 ## 9. Engineering rules
 
 - One calculation engine: `src/domain/projection.ts`. The UI **never** recomputes balances. It renders `ProjectionResponse` and `DashboardResponse`.
@@ -121,6 +123,7 @@ The domain modules are the contract that the tests are written against. Their ex
 | `src/domain/recurrence.ts` | `Schedule` and anchored occurrence generation (section 4) |
 | `src/domain/projection.ts` | window and range resolution, `computeProjection`, same-day ordering (sections 3, 6, 7) |
 | `src/domain/dashboard.ts` | `buildDashboard` (section 8) |
+| `src/domain/low-point.ts` | `buildLowPointInsight`, bills affecting the projected low point (section 8) |
 | `src/domain/starting-balance.ts` | `effectiveStartingBalanceCents`, `effectiveProjectionStartDate`, `startDateFromAccounts` (section 3) |
 | `src/domain/account-kind.ts` | `guessAccountKind`, the first label for a new bank account (section 3) |
 | `src/domain/card-payments.ts` | `matchCardPayments`, the bank debits that pay a credit account (section 13) |

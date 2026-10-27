@@ -108,6 +108,15 @@ describe("buildDashboard", () => {
     expect(d.settings).toEqual(s);
   });
 
+  it("populates lowPoint from the full-window projection", () => {
+    const d = buildDashboard({
+      incomes: [income("pay", 50000, "ONE_TIME", "2025-01-05", { name: "Payday" })],
+      bills: [bill("large", 80000, "ONE_TIME", "2025-01-04", { name: "Large bill" })],
+      occurrences: [], settings: fullSettings(), today: "2025-01-01",
+    });
+    expect(d.lowPoint).toMatchObject({ date: "2025-01-04", payday: { date: "2025-01-05", name: "Payday" }, bills: [{ billId: "large" }] });
+  });
+
   it("hasData only counts active items", () => {
     const off = buildDashboard({
       incomes: [income("i", 100, "WEEKLY", "2025-01-01", { active: false })],

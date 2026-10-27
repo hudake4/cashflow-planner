@@ -217,6 +217,7 @@ function RegisterLine({
 function DashboardContent({ d, scenarioDashboard }: { d: DashboardResponse; scenarioDashboard?: DashboardResponse | null }) {
   const currency = d.settings.currency;
   const t = d.totals;
+  const lowPoint = d.lowPoint;
   const fromAccounts = d.settings.startingBalanceSource === "ACCOUNTS" && d.settings.accountsBalanceCents !== null;
 
   if (!d.hasData) {
@@ -373,6 +374,38 @@ function DashboardContent({ d, scenarioDashboard }: { d: DashboardResponse; scen
           </CardBody>
         </Card>
       </div>
+
+      {lowPoint && (
+        <Card data-testid="low-point-bills">
+          <CardHeader
+            title="Bills behind your lowest point"
+            description={`Lowest point: ${money(lowPoint.balanceCents, currency)} on ${fmtShort(lowPoint.date)}, before ${lowPoint.payday.name} on ${fmtShort(lowPoint.payday.date)}.`}
+          />
+          <CardBody className="pt-3">
+            <ul className="divide-y divide-border">
+              {lowPoint.bills.map((bill) => (
+                <li key={bill.eventId} data-testid={`low-point-bill-${bill.eventId}`} className="grid grid-cols-[2.75rem_minmax(0,1fr)_auto] items-center gap-3 py-2.5">
+                  <span className="flex flex-col items-center rounded-chip border border-border bg-muted py-0.5 leading-none" aria-hidden="true">
+                    <span className="text-[11px] text-muted-foreground">{fmtDate(bill.date, "MMM")}</span>
+                    <span className="font-semiwide text-base font-bold tabular-nums text-foreground">{fmtDate(bill.date, "d")}</span>
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-foreground">{bill.name}</p>
+                    <p className="text-xs text-muted-foreground">Due {fmtDate(bill.date, "EEEE, MMM d")}</p>
+                    <p className="text-xs text-muted-foreground">
+                      If due on payday ({fmtShort(lowPoint.payday.date)}): lowest{" "}
+                      <Balance cents={bill.lowestIfMovedCents} currency={currency} iconClassName="h-3 w-3" />{" "}
+                      on {fmtDayShort(bill.lowestIfMovedDate)}, {money(bill.lowestIfMovedCents - lowPoint.balanceCents, currency)} higher
+                    </p>
+                  </div>
+                  <EventAmount kind="BILL" amountCents={bill.amountCents} currency={currency} className="text-sm" />
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 text-xs text-muted-foreground">Moving a due date only works if the biller allows it.</p>
+          </CardBody>
+        </Card>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,25rem)]">
         <Card>
