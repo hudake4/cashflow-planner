@@ -47,7 +47,7 @@ Errors always use this shape (`ApiErrorBody`):
 | Method | Path | Query | Response |
 |---|---|---|---|
 | GET | `/api/projection` | `from?`, `to?` (YYYY-MM-DD). The default is the full window. `from` is clamped to the effective start date (`projectionStartDate`, or `accountsBalanceDate` when the balance comes from the accounts), and `to` is clamped to `maxEndDate`. | `ProjectionResponse` |
-| GET | `/api/dashboard` | — | `DashboardResponse`. Its `settings` carry the effective starting balance and start date, as the projection used them. `safeToSpendCents` already accounts for savings goals, and `goalReserve` `{ setAsideCents, goals, limitedBy }` says how (CONVENTIONS section 8, "Safe to spend and savings goals"). |
+| GET | `/api/dashboard` | — | `DashboardResponse` (including `lowPointBills`, bills whose move to the next payday would raise the projected low). Its `settings` carry the effective starting balance and start date, as the projection used them. `safeToSpendCents` already accounts for savings goals, and `goalReserve` `{ setAsideCents, goals, limitedBy }` says how (CONVENTIONS section 8, "Safe to spend and savings goals"). |
 | GET | `/api/alerts` | — | `AlertsResponse` `{ today, enabled, alerts }`: what the desktop app may notify about right now (CONVENTIONS section 16). `enabled` is the `desktopNotifications` setting; when it is `false`, `alerts` is empty. Each `AlertDTO` is `{ key, kind: LOW_BALANCE \| BILL_DUE, title, body, expiresOn }`. The `key` is stable for the same event, so a client can remember what it already showed and forget the key after `expiresOn`. Read-only; the server stores nothing. |
 
 Projection slicing details:

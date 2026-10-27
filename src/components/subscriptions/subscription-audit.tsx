@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import type { SubscriptionAuditResponse } from "@/contracts/api";
 import { api, errorMessage } from "@/lib/api-client";
-import { fmtShort } from "@/lib/dates";
+import { fmtShort, localDateOf } from "@/lib/dates";
 import { FREQUENCY_LABELS, money } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
 import { PageHeader } from "@/components/app-shell";
@@ -293,7 +293,7 @@ function SubscriptionAuditContent({
       <div className="space-y-2 text-xs leading-relaxed text-muted-foreground">
         <p data-testid="subscription-coverage">
           Based on {data.transactionCount} transactions from the last 89 days
-          {data.lastSyncedAt ? ` · last updated ${fmtShort(data.lastSyncedAt.slice(0, 10))}` : ""}
+          {data.lastSyncedAt ? ` · last updated ${fmtShort(localDateOf(data.lastSyncedAt))}` : ""}
         </p>
         <Link href="/institutions" className="font-semibold text-brand-700 underline">
           Refresh your bank on Institutions

@@ -366,6 +366,13 @@ export interface DashboardResponse {
   nextPaycheck: { date: string; name: string; amountCents: number; sourceId: string } | null;
   /** Next up to 8 non-skipped bill events within 14 days of the reference date. */
   upcomingBills: LedgerEvent[];
+  /** Bills before the next payday that raise the projected low if moved there (CONVENTIONS section 17). */
+  lowPointBills: {
+    lowestBalanceCents: number;
+    lowestBalanceDate: string;
+    nextPayday: string;
+    bills: { eventId: string; billId: string; name: string; date: string; amountCents: number; movedLowestBalanceCents: number; movedLowestBalanceDate: string }[];
+  } | null;
   /** Week containing the reference date (today, or the projection start if today is before it). */
   currentWeek: WeekSummary | null;
   nextWeek: WeekSummary | null;

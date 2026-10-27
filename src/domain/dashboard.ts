@@ -5,6 +5,7 @@
 import type { DashboardResponse, SavingsGoalDTO, SettingsDTO } from "../contracts/api";
 import { addDays, clampDate, maxDate } from "./dates";
 import { computeProjection, type ProjectionInput } from "./projection";
+import { findLowPointBills } from "./low-point";
 import { applyGoalReserve, computeGoalReserve } from "./savings-goals";
 
 /** How many days ahead of the reference date "upcoming bills" covers (inclusive span of 14 days). */
@@ -55,6 +56,7 @@ export function buildDashboard(input: DashboardInput): DashboardResponse {
     upcomingBills: projection.events
       .filter((e) => e.kind === "BILL" && e.included && e.date >= referenceDate && e.date <= upcomingEnd)
       .slice(0, UPCOMING_BILL_LIMIT),
+    lowPointBills: findLowPointBills({ days: projection.days, events: projection.events, referenceDate }),
     currentWeek: currentIndex >= 0 ? projection.weeks[currentIndex] : null,
     nextWeek: currentIndex >= 0 ? (projection.weeks[currentIndex + 1] ?? null) : null,
     totals: projection.totals,
