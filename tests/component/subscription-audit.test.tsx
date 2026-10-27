@@ -69,6 +69,27 @@ function renderView() {
 }
 
 describe("SubscriptionAuditView", () => {
+  it("shows the browser-local date of the last sync", async () => {
+    const previousTimezone = process.env.TZ;
+    process.env.TZ = "America/Chicago";
+    try {
+      getSubscriptions.mockResolvedValue(response({ lastSyncedAt: "2026-10-27T02:30:00.000Z" }));
+      renderView();
+
+      expect(await screen.findByTestId("subscription-coverage")).toHaveTextContent("last updated Oct 26, 2026");
+    } finally {
+      if (previousTimezone === undefined) delete process.env.TZ;
+      else process.env.TZ = previousTimezone;
+    }
+  });
+
+  it("omits the last updated date when there is no sync timestamp", async () => {
+    getSubscriptions.mockResolvedValue(response({ lastSyncedAt: null }));
+    renderView();
+
+    expect(await screen.findByTestId("subscription-coverage")).not.toHaveTextContent("last updated");
+  });
+
   it("lists detected charges and tracked bills, but not income", async () => {
     getSubscriptions.mockResolvedValue(response({ suggestions: [DETECTED, INCOME] }));
     renderView();
