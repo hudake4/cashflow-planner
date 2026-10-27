@@ -108,6 +108,10 @@ model BankAccount {
   // Credit-card fields (user-entered; SimpleFIN supplies none of them). Null for non-card accounts.
   statementClosingDay   Int? // day of month the statement closes (1-31)
   paymentDueDay         Int? // day of month the payment is due (1-31)
+  // The same two fields as real calendar dates (YYYY-MM-DD), entered on the card form. Anchors for a monthly cycle: only the
+  // day of month matters, and the day columns above are always derived from them. Null until saved as a date.
+  statementClosingDate  String?
+  paymentDueDate        String?
   aprBasisPoints       Int? // APR in basis points (100 = 1.00%), e.g. 2499 = 24.99%
   minimumPaymentRule    String? // optional issuer rule label/text; null means pay in full
   currency              String // 3-letter code, "USD" when SimpleFIN gives a non-ISO currency

@@ -5,6 +5,9 @@ import { ExternalLink, Landmark, Plus, RefreshCw, Trash } from "lucide-react";
 import Link from "next/link";
 import { useRef, useState, type FormEvent } from "react";
 import { ACCOUNT_KINDS, connectInstitutionSchema, type AccountKind, type BankAccountDTO, type InstitutionDTO } from "@/contracts/api";
+import { nextDayOfMonth } from "@/domain/card-bill";
+import { todayLocal } from "@/domain/dates";
+import { centsToInputValue, parseMoneyToCents } from "@/domain/money";
 import { api, errorMessage } from "@/lib/api-client";
 import { fmtShort } from "@/lib/dates";
 import { useApi } from "@/lib/use-api";
@@ -14,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog } from "@/components/ui/dialog";
-import { Field, Select, Textarea } from "@/components/ui/field";
+import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { Balance } from "@/components/ui/money";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState, InlineStatus } from "@/components/ui/states";
@@ -343,6 +346,11 @@ const KIND_LABELS: Record<AccountKind, string> = {
   OTHER: "Other",
 };
 
+// Matches the account type select above: compact controls inside the card.
+const CARD_INPUT_CLASS = "h-8 min-h-0 px-2 py-0 text-sm";
+/** Same ceiling as the API (1000.00%). */
+const MAX_APR_BASIS_POINTS = 100_000;
+
 function AccountRow({
   account,
   institutionId,
@@ -356,9 +364,15 @@ function AccountRow({
 }) {
   const toast = useToast();
   const [saving, setSaving] = useState(false);
-  const [closingDay, setClosingDay] = useState<string>(account.statementClosingDay?.toString() ?? "");
-  const [dueDay, setDueDay] = useState<string>(account.paymentDueDay?.toString() ?? "");
-  const [apr, setApr] = useState<string>(account.aprBasisPoints != null ? (account.aprBasisPoints / 100).toString() : "");
+  // An account saved with days only shows the next occurrence of that day; saving then stores it as a date.
+  const initialDate = (date: string | null, day: number | null) =>
+    date ?? (day == null ? "" : nextDayOfMonth(todayLocal(), day));
+  const storedClosingDate = initialDate(account.statementClosingDate, account.statementClosingDay);
+  const storedDueDate = initialDate(account.paymentDueDate, account.paymentDueDay);
+  const [closingDate, setClosingDate] = useState<string>(storedClosingDate);
+  const [dueDate, setDueDate] = useState<string>(storedDueDate);
+  const [apr, setApr] = useState<string>(account.aprBasisPoints != null ? centsToInputValue(account.aprBasisPoints) : "");
+  const [aprError, setAprError] = useState<string | null>(null);
   const [estimating, setEstimating] = useState(false);
   const [estimate, setEstimate] = useState<{ closingDate: string; dueDate: string; projectedBillCents: number; minimumPaymentCents: number | null } | null>(null);
 
@@ -375,12 +389,26 @@ function AccountRow({
   }
 
   async function saveCardFields() {
+    // The rate is typed as text and parsed as a decimal string (hundredths of a percent are basis points).
+    const rate = apr.trim().replace(/\s*%$/, "");
+    const aprBasisPoints = rate === "" ? null : parseMoneyToCents(rate);
+    if (aprBasisPoints !== null && aprBasisPoints > MAX_APR_BASIS_POINTS) {
+      setAprError("APR can't be above 1000%");
+      return;
+    }
+    if (rate !== "" && aprBasisPoints === null) {
+      setAprError("Enter a rate like 24.99 (up to 2 decimals)");
+      return;
+    }
+    setAprError(null);
     setSaving(true);
     try {
+      // An untouched date is left out: a legacy day (e.g. 31) pre-fills clamped to this month's length,
+      // and sending that back would overwrite the day with 30 or 28.
       await api.setAccountCardFields(institutionId, account.id, {
-        statementClosingDay: closingDay ? Number(closingDay) : null,
-        paymentDueDay: dueDay ? Number(dueDay) : null,
-        aprBasisPoints: apr ? Math.round(Number(apr) * 100) : null,
+        ...(closingDate !== storedClosingDate && { statementClosingDate: closingDate || null }),
+        ...(dueDate !== storedDueDate && { paymentDueDate: dueDate || null }),
+        aprBasisPoints,
       });
       toast("Saved card details.", "success");
       await onKindChanged();
@@ -461,36 +489,36 @@ function AccountRow({
         </div>
         {account.kind === "CREDIT" && (
           <div className="mt-3 space-y-2 border-t border-border pt-3" data-testid={`card-details-${account.id}`}>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <Field label="Closing day">
-                <input
-                  type="number"
-                  min={1}
-                  max={31}
-                  value={closingDay}
-                  onChange={(e) => setClosingDay(e.target.value)}
-                  className="h-8 w-full rounded-control border border-border bg-background px-2 text-sm"
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="Closing date">
+                <Input
+                  type="date"
+                  value={closingDate}
+                  onChange={(e) => setClosingDate(e.target.value)}
+                  className={CARD_INPUT_CLASS}
                   data-testid={`card-closing-${account.id}`}
                 />
               </Field>
-              <Field label="Due day">
-                <input
-                  type="number"
-                  min={1}
-                  max={31}
-                  value={dueDay}
-                  onChange={(e) => setDueDay(e.target.value)}
-                  className="h-8 w-full rounded-control border border-border bg-background px-2 text-sm"
+              <Field label="Due date">
+                <Input
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className={CARD_INPUT_CLASS}
                   data-testid={`card-due-${account.id}`}
                 />
               </Field>
-              <Field label="APR %">
-                <input
-                  type="number"
-                  step="0.01"
+              <Field label="APR %" error={aprError} testId={`card-apr-${account.id}`}>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
                   value={apr}
-                  onChange={(e) => setApr(e.target.value)}
-                  className="h-8 w-full rounded-control border border-border bg-background px-2 text-sm"
+                  onChange={(e) => {
+                    setApr(e.target.value);
+                    setAprError(null);
+                  }}
+                  className={CARD_INPUT_CLASS}
                   data-testid={`card-apr-${account.id}`}
                 />
               </Field>
@@ -500,6 +528,9 @@ function AccountRow({
                 </Button>
               </div>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Use the dates from a recent statement. The estimate repeats them every month.
+            </p>
             <div className="flex flex-wrap items-center gap-2">
               <Button size="sm" onClick={() => void runEstimate()} loading={estimating} data-testid={`card-estimate-${account.id}`}>
                 Estimate bill

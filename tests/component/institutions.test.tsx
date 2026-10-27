@@ -34,6 +34,8 @@ const INSTITUTION: InstitutionDTO = {
       balanceDate: "2026-10-24",
       statementClosingDay: null,
       paymentDueDay: null,
+      statementClosingDate: null,
+      paymentDueDate: null,
       aprBasisPoints: null,
       minimumPaymentRule: null,
     },
@@ -48,6 +50,8 @@ const INSTITUTION: InstitutionDTO = {
       balanceDate: "2026-10-23",
       statementClosingDay: null,
       paymentDueDay: null,
+      statementClosingDate: null,
+      paymentDueDate: null,
       aprBasisPoints: null,
       minimumPaymentRule: null,
     },
@@ -209,6 +213,109 @@ describe("InstitutionsView", () => {
     expect(screen.queryByTestId("account-excluded-conn1:a1")).toBeNull(); // bank account
     expect(screen.getByTestId("account-kind-conn1:a2")).toHaveValue("CREDIT");
     expect(screen.getByTestId("account-excluded-conn1:a2")).toHaveTextContent("Not counted in your starting balance");
+  });
+
+  describe("card details", () => {
+    const withCard = (over: Partial<InstitutionDTO["accounts"][number]> = {}) => [
+      { ...INSTITUTION, accounts: INSTITUTION.accounts.map((a) => (a.id === "conn1:a2" ? { ...a, ...over } : a)) },
+    ];
+
+    it("takes the closing and due dates as date inputs and the APR as plain text without spinner arrows", async () => {
+      route({ "GET /institutions": () => json(200, withCard({ statementClosingDate: "2026-09-15", paymentDueDate: "2026-10-09", aprBasisPoints: 2499 })) });
+      renderView();
+
+      const closing = await screen.findByTestId("card-closing-conn1:a2");
+      const due = screen.getByTestId("card-due-conn1:a2");
+      const apr = screen.getByTestId("card-apr-conn1:a2");
+      expect(closing).toHaveAttribute("type", "date");
+      expect(closing).toHaveAccessibleName("Closing date");
+      expect(closing).toHaveValue("2026-09-15");
+      expect(due).toHaveAttribute("type", "date");
+      expect(due).toHaveAccessibleName("Due date");
+      expect(due).toHaveValue("2026-10-09");
+      expect(apr).toHaveAttribute("type", "text"); // type="number" is what shows the spinner
+      expect(apr).toHaveAttribute("inputmode", "decimal");
+      expect(apr).toHaveValue("24.99");
+    });
+
+    it("shows the next occurrence of a day saved before dates existed", async () => {
+      route({ "GET /institutions": () => json(200, withCard({ statementClosingDay: 15, paymentDueDay: 9 })) });
+      renderView();
+
+      const closing = await screen.findByTestId("card-closing-conn1:a2");
+      expect((closing as HTMLInputElement).value).toMatch(/^\d{4}-\d{2}-15$/);
+      expect((screen.getByTestId("card-due-conn1:a2") as HTMLInputElement).value).toMatch(/^\d{4}-\d{2}-09$/);
+    });
+
+    it("saves the dates and turns the typed APR into basis points", async () => {
+      route({
+        "GET /institutions": () => json(200, withCard()),
+        "PATCH /institutions/conn1/accounts/conn1%3Aa2": () => json(200, withCard()[0].accounts[1]),
+      });
+      const user = userEvent.setup();
+      renderView();
+
+      await user.type(await screen.findByTestId("card-closing-conn1:a2"), "2026-09-15");
+      await user.type(screen.getByTestId("card-due-conn1:a2"), "2026-10-09");
+      await user.type(screen.getByTestId("card-apr-conn1:a2"), "24.99%");
+      await user.click(screen.getByTestId("card-save-conn1:a2"));
+
+      await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => init?.method === "PATCH")).toBe(true));
+      const patch = fetchMock.mock.calls.find(([, init]) => init?.method === "PATCH");
+      expect(JSON.parse(patch![1].body)).toEqual({ statementClosingDate: "2026-09-15", paymentDueDate: "2026-10-09", aprBasisPoints: 2499 });
+    });
+
+    it.each(["abc", "24.999", "-5", "1001"])("rejects the APR %j inline without saving", async (text) => {
+      route({ "GET /institutions": () => json(200, withCard()) });
+      const user = userEvent.setup();
+      renderView();
+
+      await user.type(await screen.findByTestId("card-apr-conn1:a2"), text);
+      await user.click(screen.getByTestId("card-save-conn1:a2"));
+
+      expect(await screen.findByTestId("card-apr-conn1:a2-error")).toBeInTheDocument();
+      expect(screen.getByTestId("card-apr-conn1:a2")).toHaveAttribute("aria-invalid", "true");
+      expect(fetchMock.mock.calls.some(([, init]) => init?.method === "PATCH")).toBe(false);
+    });
+
+    it("clears an empty APR and date", async () => {
+      route({
+        "GET /institutions": () => json(200, withCard({ statementClosingDate: "2026-09-15", aprBasisPoints: 1800 })),
+        "PATCH /institutions/conn1/accounts/conn1%3Aa2": () => json(200, withCard()[0].accounts[1]),
+      });
+      const user = userEvent.setup();
+      renderView();
+
+      await user.clear(await screen.findByTestId("card-closing-conn1:a2"));
+      await user.clear(screen.getByTestId("card-apr-conn1:a2"));
+      await user.click(screen.getByTestId("card-save-conn1:a2"));
+
+      await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => init?.method === "PATCH")).toBe(true));
+      const patch = fetchMock.mock.calls.find(([, init]) => init?.method === "PATCH");
+      expect(JSON.parse(patch![1].body)).toEqual({ statementClosingDate: null, aprBasisPoints: null });
+    });
+
+    it("leaves a saved day alone when only the APR changes, even where the day is clamped to a short month", async () => {
+      vi.useFakeTimers({ toFake: ["Date"], now: new Date(2026, 10, 5, 12) }); // Nov 5: a 30-day month
+      try {
+        route({
+          "GET /institutions": () => json(200, withCard({ statementClosingDay: 31, paymentDueDay: 5 })),
+          "PATCH /institutions/conn1/accounts/conn1%3Aa2": () => json(200, withCard()[0].accounts[1]),
+        });
+        const user = userEvent.setup();
+        renderView();
+
+        expect(await screen.findByTestId("card-closing-conn1:a2")).toHaveValue("2026-11-30");
+        await user.type(screen.getByTestId("card-apr-conn1:a2"), "19.99");
+        await user.click(screen.getByTestId("card-save-conn1:a2"));
+
+        await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => init?.method === "PATCH")).toBe(true));
+        const patch = fetchMock.mock.calls.find(([, init]) => init?.method === "PATCH");
+        expect(JSON.parse(patch![1].body)).toEqual({ aprBasisPoints: 1999 }); // no dates: day 31 must not become 30
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   it("explains that removing is local only before deleting", async () => {

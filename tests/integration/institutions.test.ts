@@ -4,6 +4,7 @@ import * as listRoute from "@/app/api/institutions/route";
 import * as itemRoute from "@/app/api/institutions/[id]/route";
 import * as syncRoute from "@/app/api/institutions/[id]/sync/route";
 import * as kindRoute from "@/app/api/institutions/[id]/accounts/[accountId]/route";
+import * as cardBillRoute from "@/app/api/institutions/[id]/accounts/[accountId]/card-bill/route";
 import * as txRoute from "@/app/api/institutions/[id]/transactions/route";
 import type { BankAccountDTO, BankTransactionsResponse, InstitutionDTO, InstitutionSyncDTO } from "@/contracts/api";
 import { ApiError } from "@/server/http";
@@ -117,6 +118,8 @@ describe("connecting", () => {
         balanceDate: "2026-10-24",
         statementClosingDay: null,
         paymentDueDay: null,
+        statementClosingDate: null,
+        paymentDueDate: null,
         aprBasisPoints: null,
         minimumPaymentRule: null,
       },
@@ -373,6 +376,8 @@ describe("account labels", () => {
       balanceDate: "2026-10-24",
       statementClosingDay: null,
       paymentDueDay: null,
+      statementClosingDate: null,
+      paymentDueDate: null,
       aprBasisPoints: null,
       minimumPaymentRule: null,
     });
@@ -438,6 +443,86 @@ describe("account labels", () => {
     });
     expectApiError(await patchKind(first.id, foreign, { kind: "LOAN" }), 404, "NOT_FOUND");
     expect((await testPrisma.bankAccount.findUniqueOrThrow({ where: { id: foreign } })).kind).toBe("BANK");
+  });
+});
+
+describe("credit card fields", () => {
+  const patch = (connId: string, accountId: string, body: unknown) =>
+    call<BankAccountDTO>(kindRoute.PATCH, "PATCH", `/api/institutions/${connId}/accounts/${accountId}`, {
+      params: { id: connId, accountId },
+      body,
+    });
+  const estimate = (connId: string, accountId: string) =>
+    call<{ closingDate: string; dueDate: string }>(cardBillRoute.POST, "POST", `/api/institutions/${connId}/accounts/${accountId}/card-bill`, {
+      params: { id: connId, accountId },
+      body: {},
+    });
+  const setup = async () => {
+    const first = await connect({ setupToken: SETUP_TOKEN }, NOW);
+    const acc = `${first.id}:a1`;
+    await patch(first.id, acc, { kind: "CREDIT" });
+    return { conn: first.id, acc };
+  };
+
+  it("stores the closing and due dates and derives the day columns from them", async () => {
+    const { conn, acc } = await setup();
+    const res = await patch(conn, acc, { statementClosingDate: "2026-09-15", paymentDueDate: "2026-10-09", aprBasisPoints: 2499 });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      statementClosingDate: "2026-09-15",
+      statementClosingDay: 15,
+      paymentDueDate: "2026-10-09",
+      paymentDueDay: 9,
+      aprBasisPoints: 2499,
+    });
+    const row = await testPrisma.bankAccount.findUniqueOrThrow({ where: { id: acc } });
+    expect([row.statementClosingDate, row.statementClosingDay, row.paymentDueDate, row.paymentDueDay]).toEqual(["2026-09-15", 15, "2026-10-09", 9]);
+  });
+
+  it("clears a date together with its day, and a day sent alone clears the stored date", async () => {
+    const { conn, acc } = await setup();
+    await patch(conn, acc, { statementClosingDate: "2026-09-15", paymentDueDate: "2026-10-09" });
+
+    const cleared = await patch(conn, acc, { statementClosingDate: null });
+    expect(cleared.body).toMatchObject({ statementClosingDate: null, statementClosingDay: null, paymentDueDate: "2026-10-09", paymentDueDay: 9 });
+
+    const legacy = await patch(conn, acc, { paymentDueDay: 20 });
+    expect(legacy.body).toMatchObject({ paymentDueDate: null, paymentDueDay: 20 });
+  });
+
+  it("estimates the bill from the entered dates, rolling them forward from today", async () => {
+    const { conn, acc } = await setup();
+    await patch(conn, acc, { statementClosingDate: "2026-08-15", paymentDueDate: "2026-09-09" });
+    const res = await estimate(conn, acc);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ closingDate: "2026-11-15", dueDate: "2026-12-09" });
+  });
+
+  it("still estimates an account saved with days only", async () => {
+    const { conn, acc } = await setup();
+    await testPrisma.bankAccount.update({ where: { id: acc }, data: { statementClosingDay: 31, paymentDueDay: 5 } });
+    const res = await estimate(conn, acc);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ closingDate: "2026-10-31", dueDate: "2026-11-05" });
+  });
+
+  it("asks for both dates before estimating", async () => {
+    const { conn, acc } = await setup();
+    await patch(conn, acc, { statementClosingDate: "2026-09-15" });
+    expectApiError(await estimate(conn, acc), 400, "BAD_REQUEST");
+  });
+
+  it.each([
+    { statementClosingDate: "15/09/2026" },
+    { paymentDueDate: "2026-02-30" },
+    { statementClosingDate: 15 },
+    { aprBasisPoints: -1 },
+    { aprBasisPoints: 24.99 },
+  ])("400 VALIDATION_ERROR for %j", async (body) => {
+    const { conn, acc } = await setup();
+    expectApiError(await patch(conn, acc, body), 400, "VALIDATION_ERROR", [Object.keys(body)[0]]);
+    const row = await testPrisma.bankAccount.findUniqueOrThrow({ where: { id: acc } });
+    expect([row.statementClosingDate, row.paymentDueDate, row.aprBasisPoints]).toEqual([null, null, null]);
   });
 });
 

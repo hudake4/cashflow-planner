@@ -4,8 +4,8 @@
  *
  * Projected statement balance = amount owed now (the synced card balance) + recurring charges
  * expected before the statement's closing date + an optional variable-spend estimate. The closing
- * day decides which charges land on this statement and which on the next. The result is an estimate
- * the user can overwrite.
+ * date (the next monthly occurrence of the user's closing date) decides which charges land on this
+ * statement and which on the next. The result is an estimate the user can overwrite.
  */
 import { addMonthsClamped, daysInMonth, formatIsoDate, parseIsoDate } from "./dates";
 
@@ -19,10 +19,10 @@ export interface CardBillCharge {
 export interface CardBillEstimateInput {
   /** Synced card balance, signed like the bank. The amount owed is taken as its absolute value. */
   balanceCents: number;
-  /** Day of month the statement closes (1-31). Required for an estimate. */
-  statementClosingDay: number;
-  /** Day of month the payment is due (1-31). Required for an estimate. */
-  paymentDueDay: number;
+  /** Any YYYY-MM-DD the statement closes on. Cards bill monthly, so it anchors the cycle: only its day of month matters. */
+  statementClosingAnchor: string;
+  /** Any YYYY-MM-DD the payment is due on, anchoring the cycle the same way. */
+  paymentDueAnchor: string;
   /** Server-local calendar date YYYY-MM-DD. */
   today: string;
   /** Recurring charges detected on the card, with their expected dates. */
@@ -56,16 +56,15 @@ function clampDay(year: number, month: number, day: number): number {
   return Math.min(day, daysInMonth(year, month));
 }
 
-/** The next statement closing date on or after `today`. */
-export function statementClosingDate(today: string, closingDay: number): string {
+/** The next date on or after `today` that falls on `day` of the month (clamped to short months). */
+export function nextDayOfMonth(today: string, day: number): string {
   const { year, month } = parseIsoDate(today);
-  const day = clampDay(year, month, closingDay);
-  const thisMonth = formatIsoDate(year, month, day);
+  const thisMonth = formatIsoDate(year, month, clampDay(year, month, day));
   if (thisMonth >= today) return thisMonth;
   // next month
   const next = addMonthsClamped(formatIsoDate(year, month, 1), 1);
   const { year: ny, month: nm } = parseIsoDate(next);
-  return formatIsoDate(ny, nm, clampDay(ny, nm, closingDay));
+  return formatIsoDate(ny, nm, clampDay(ny, nm, day));
 }
 
 /** The payment due date for a statement that closes on `closingDate`. */
@@ -79,10 +78,18 @@ export function paymentDueDate(closingDate: string, dueDay: number): string {
   return formatIsoDate(ny, nm, clampDay(ny, nm, dueDay));
 }
 
+/**
+ * Rolls a monthly anchor date forward to its next occurrence on or after `today`: the anchor's day of
+ * month, clamped to short months (31 gives Feb 28/29), so a date entered months ago still works.
+ */
+export function nextMonthlyDate(anchor: string, today: string): string {
+  return nextDayOfMonth(today, parseIsoDate(anchor).day);
+}
+
 export function estimateCardBill(input: CardBillEstimateInput): CardBillEstimate {
   const currentOwedCents = Math.abs(input.balanceCents);
-  const closingDate = statementClosingDate(input.today, input.statementClosingDay);
-  const dueDate = paymentDueDate(closingDate, input.paymentDueDay);
+  const closingDate = nextMonthlyDate(input.statementClosingAnchor, input.today);
+  const dueDate = paymentDueDate(closingDate, parseIsoDate(input.paymentDueAnchor).day);
 
   const recurringChargesCents = (input.charges ?? [])
     .filter((c) => c.date <= closingDate)

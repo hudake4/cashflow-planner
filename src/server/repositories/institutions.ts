@@ -20,7 +20,7 @@ import {
   type connectInstitutionSchema,
 } from "../../contracts/api";
 import { guessAccountKind } from "../../domain/account-kind";
-import { todayLocal } from "../../domain/dates";
+import { parseIsoDate, todayLocal } from "../../domain/dates";
 import { db, HOUSEHOLD_ID, type DbClient } from "../db";
 import { ApiError, notFound } from "../http";
 import { isEncrypted, open, seal, SecretUnavailableError } from "../secret-box";
@@ -46,6 +46,8 @@ const toAccountDTO = (a: BankAccount): BankAccountDTO => ({
   balanceDate: a.balanceDate,
   statementClosingDay: a.statementClosingDay,
   paymentDueDay: a.paymentDueDay,
+  statementClosingDate: a.statementClosingDate,
+  paymentDueDate: a.paymentDueDate,
   aprBasisPoints: a.aprBasisPoints,
   minimumPaymentRule: a.minimumPaymentRule,
 });
@@ -251,11 +253,22 @@ export async function setAccountKind(connectionId: string, accountId: string, ki
   return toAccountDTO(await db.bankAccount.update({ where: { id: accountId }, data: { kind } }));
 }
 
-/** Sets credit-card fields for one account. 404 when the account isn't part of the connection. */
+/**
+ * Sets credit-card fields for one account. 404 when the account isn't part of the connection.
+ * A date also writes its day of month to the matching day column, so the two never disagree; a
+ * day sent alone clears the stored date. When both are sent, the date wins.
+ */
 export async function setAccountCardFields(
   connectionId: string,
   accountId: string,
-  fields: { statementClosingDay?: number | null; paymentDueDay?: number | null; aprBasisPoints?: number | null; minimumPaymentRule?: string | null },
+  fields: {
+    statementClosingDay?: number | null;
+    paymentDueDay?: number | null;
+    statementClosingDate?: string | null;
+    paymentDueDate?: string | null;
+    aprBasisPoints?: number | null;
+    minimumPaymentRule?: string | null;
+  },
 ): Promise<BankAccountDTO> {
   const account = await db.bankAccount.findFirst({
     where: { id: accountId, connectionId, connection: { householdId: HOUSEHOLD_ID } },
@@ -263,8 +276,20 @@ export async function setAccountCardFields(
   });
   if (!account) throw notFound("Account");
   const data: Record<string, unknown> = {};
-  if (fields.statementClosingDay !== undefined) data.statementClosingDay = fields.statementClosingDay;
-  if (fields.paymentDueDay !== undefined) data.paymentDueDay = fields.paymentDueDay;
+  if (fields.statementClosingDate !== undefined) {
+    data.statementClosingDate = fields.statementClosingDate;
+    data.statementClosingDay = fields.statementClosingDate ? parseIsoDate(fields.statementClosingDate).day : null;
+  } else if (fields.statementClosingDay !== undefined) {
+    data.statementClosingDay = fields.statementClosingDay;
+    data.statementClosingDate = null;
+  }
+  if (fields.paymentDueDate !== undefined) {
+    data.paymentDueDate = fields.paymentDueDate;
+    data.paymentDueDay = fields.paymentDueDate ? parseIsoDate(fields.paymentDueDate).day : null;
+  } else if (fields.paymentDueDay !== undefined) {
+    data.paymentDueDay = fields.paymentDueDay;
+    data.paymentDueDate = null;
+  }
   if (fields.aprBasisPoints !== undefined) data.aprBasisPoints = fields.aprBasisPoints;
   if (fields.minimumPaymentRule !== undefined) data.minimumPaymentRule = fields.minimumPaymentRule;
   return toAccountDTO(await db.bankAccount.update({ where: { id: accountId }, data }));

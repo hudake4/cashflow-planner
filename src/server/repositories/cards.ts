@@ -1,4 +1,4 @@
-import { estimateCardBill } from "../../domain/card-bill";
+import { estimateCardBill, nextDayOfMonth } from "../../domain/card-bill";
 import { detectRecurring } from "../../domain/recurring";
 import { todayLocal } from "../../domain/dates";
 import { historyCutoff } from "../simplefin-mapping";
@@ -21,11 +21,14 @@ export async function estimateAndUpsertCardBill(accountId: string, variableSpend
   });
   if (!account) throw notFound("Account");
   if (account.kind !== "CREDIT") throw badRequest("Account is not a credit card");
-  if (account.statementClosingDay == null || account.paymentDueDay == null) {
-    throw badRequest("Set the statement closing day and payment due day first");
+  const today = todayLocal(now);
+  // Accounts saved before dates existed only have the day of month: its next occurrence is an equivalent anchor.
+  const closingAnchor = account.statementClosingDate ?? (account.statementClosingDay == null ? null : nextDayOfMonth(today, account.statementClosingDay));
+  const dueAnchor = account.paymentDueDate ?? (account.paymentDueDay == null ? null : nextDayOfMonth(today, account.paymentDueDay));
+  if (!closingAnchor || !dueAnchor) {
+    throw badRequest("Set the statement closing date and payment due date first");
   }
 
-  const today = todayLocal(now);
   const rows = await db.bankTransaction.findMany({
     where: { accountId, pending: false, date: { gte: historyCutoff(today) } },
     select: { date: true, description: true, amountCents: true },
@@ -45,8 +48,8 @@ export async function estimateAndUpsertCardBill(accountId: string, variableSpend
 
   const estimate = estimateCardBill({
     balanceCents: account.balanceCents,
-    statementClosingDay: account.statementClosingDay,
-    paymentDueDay: account.paymentDueDay,
+    statementClosingAnchor: closingAnchor,
+    paymentDueAnchor: dueAnchor,
     today,
     charges,
     variableSpendCents,

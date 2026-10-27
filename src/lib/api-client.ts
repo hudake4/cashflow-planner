@@ -168,6 +168,8 @@ export const api = {
   setAccountCardFields: (id: string, accountId: string, fields: {
     statementClosingDay?: number | null;
     paymentDueDay?: number | null;
+    statementClosingDate?: string | null;
+    paymentDueDate?: string | null;
     aprBasisPoints?: number | null;
     minimumPaymentRule?: string | null;
   }) =>

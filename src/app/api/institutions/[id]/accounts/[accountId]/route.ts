@@ -21,12 +21,16 @@ export const PATCH = (req: Request, { params }: Ctx) =>
     if (
       body.statementClosingDay !== undefined ||
       body.paymentDueDay !== undefined ||
+      body.statementClosingDate !== undefined ||
+      body.paymentDueDate !== undefined ||
       body.aprBasisPoints !== undefined ||
       body.minimumPaymentRule !== undefined
     ) {
       account = await setAccountCardFields(id, accountId, {
         statementClosingDay: body.statementClosingDay,
         paymentDueDay: body.paymentDueDay,
+        statementClosingDate: body.statementClosingDate,
+        paymentDueDate: body.paymentDueDate,
         aprBasisPoints: body.aprBasisPoints,
         minimumPaymentRule: body.minimumPaymentRule,
       });

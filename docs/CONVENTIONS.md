@@ -126,7 +126,7 @@ The domain modules are the contract that the tests are written against. Their ex
 | `src/domain/card-payments.ts` | `matchCardPayments`, the bank debits that pay a credit account (section 13) |
 | `src/domain/recurring.ts` | `detectRecurring` and merchant-name normalisation (section 12) |
 | `src/domain/spending.ts` | `categorize`, `merchantKey` and `buildSpending` (section 13) |
-| `src/domain/card-bill.ts` | `estimateCardBill` credit-card bill estimator (issue #61) |
+| `src/domain/card-bill.ts` | `estimateCardBill` credit-card bill estimator (issue #61). The card's closing and due dates are entered as calendar dates but act as monthly anchors: only the day of month is used, clamped to the month end (section 4, so day 31 gives Feb 28/29), and rolled forward to the next occurrence on or after today (the due date to the first occurrence after that closing date). The day columns are always derived from the dates, and an account with days only works the same way |
 | `src/domain/debt-payoff.ts` | `planDebtPayoff` debt payoff planner, snowball vs. avalanche (issue #50) |
 | `src/domain/bill-match.ts` | `matchBillPayments`, bank transactions to unpaid bill occurrences (section 14) |
 | `src/domain/estimate.ts` | `estimateBillAmount`, the suggested amount for a variable bill (section 15) |

@@ -444,6 +444,8 @@ export type AccountKindInput = z.input<typeof accountKindInputSchema>;
 export const accountCardFieldsInputSchema = z.object({
   statementClosingDay: z.number().int().min(1).max(31).nullable().optional(),
   paymentDueDay: z.number().int().min(1).max(31).nullable().optional(),
+  statementClosingDate: isoDateSchema.nullable().optional(),
+  paymentDueDate: isoDateSchema.nullable().optional(),
   aprBasisPoints: z.number().int().min(0).max(100000).nullable().optional(),
   minimumPaymentRule: z.string().trim().max(200).nullable().optional(),
 });
@@ -454,6 +456,8 @@ export const accountUpdateInputSchema = z
     kind: accountKindSchema.optional(),
     statementClosingDay: z.number().int().min(1).max(31).nullable().optional(),
     paymentDueDay: z.number().int().min(1).max(31).nullable().optional(),
+    statementClosingDate: isoDateSchema.nullable().optional(),
+    paymentDueDate: isoDateSchema.nullable().optional(),
     aprBasisPoints: z.number().int().min(0).max(100000).nullable().optional(),
     minimumPaymentRule: z.string().trim().max(200).nullable().optional(),
   })
@@ -462,6 +466,8 @@ export const accountUpdateInputSchema = z
       v.kind !== undefined ||
       v.statementClosingDay !== undefined ||
       v.paymentDueDay !== undefined ||
+      v.statementClosingDate !== undefined ||
+      v.paymentDueDate !== undefined ||
       v.aprBasisPoints !== undefined ||
       v.minimumPaymentRule !== undefined,
     { path: ["kind"], message: "At least one field is required" },
@@ -483,6 +489,9 @@ export interface BankAccountDTO {
   /** Credit-card fields (user-entered). Null/undefined for non-card accounts or unset. */
   statementClosingDay: number | null;
   paymentDueDay: number | null;
+  /** YYYY-MM-DD the user entered; only its day of month matters (monthly cycle). Null on accounts saved with days only. */
+  statementClosingDate: string | null;
+  paymentDueDate: string | null;
   aprBasisPoints: number | null;
   minimumPaymentRule: string | null;
 }
@@ -719,6 +728,8 @@ const bankAccountDTOSchema = z
     balanceDate: isoDateSchema,
     statementClosingDay: z.number().int().min(1).max(31).nullable(),
     paymentDueDay: z.number().int().min(1).max(31).nullable(),
+    statementClosingDate: isoDateSchema.nullable(),
+    paymentDueDate: isoDateSchema.nullable(),
     aprBasisPoints: z.number().int().min(0).max(100000).nullable(),
     minimumPaymentRule: z.string().nullable(),
   })
