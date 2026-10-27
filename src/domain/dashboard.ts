@@ -11,7 +11,8 @@ import { applyGoalReserve, computeGoalReserve } from "./savings-goals";
 export const UPCOMING_BILL_DAYS = 14;
 export const UPCOMING_BILL_LIMIT = 8;
 
-export type DashboardInput = Omit<ProjectionInput, "from" | "to" | "settings"> & { settings: SettingsDTO;
+export type DashboardInput = Omit<ProjectionInput, "from" | "to" | "settings"> & {
+  settings: SettingsDTO;
   today: string;
   /** Savings goals to reserve for (CONVENTIONS section 8). Omitted means none. */
   goals?: SavingsGoalDTO[];
