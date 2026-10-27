@@ -374,6 +374,31 @@ function DashboardContent({ d, scenarioDashboard }: { d: DashboardResponse; scen
         </Card>
       </div>
 
+      {d.lowPointBills && (
+        <Card data-testid="low-point-bills">
+          <CardHeader title="What’s causing your lowest point" description={`Projected low of ${money(d.lowPointBills.lowestBalanceCents, currency)} on ${fmtDayShort(d.lowPointBills.lowestBalanceDate)}. Moving one bill to ${fmtDayShort(d.lowPointBills!.nextPayday)} changes it as shown below.`} />
+          <CardBody className="pt-3">
+            <ul className="divide-y divide-border">
+              {d.lowPointBills.bills.map((bill) => {
+                const gain = bill.movedLowestBalanceCents - d.lowPointBills!.lowestBalanceCents;
+                return (
+                  <li key={bill.eventId} className="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-foreground">{bill.name}</p>
+                      <p className="text-sm text-muted-foreground">Due {fmtDayShort(bill.date)} · {money(bill.amountCents, currency)}</p>
+                    </div>
+                    <p className="text-sm text-foreground sm:text-right">
+                      Move to payday {fmtDayShort(d.lowPointBills!.nextPayday)}: lowest point becomes {money(bill.movedLowestBalanceCents, currency)} ({`+${money(gain, currency)}`})
+                    </p>
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="mt-2 text-sm text-muted-foreground">You can only move a due date if your biller allows it.</p>
+          </CardBody>
+        </Card>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,25rem)]">
         <Card>
           <CardHeader title="Projected balance" description={`End-of-day balance, ${fmtRange(d.window.startDate, d.window.endDate)}`} />

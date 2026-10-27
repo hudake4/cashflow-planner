@@ -38,6 +38,12 @@ describe("buildDashboard", () => {
     expect(d.nextPaycheck).toEqual({ date: "2025-01-03", name: "Paycheck", amountCents: 50000, sourceId: "pay" });
     // bills in [01-01, 01-14]: gym 01-01, 01-08
     expect(d.upcomingBills.map((e) => e.date)).toEqual(["2025-01-01", "2025-01-08"]);
+    expect(d.lowPointBills).toMatchObject({
+      lowestBalanceCents: 99000,
+      lowestBalanceDate: "2025-01-01",
+      nextPayday: "2025-01-03",
+      bills: [{ billId: "gym", date: "2025-01-01", movedLowestBalanceCents: 100000 }],
+    });
   });
 
   it("today inside the window -> week containing today and the next one", () => {
