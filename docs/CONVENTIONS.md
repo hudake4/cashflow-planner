@@ -140,6 +140,7 @@ The domain modules are the contract that the tests are written against. Their ex
 | `src/domain/account-kind.ts` | `guessAccountKind`, the first label for a new bank account (section 3) |
 | `src/domain/card-payments.ts` | `matchCardPayments`, the bank debits that pay a credit account (section 13) |
 | `src/domain/recurring.ts` | `detectRecurring` and merchant-name normalisation (section 12) |
+| `src/domain/subscriptions.ts` | `buildSubscriptionAudit`, `annualCostCents`, `isCancelCandidate`, the Subscriptions page's rows, annual cost and cancel candidates (section 12) |
 | `src/domain/spending.ts` | `categorize`, `merchantKey` and `buildSpending` (section 13) |
 | `src/domain/card-bill.ts` | `estimateCardBill` credit-card bill estimator (issue #61) |
 | `src/domain/debt-payoff.ts` | `planDebtPayoff` debt payoff planner, snowball vs. avalanche (issue #50) |
