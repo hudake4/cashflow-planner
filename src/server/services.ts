@@ -22,6 +22,7 @@ import { db } from "./db";
 import { listAllOccurrences, listBills } from "./repositories/bills";
 import { listIncome } from "./repositories/income";
 import { listAllTransactionsByConnection, listConnections } from "./repositories/institutions";
+import { listSavingsGoals } from "./repositories/savings-goals";
 import { getSettings } from "./repositories/settings";
 
 async function loadInputs() {
@@ -50,7 +51,8 @@ export async function getProjection(from?: string, to?: string): Promise<Project
 }
 
 export async function getDashboard(today: string = todayLocal()): Promise<DashboardResponse> {
-  return buildDashboard({ ...(await loadInputs()), today });
+  const [inputs, goals] = await Promise.all([loadInputs(), listSavingsGoals()]);
+  return buildDashboard({ ...inputs, goals, today });
 }
 
 export async function getScenarioProjection(
@@ -67,10 +69,11 @@ export async function getScenarioDashboard(
   scenario: ScenarioInput | ScenarioInput[],
   today: string = todayLocal(),
 ): Promise<DashboardResponse> {
-  const base = await loadInputs();
+  const [base, goals] = await Promise.all([loadInputs(), listSavingsGoals()]);
   const input = applyScenario({ ...base } as ProjectionInput, scenario);
   return buildDashboard({
     settings: base.settings,
+    goals,
     incomes: input.incomes,
     bills: input.bills,
     occurrences: input.occurrences,

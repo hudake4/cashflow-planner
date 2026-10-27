@@ -381,6 +381,30 @@ export interface DashboardResponse {
   trend: { date: string; balanceCents: number }[];
   /** Most the user can spend today without any future end-of-day balance dropping below the configured floor. */
   safeToSpendCents: number;
+  /** What savings goals took out of `safeToSpendCents` (CONVENTIONS section 8). Empty when there are no goals. */
+  goalReserve: GoalReserveDTO;
+}
+
+/** A goal the forecast does not support, and what to put aside each week to reach it. */
+export interface GoalSetAsideDTO {
+  id: string;
+  name: string | null;
+  targetAmountCents: number;
+  targetDate: string;
+  /** How far the projected balance on the target date falls short of the target. */
+  shortfallCents: number;
+  weeksRemaining: number;
+  /** `ceil(shortfall / max(1, weeksRemaining))`. */
+  weeklySetAsideCents: number;
+}
+
+export interface GoalReserveDTO {
+  /** Sum of `weeklySetAsideCents`; already subtracted from `safeToSpendCents`. */
+  setAsideCents: number;
+  /** Unsupported goals, soonest target date first. */
+  goals: GoalSetAsideDTO[];
+  /** The supported goal whose headroom caps `safeToSpendCents`, or null when no goal does. */
+  limitedBy: { id: string; name: string | null; headroomCents: number } | null;
 }
 
 // ---------------------------------------------------------------------------

@@ -2,16 +2,22 @@
  * Dashboard summary built on top of the projection engine (CONVENTIONS section 8).
  * Pure: `today` is passed in by the caller.
  */
-import type { DashboardResponse, SettingsDTO } from "../contracts/api";
+import type { DashboardResponse, SavingsGoalDTO, SettingsDTO } from "../contracts/api";
 import { addDays, clampDate, maxDate } from "./dates";
 import { computeProjection, type ProjectionInput } from "./projection";
 import { findLowPointBills } from "./low-point";
+import { applyGoalReserve, computeGoalReserve } from "./savings-goals";
 
 /** How many days ahead of the reference date "upcoming bills" covers (inclusive span of 14 days). */
 export const UPCOMING_BILL_DAYS = 14;
 export const UPCOMING_BILL_LIMIT = 8;
 
-export type DashboardInput = Omit<ProjectionInput, "from" | "to" | "settings"> & { settings: SettingsDTO; today: string };
+export type DashboardInput = Omit<ProjectionInput, "from" | "to" | "settings"> & {
+  settings: SettingsDTO;
+  today: string;
+  /** Savings goals to reserve for (CONVENTIONS section 8). Omitted means none. */
+  goals?: SavingsGoalDTO[];
+};
 
 export function buildDashboard(input: DashboardInput): DashboardResponse {
   const { settings, today } = input;
@@ -30,7 +36,14 @@ export function buildDashboard(input: DashboardInput): DashboardResponse {
   const lowestFutureBalance = futureDays.length
     ? Math.min(...futureDays.map((d) => d.closingBalanceCents))
     : projection.totals.lowestBalanceCents;
-  const safeToSpendCents = Math.max(0, lowestFutureBalance - settings.balanceFloorCents);
+  const aboveFloorCents = lowestFutureBalance - settings.balanceFloorCents;
+  const reserve = computeGoalReserve(projection, input.goals ?? [], today);
+  const goalReserve = {
+    ...reserve,
+    // Only report a goal as the limit when it is tighter than the floor.
+    limitedBy: reserve.limitedBy && reserve.limitedBy.headroomCents < aboveFloorCents ? reserve.limitedBy : null,
+  };
+  const safeToSpendCents = applyGoalReserve(aboveFloorCents, goalReserve);
 
   return {
     today,
@@ -49,5 +62,6 @@ export function buildDashboard(input: DashboardInput): DashboardResponse {
     totals: projection.totals,
     trend: projection.days.map((d) => ({ date: d.date, balanceCents: d.closingBalanceCents })),
     safeToSpendCents,
+    goalReserve,
   };
 }

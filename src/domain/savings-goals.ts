@@ -3,7 +3,7 @@
  *
  * Pure: the projection and `today` are passed in by the caller. Money is integer cents.
  */
-import type { ProjectionResponse } from "../contracts/api";
+import type { GoalReserveDTO, GoalSetAsideDTO, ProjectionResponse, SavingsGoalDTO } from "../contracts/api";
 import { diffDays } from "./dates";
 
 /** A goal as the UI/API store it. `name` is optional. */
@@ -90,6 +90,56 @@ export function evaluateSavingsGoal(
     weeklyAmountNeededCents,
     weeksRemaining,
   };
+}
+
+/**
+ * What savings goals take out of "safe to spend" (CONVENTIONS section 8, "Safe to spend and savings goals").
+ *
+ * Goals the forecast already supports get no set-aside, but they cap safe-to-spend at their headroom
+ * (projected balance on the target date minus the target), so spending it never breaks them. Goals the
+ * forecast does not support get a weekly set-aside (the shortfall over the weeks left) that comes off the top.
+ * Goals whose target date is before `today` are ignored.
+ */
+export function computeGoalReserve(projection: ProjectionResponse, goals: SavingsGoalDTO[], today: string): GoalReserveDTO {
+  const setAsides: GoalSetAsideDTO[] = [];
+  let limitedBy: GoalReserveDTO["limitedBy"] = null;
+
+  for (const goal of goals) {
+    if (goal.targetDate < today) continue;
+    const evaluation = evaluateSavingsGoal(projection, goal, today);
+    if (evaluation.supported) {
+      const headroomCents = evaluation.projectedBalanceCents - goal.targetAmountCents;
+      if (!limitedBy || headroomCents < limitedBy.headroomCents) {
+        limitedBy = { id: goal.id, name: goal.name, headroomCents };
+      }
+    } else {
+      setAsides.push({
+        id: goal.id,
+        name: goal.name,
+        targetAmountCents: goal.targetAmountCents,
+        targetDate: goal.targetDate,
+        shortfallCents: evaluation.shortfallCents,
+        weeksRemaining: evaluation.weeksRemaining,
+        weeklySetAsideCents: evaluation.weeklyAmountNeededCents,
+      });
+    }
+  }
+
+  setAsides.sort((a, b) => a.targetDate.localeCompare(b.targetDate) || (a.name ?? "").localeCompare(b.name ?? "") || a.id.localeCompare(b.id));
+  return {
+    setAsideCents: setAsides.reduce((sum, g) => sum + g.weeklySetAsideCents, 0),
+    goals: setAsides,
+    limitedBy,
+  };
+}
+
+/**
+ * Safe to spend today: the lowest future balance above the floor, held to the tightest supported goal's
+ * headroom, less the set-aside for unsupported goals, never below zero.
+ */
+export function applyGoalReserve(aboveFloorCents: number, reserve: GoalReserveDTO): number {
+  const limited = reserve.limitedBy ? Math.min(aboveFloorCents, reserve.limitedBy.headroomCents) : aboveFloorCents;
+  return Math.max(0, limited - reserve.setAsideCents);
 }
 
 export type SavingsGoalInput = SavingsGoal;
