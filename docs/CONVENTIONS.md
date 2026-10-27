@@ -82,6 +82,20 @@ The ledger is sorted by:
 
 `referenceDate = max(today, projectionStartDate)`, clamped to the window end. "Current week" is the week containing the reference date, and "next week" is the one after it. The next paycheck is the first income event on or after the reference date. Upcoming bills are non-skipped bill events in `[referenceDate, referenceDate + 13]`, up to 8 of them.
 
+### Safe to spend and savings goals
+
+`DashboardResponse.safeToSpendCents` is the most the user can spend today without a future end-of-day balance dropping below the balance floor, and without putting a savings goal off track. It is computed by `buildDashboard` (with `computeGoalReserve` and `applyGoalReserve` in `src/domain/savings-goals.ts`); the UI only renders it, together with `goalReserve` (what the goals took out).
+
+1. `aboveFloor = min(closing balance of every day from referenceDate to the window end) − balanceFloorCents`.
+2. Each goal is judged by `evaluateSavingsGoal`, the same test as the Savings Goals page: it is **supported** when the projected balance on its target date is at least its target (a date past the window uses the last projected balance). The goal's `weeksRemaining` is `ceil(days from today to the target date / 7)`.
+3. A goal whose target date is **before `today`** (past due) is ignored. A goal due today counts, with 0 weeks left treated as 1.
+4. A goal that is **not supported** needs a set-aside: `weeklySetAsideCents = ceil(shortfall / max(1, weeksRemaining))`, which is `weeklyAmountNeededCents` from `evaluateSavingsGoal`. `goalReserve.setAsideCents` is the sum over these goals, listed in `goalReserve.goals` (soonest target date first). That is a per-week amount, subtracted whole from today's figure, whatever day of the week it is.
+5. A goal that **is supported** has headroom = projected balance on the target date − target. Spending today lowers that balance, so the tightest headroom caps the figure. `goalReserve.limitedBy` names the goal that does so, and is `null` unless its headroom is below `aboveFloor`.
+6. `safeToSpendCents = max(0, min(aboveFloor, tightest supported headroom) − setAsideCents)`. The floor and the goals are separate limits, not stacked: a goal's target is not added to the floor. The set-aside comes out of money above the floor, and the result is clamped at zero.
+7. Goals have a target amount and date only (no saved amount, no archive state), so every goal not past due takes part. With no goals the result is the plain floor figure and `goalReserve` is `{ setAsideCents: 0, goals: [], limitedBy: null }`.
+
+A what-if scenario dashboard applies the same rule on the scenario's projection.
+
 ## 9. Engineering rules
 
 - One calculation engine: `src/domain/projection.ts`. The UI **never** recomputes balances. It renders `ProjectionResponse` and `DashboardResponse`.
@@ -121,6 +135,7 @@ The domain modules are the contract that the tests are written against. Their ex
 | `src/domain/recurrence.ts` | `Schedule` and anchored occurrence generation (section 4) |
 | `src/domain/projection.ts` | window and range resolution, `computeProjection`, same-day ordering (sections 3, 6, 7) |
 | `src/domain/dashboard.ts` | `buildDashboard` (section 8) |
+| `src/domain/savings-goals.ts` | `evaluateSavingsGoal`, `computeGoalReserve`, `applyGoalReserve` (section 8, safe to spend and savings goals) |
 | `src/domain/starting-balance.ts` | `effectiveStartingBalanceCents`, `effectiveProjectionStartDate`, `startDateFromAccounts` (section 3) |
 | `src/domain/account-kind.ts` | `guessAccountKind`, the first label for a new bank account (section 3) |
 | `src/domain/card-payments.ts` | `matchCardPayments`, the bank debits that pay a credit account (section 13) |

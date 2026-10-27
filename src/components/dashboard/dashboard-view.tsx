@@ -283,6 +283,33 @@ function DashboardContent({ d, scenarioDashboard }: { d: DashboardResponse; scen
             You can spend this today without your projected balance dropping below{" "}
             {money(d.settings.balanceFloorCents, currency)}.
           </p>
+          {(d.goalReserve.goals.length > 0 || d.goalReserve.limitedBy) && (
+            <div className="mt-3 space-y-1 text-sm text-muted-foreground" data-testid="safe-to-spend-goals">
+              {d.goalReserve.goals.length > 0 && (
+                <>
+                  <p data-testid="safe-to-spend-set-aside">
+                    After {money(d.goalReserve.setAsideCents, currency)} set aside this week for savings goals.
+                  </p>
+                  <ul className="space-y-0.5" data-testid="safe-to-spend-goal-list">
+                    {d.goalReserve.goals.map((g) => (
+                      <li key={g.id} className="flex justify-between gap-4">
+                        <span className="min-w-0 truncate">
+                          {g.name || "Savings goal"} by {fmtShort(g.targetDate)}
+                        </span>
+                        <span className="shrink-0 tabular-nums">{money(g.weeklySetAsideCents, currency)}/week</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              {d.goalReserve.limitedBy && (
+                <p data-testid="safe-to-spend-goal-limit">
+                  Held to {money(d.goalReserve.limitedBy.headroomCents, currency)} so &ldquo;{d.goalReserve.limitedBy.name || "Savings goal"}&rdquo;
+                  stays on track.
+                </p>
+              )}
+            </div>
+          )}
         </CardBody>
       </Card>
 
