@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRef, useState, type FormEvent } from "react";
 import { ACCOUNT_KINDS, connectInstitutionSchema, type AccountKind, type BankAccountDTO, type InstitutionDTO } from "@/contracts/api";
 import { api, errorMessage } from "@/lib/api-client";
-import { fmtShort } from "@/lib/dates";
+import { fmtShort, todayLocal } from "@/lib/dates";
 import { useApi } from "@/lib/use-api";
 import { PageHeader } from "@/components/app-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -14,7 +14,9 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog } from "@/components/ui/dialog";
-import { Field, Select, Textarea } from "@/components/ui/field";
+import { Field, Input, Select, Textarea } from "@/components/ui/field";
+import { parseIsoDate } from "@/domain/dates";
+import { paymentDueDate, statementClosingDate } from "@/domain/card-bill";
 import { Balance } from "@/components/ui/money";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState, InlineStatus } from "@/components/ui/states";
@@ -356,9 +358,16 @@ function AccountRow({
 }) {
   const toast = useToast();
   const [saving, setSaving] = useState(false);
-  const [closingDay, setClosingDay] = useState<string>(account.statementClosingDay?.toString() ?? "");
-  const [dueDay, setDueDay] = useState<string>(account.paymentDueDay?.toString() ?? "");
+  const closingDefault = account.statementClosingDay != null ? statementClosingDate(todayLocal(), account.statementClosingDay) : "";
+  const dueDefault = account.paymentDueDay != null
+    ? account.statementClosingDay != null
+      ? paymentDueDate(closingDefault, account.paymentDueDay)
+      : statementClosingDate(todayLocal(), account.paymentDueDay)
+    : "";
+  const [closingDate, setClosingDate] = useState<string>(closingDefault);
+  const [dueDate, setDueDate] = useState<string>(dueDefault);
   const [apr, setApr] = useState<string>(account.aprBasisPoints != null ? (account.aprBasisPoints / 100).toString() : "");
+  const [aprError, setAprError] = useState<string | null>(null);
   const [estimating, setEstimating] = useState(false);
   const [estimate, setEstimate] = useState<{ closingDate: string; dueDate: string; projectedBillCents: number; minimumPaymentCents: number | null } | null>(null);
 
@@ -375,12 +384,18 @@ function AccountRow({
   }
 
   async function saveCardFields() {
+    const normalizedApr = apr.trim();
+    if (normalizedApr !== "" && (!/^\d+(\.\d{1,2})?$/.test(normalizedApr) || Number(normalizedApr) > 1000)) {
+      setAprError("Enter a rate like 19.99");
+      return;
+    }
+    setAprError(null);
     setSaving(true);
     try {
       await api.setAccountCardFields(institutionId, account.id, {
-        statementClosingDay: closingDay ? Number(closingDay) : null,
-        paymentDueDay: dueDay ? Number(dueDay) : null,
-        aprBasisPoints: apr ? Math.round(Number(apr) * 100) : null,
+        statementClosingDay: closingDate === closingDefault ? account.statementClosingDay : closingDate ? parseIsoDate(closingDate).day : null,
+        paymentDueDay: dueDate === dueDefault ? account.paymentDueDay : dueDate ? parseIsoDate(dueDate).day : null,
+        aprBasisPoints: normalizedApr ? Math.round(Number(normalizedApr) * 100) : null,
       });
       toast("Saved card details.", "success");
       await onKindChanged();
@@ -461,36 +476,33 @@ function AccountRow({
         </div>
         {account.kind === "CREDIT" && (
           <div className="mt-3 space-y-2 border-t border-border pt-3" data-testid={`card-details-${account.id}`}>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <Field label="Closing day">
-                <input
-                  type="number"
-                  min={1}
-                  max={31}
-                  value={closingDay}
-                  onChange={(e) => setClosingDay(e.target.value)}
-                  className="h-8 w-full rounded-control border border-border bg-background px-2 text-sm"
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="Closing date">
+                <Input
+                  type="date"
+                  value={closingDate}
+                  onChange={(e) => setClosingDate(e.target.value)}
+                  className="h-8 w-full px-2 text-sm"
                   data-testid={`card-closing-${account.id}`}
                 />
               </Field>
-              <Field label="Due day">
-                <input
-                  type="number"
-                  min={1}
-                  max={31}
-                  value={dueDay}
-                  onChange={(e) => setDueDay(e.target.value)}
-                  className="h-8 w-full rounded-control border border-border bg-background px-2 text-sm"
+              <Field label="Due date">
+                <Input
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="h-8 w-full px-2 text-sm"
                   data-testid={`card-due-${account.id}`}
                 />
               </Field>
-              <Field label="APR %">
-                <input
-                  type="number"
-                  step="0.01"
+              <Field label="APR %" error={aprError} testId={`card-apr-${account.id}`}>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
                   value={apr}
-                  onChange={(e) => setApr(e.target.value)}
-                  className="h-8 w-full rounded-control border border-border bg-background px-2 text-sm"
+                  onChange={(e) => { setApr(e.target.value); setAprError(null); }}
+                  className="h-8 w-full px-2 text-sm"
                   data-testid={`card-apr-${account.id}`}
                 />
               </Field>
