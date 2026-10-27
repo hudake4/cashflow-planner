@@ -2,7 +2,7 @@
 
 import { Receipt, Scissors, TriangleAlert } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { SubscriptionAuditResponse } from "@/contracts/api";
 import { api, errorMessage } from "@/lib/api-client";
 import { fmtShort, localDateOf } from "@/lib/dates";
@@ -17,9 +17,6 @@ import { useToast } from "@/components/ui/toast";
 import { buildSubscriptionAudit } from "@/domain/subscriptions";
 import { todayLocal } from "@/domain/dates";
 
-const linkButton =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded-control bg-brand-600 px-4 text-sm font-semibold text-on-accent transition-colors hover:bg-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600";
-
 const frequencyLabel = (frequency: string) => FREQUENCY_LABELS[frequency as keyof typeof FREQUENCY_LABELS] ?? frequency;
 
 export function SubscriptionAuditView() {
@@ -29,14 +26,15 @@ export function SubscriptionAuditView() {
   const toast = useToast();
 
   const data = scan.data;
-  const audit = data
-    ? buildSubscriptionAudit({
-        suggestions: data.suggestions.filter((s) => !dismissed.has(s.key)),
-        tracked: data.tracked,
-        today: todayLocal(),
-        currency: data.currency,
-      })
-    : null;
+  const audit = useMemo(() => {
+    if (!data) return null;
+    return buildSubscriptionAudit({
+      suggestions: data.suggestions.filter((s) => !dismissed.has(s.key)),
+      tracked: data.tracked,
+      today: todayLocal(),
+      currency: data.currency,
+    });
+  }, [data, dismissed]);
 
   async function dismiss(key: string, name: string) {
     setDismissed((prev) => new Set(prev).add(key));
@@ -70,21 +68,21 @@ export function SubscriptionAuditView() {
           description="The subscription audit looks through your connected banks for recurring charges. Everything stays on this computer."
           testId="subscriptions-empty-no-bank"
           action={
-            <Link href="/institutions" className={linkButton}>
-              Go to Institutions
-            </Link>
+            <Button asChild variant="primary">
+              <Link href="/institutions">Go to Institutions</Link>
+            </Button>
           }
         />
       ) : audit.rows.length === 0 ? (
         <EmptyState
           icon={<Receipt className="h-6 w-6" />}
           title="No subscriptions found"
-          description={`Looked through ${data.transactionCount} transactions from the last 89 days. Weekly charges need 3 sightings and monthly ones 2.`}
+          description={`Looked through ${data.transactionCount} transactions from the last 89 days. Weekly and biweekly charges need 3 sightings and monthly ones 2.`}
           testId="subscriptions-empty-none"
           action={
-            <Link href="/institutions" className={linkButton}>
-              Refresh your bank on Institutions
-            </Link>
+            <Button asChild variant="primary">
+              <Link href="/institutions">Refresh your bank on Institutions</Link>
+            </Button>
           }
         />
       ) : (
@@ -146,7 +144,7 @@ function SubscriptionAuditContent({
         <CardBody className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-xs font-medium text-muted-foreground">Annual cost of your subscriptions</p>
-            <p className="mt-1 text-2xl font-bold text-foreground" data-testid="subscription-annual-total">
+            <p className="mt-1 text-2xl font-bold text-foreground tabular-nums" data-testid="subscription-annual-total">
               {money(audit.totalAnnualCostCents, data.currency)}
             </p>
           </div>
@@ -199,7 +197,7 @@ function SubscriptionAuditContent({
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="text-right">
-                        <p className="font-bold text-foreground" data-testid="subscription-amount">
+                        <p className="font-bold text-foreground tabular-nums" data-testid="subscription-amount">
                           {money(row.amountCents, data.currency)}
                         </p>
                         <p className="text-xs text-muted-foreground">per charge</p>
@@ -218,7 +216,7 @@ function SubscriptionAuditContent({
                   <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-4">
                     <div>
                       <dt className="text-muted-foreground">Annual cost</dt>
-                      <dd className="font-medium text-foreground" data-testid="subscription-annual-cost">
+                      <dd className="font-medium text-foreground tabular-nums" data-testid="subscription-annual-cost">
                         {money(row.annualCostCents, data.currency)}
                       </dd>
                     </div>
@@ -269,16 +267,16 @@ function SubscriptionAuditContent({
             </div>
             <p className="text-sm text-muted-foreground">
               {candidateCount} charge{candidateCount === 1 ? "" : "s"} look stopped or unused, worth{" "}
-              {money(audit.candidateAnnualCostCents, data.currency)} a year.
+              <span className="tabular-nums">{money(audit.candidateAnnualCostCents, data.currency)}</span> a year.
             </p>
-            <button
-              type="button"
+            <Button
+              variant="link"
               onClick={onToggleCandidates}
-              className="text-sm font-semibold text-brand-700 underline"
+              className="text-brand-700 underline"
               data-testid="view-cancel-candidates"
             >
               Review cancel candidates
-            </button>
+            </Button>
           </CardBody>
         </Card>
       )}

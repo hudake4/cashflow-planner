@@ -121,4 +121,12 @@ describe("SubscriptionAuditView", () => {
 
     expect(await screen.findByTestId("subscriptions-empty-no-bank")).toBeInTheDocument();
   });
+
+  it("mentions biweekly in the no-subscriptions empty state", async () => {
+    getSubscriptions.mockResolvedValue(response({ suggestions: [], tracked: [], connectionCount: 1 }));
+    renderView();
+
+    const empty = await screen.findByTestId("subscriptions-empty-none");
+    expect(empty).toHaveTextContent(/biweekly/i);
+  });
 });
