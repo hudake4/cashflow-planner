@@ -69,11 +69,27 @@ function renderView() {
 }
 
 describe("SubscriptionAuditView", () => {
+  it("shows the last sync date in the machine's local timezone", async () => {
+    const originalTimezone = process.env.TZ;
+    process.env.TZ = "America/Chicago";
+    try {
+      expect(new Date("2026-03-05T02:30:00.000Z").getDate()).toBe(4);
+      getSubscriptions.mockResolvedValue(response({ lastSyncedAt: "2026-03-05T02:30:00.000Z" }));
+      renderView();
+
+      expect(await screen.findByTestId("subscription-coverage")).toHaveTextContent("last updated Mar 4, 2026");
+    } finally {
+      if (originalTimezone === undefined) delete process.env.TZ;
+      else process.env.TZ = originalTimezone;
+    }
+  });
+
   it("lists detected charges and tracked bills, but not income", async () => {
     getSubscriptions.mockResolvedValue(response({ suggestions: [DETECTED, INCOME] }));
     renderView();
 
     expect(await screen.findByText("Netflix.com")).toBeInTheDocument();
+    expect(screen.getByTestId("subscription-coverage")).not.toHaveTextContent("last updated");
     expect(screen.getByText("Rent")).toBeInTheDocument();
     expect(screen.queryByText("Acme Payroll")).toBeNull();
 
