@@ -12,7 +12,10 @@ beforeEach(() => {
   fetchMock.mockReset();
   vi.stubGlobal("fetch", fetchMock);
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -72,6 +75,86 @@ const renderView = () =>
   );
 
 describe("InstitutionsView", () => {
+  it("prefills card date pickers from stored days and saves picked days or nulls", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 9, 26, 12));
+    const card = { ...INSTITUTION.accounts[1], statementClosingDay: 12, paymentDueDay: 25, aprBasisPoints: null };
+    let saved: unknown;
+    route({
+      "GET /institutions": () => json(200, [{ ...INSTITUTION, accounts: [INSTITUTION.accounts[0], card] }]),
+      "PATCH /institutions/conn1/accounts/conn1%3Aa2": () => {
+        saved = JSON.parse(fetchMock.mock.calls.at(-1)![1].body as string);
+        return json(200, card);
+      },
+    });
+    const user = userEvent.setup();
+    renderView();
+    const closing = await screen.findByTestId("card-closing-conn1:a2");
+    const due = screen.getByTestId("card-due-conn1:a2");
+    expect(closing).toHaveAttribute("type", "date");
+    expect(closing).toHaveValue("2026-11-12");
+    expect(due).toHaveAttribute("type", "date");
+    expect(due).toHaveValue("2026-11-25");
+    await user.clear(closing);
+    await user.clear(due);
+    await user.click(screen.getByTestId("card-save-conn1:a2"));
+    await waitFor(() => expect(saved).toEqual({ statementClosingDay: null, paymentDueDay: null, aprBasisPoints: null }));
+  });
+
+  it("keeps a stored day of 31 when only the APR changes in a 30-day month", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 10, 5, 12));
+    const card = { ...INSTITUTION.accounts[1], statementClosingDay: 31, paymentDueDay: 25, aprBasisPoints: null };
+    let saved: unknown;
+    route({
+      "GET /institutions": () => json(200, [{ ...INSTITUTION, accounts: [INSTITUTION.accounts[0], card] }]),
+      "PATCH /institutions/conn1/accounts/conn1%3Aa2": () => {
+        saved = JSON.parse(fetchMock.mock.calls.at(-1)![1].body as string);
+        return json(200, card);
+      },
+    });
+    const user = userEvent.setup();
+    renderView();
+    expect(await screen.findByTestId("card-closing-conn1:a2")).toHaveValue("2026-11-30");
+    await user.type(screen.getByTestId("card-apr-conn1:a2"), "19.99");
+    await user.click(screen.getByTestId("card-save-conn1:a2"));
+    await waitFor(() => expect(saved).toEqual({ statementClosingDay: 31, paymentDueDay: 25, aprBasisPoints: 1999 }));
+  });
+
+  it("stores selected card date days and validates APR text", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 9, 26, 12));
+    const card = { ...INSTITUTION.accounts[1], statementClosingDay: null, paymentDueDay: null, aprBasisPoints: null };
+    let saved: unknown;
+    route({
+      "GET /institutions": () => json(200, [{ ...INSTITUTION, accounts: [INSTITUTION.accounts[0], card] }]),
+      "PATCH /institutions/conn1/accounts/conn1%3Aa2": () => {
+        saved = JSON.parse(fetchMock.mock.calls.at(-1)![1].body as string);
+        return json(200, card);
+      },
+    });
+    const user = userEvent.setup();
+    renderView();
+    const closing = await screen.findByTestId("card-closing-conn1:a2");
+    const due = screen.getByTestId("card-due-conn1:a2");
+    const apr = screen.getByTestId("card-apr-conn1:a2");
+    expect(closing).toHaveValue("");
+    expect(due).toHaveValue("");
+    await user.type(closing, "2026-11-14");
+    await user.type(due, "2026-11-27");
+    expect(apr).toHaveAttribute("type", "text");
+    expect(apr).toHaveAttribute("inputmode", "decimal");
+    await user.type(apr, "19.99");
+    await user.click(screen.getByTestId("card-save-conn1:a2"));
+    await waitFor(() => expect(saved).toEqual({ statementClosingDay: 14, paymentDueDay: 27, aprBasisPoints: 1999 }));
+    fetchMock.mockClear();
+    await user.clear(apr);
+    await user.type(apr, "abc");
+    await user.click(screen.getByTestId("card-save-conn1:a2"));
+    expect(await screen.findByText("Enter APR as a number, like 19.99.")).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("shows the empty state and opens the connect dialog, rejecting an empty token client-side", async () => {
     route({ "GET /institutions": () => json(200, []) });
     const user = userEvent.setup();
