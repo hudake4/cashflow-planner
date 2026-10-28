@@ -208,7 +208,8 @@ function monthlyRateBp(aprBasisPoints: number): number {
   return aprBasisPoints / 10000 / 12;
 }
 
-function dynamicMinimum(balance: number): number {
+/** The minimum payment assumed when a card has no real one: 2% of balance, floor $25.00, never above the balance. */
+export function estimateMinimumPaymentCents(balance: number): number {
   const twoPct = Math.round(balance * 0.02);
   return Math.min(balance, Math.max(2500, twoPct));
 }
@@ -268,7 +269,7 @@ export function planDebtPayoff(
       if (paidOff[i] || b <= 0) return 0;
       const stored = minStored[i];
       if (stored !== null) return Math.min(b, stored);
-      return dynamicMinimum(b);
+      return estimateMinimumPaymentCents(b);
     });
 
     const payments = balances.map(() => 0);

@@ -15,6 +15,7 @@ import { Card } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog } from "@/components/ui/dialog";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
+import { aprToInputText, parseAprInput } from "@/domain/apr";
 import { parseIsoDate } from "@/domain/dates";
 import { paymentDueDate, statementClosingDate } from "@/domain/card-bill";
 import { Balance } from "@/components/ui/money";
@@ -366,7 +367,7 @@ function AccountRow({
     : "";
   const [closingDate, setClosingDate] = useState<string>(closingDefault);
   const [dueDate, setDueDate] = useState<string>(dueDefault);
-  const [apr, setApr] = useState<string>(account.aprBasisPoints != null ? (account.aprBasisPoints / 100).toString() : "");
+  const [apr, setApr] = useState<string>(aprToInputText(account.aprBasisPoints));
   const [aprError, setAprError] = useState<string | null>(null);
   const [estimating, setEstimating] = useState(false);
   const [estimate, setEstimate] = useState<{ closingDate: string; dueDate: string; projectedBillCents: number; minimumPaymentCents: number | null } | null>(null);
@@ -384,8 +385,8 @@ function AccountRow({
   }
 
   async function saveCardFields() {
-    const normalizedApr = apr.trim();
-    if (normalizedApr !== "" && (!/^\d+(\.\d{1,2})?$/.test(normalizedApr) || Number(normalizedApr) > 1000)) {
+    const parsedApr = parseAprInput(apr);
+    if (!parsedApr.ok) {
       setAprError("Enter a rate like 19.99");
       return;
     }
@@ -395,7 +396,7 @@ function AccountRow({
       await api.setAccountCardFields(institutionId, account.id, {
         statementClosingDay: closingDate === closingDefault ? account.statementClosingDay : closingDate ? parseIsoDate(closingDate).day : null,
         paymentDueDay: dueDate === dueDefault ? account.paymentDueDay : dueDate ? parseIsoDate(dueDate).day : null,
-        aprBasisPoints: normalizedApr ? Math.round(Number(normalizedApr) * 100) : null,
+        aprBasisPoints: parsedApr.basisPoints,
       });
       toast("Saved card details.", "success");
       await onKindChanged();
