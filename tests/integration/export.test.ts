@@ -32,13 +32,45 @@ const getRegister = async (qs = "") => {
 };
 const getSummary = (qs = "") => summaryRoute.GET(new Request(`http://localhost/api/export/monthly-summary${qs}`));
 const csvRows = (text: string) => text.replace(CSV_BOM, "").split("\r\n").slice(0, -1);
+/** Reads RFC 4180 CSV: quoted fields may hold commas, doubled quotes and line breaks. */
+const parseCsv = (text: string): string[][] => {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let quoted = false;
+  const body = text.replace(CSV_BOM, "");
+  const endRow = () => {
+    row.push(field);
+    rows.push(row);
+    row = [];
+    field = "";
+  };
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    if (quoted && ch === '"' && body[i + 1] === '"') {
+      field += '"';
+      i++;
+    } else if (ch === '"') quoted = !quoted;
+    else if (!quoted && ch === ",") {
+      row.push(field);
+      field = "";
+    } else if (!quoted && ch === "\r" && body[i + 1] === "\n") {
+      endRow();
+      i++;
+    } else field += ch;
+  }
+  return rows;
+};
+
+// A comma and quotes in a name: a naive split(",") would misread the row.
+const PAY_NAME = 'Pay, "Acme" Inc';
 
 let rentId: string;
 
 beforeEach(async () => {
   expect((await call(settingsRoute.PUT, "PUT", "/api/settings", { body: SETTINGS })).status).toBe(200);
   await call(incomeList.POST, "POST", "/api/income", {
-    body: { name: "Pay", amountCents: 50000, frequency: "BIWEEKLY", anchorDate: "2025-01-03" },
+    body: { name: PAY_NAME, amountCents: 50000, frequency: "BIWEEKLY", anchorDate: "2025-01-03" },
   });
   rentId = (
     await call(billList.POST, "POST", "/api/bills", {
@@ -64,13 +96,15 @@ describe("GET /api/export/register", () => {
 
   it("matches /api/projection event for event, with the same running balances", async () => {
     const projection = (await call<ProjectionResponse>(projectionRoute.GET, "GET", "/api/projection?from=2025-01-05&to=2025-02-15")).body;
-    const rows = csvRows((await getRegister("?from=2025-01-05&to=2025-02-15")).text).slice(1);
+    const rows = parseCsv((await getRegister("?from=2025-01-05&to=2025-02-15")).text).slice(1);
     expect(rows).toHaveLength(projection.events.length);
     projection.events.forEach((e, i) => {
-      const cells = rows[i].split(",");
-      expect(cells[0]).toBe(e.date);
-      expect(Number(cells.at(-1)!.replace(".", ""))).toBe(e.balanceAfterCents);
+      expect(rows[i]).toHaveLength(8);
+      expect(rows[i][0]).toBe(e.date);
+      expect(rows[i][1].replace(/^'/, "")).toBe(e.name);
+      expect(Math.round(Number(rows[i][7]) * 100)).toBe(e.balanceAfterCents);
     });
+    expect(rows.some((cells) => cells[1] === PAY_NAME)).toBe(true);
   });
 
   it("neutralizes a formula in a bill name and shows status and overrides", async () => {
