@@ -41,7 +41,7 @@ function friendlyDate(date: string): string {
 
 export interface MissingPaycheckInput {
   incomes: Pick<IncomeDTO, "id" | "name" | "amountCents" | "frequency" | "anchorDate" | "endDate" | "active">[];
-  /** Stored bank transactions, signed like the bank (money in positive). */
+  /** Stored transactions of the household's BANK (depository) accounts, signed like the bank (money in positive). The caller scopes to BANK accounts: credit/loan/other accounts can't receive a paycheck. */
   transactions: Pick<BankTransactionDTO, "date" | "description" | "amountCents">[];
   /** Currency for the notification body. */
   currency: string;

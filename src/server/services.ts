@@ -22,7 +22,7 @@ import { effectiveProjectionStartDate, effectiveStartingBalanceCents } from "../
 import { db } from "./db";
 import { listAllOccurrences, listBills } from "./repositories/bills";
 import { listIncome } from "./repositories/income";
-import { listAllTransactionsByConnection, listConnections } from "./repositories/institutions";
+import { listAllTransactionsByConnection, listBankAccountTransactions, listConnections } from "./repositories/institutions";
 import { listSavingsGoals } from "./repositories/savings-goals";
 import { getSettings } from "./repositories/settings";
 
@@ -85,16 +85,15 @@ export async function getScenarioDashboard(
 export async function getAlerts(today: string = todayLocal()): Promise<AlertsResponse> {
   const settings = await getSettings();
   if (!settings.desktopNotifications) return { today, enabled: false, alerts: [] };
-  const [projection, incomes, transactionsByConnection] = await Promise.all([
+  const [projection, incomes, bankTransactions] = await Promise.all([
     getProjection(),
     listIncome(),
-    listAllTransactionsByConnection(),
+    listBankAccountTransactions(),
   ]);
-  const transactions = [...transactionsByConnection.values()].flat();
   return {
     today,
     enabled: true,
-    alerts: [...buildAlerts(projection, today), ...findMissingPaychecks({ incomes, transactions, currency: settings.currency }, today)],
+    alerts: [...buildAlerts(projection, today), ...findMissingPaychecks({ incomes, transactions: bankTransactions, currency: settings.currency }, today)],
   };
 }
 
