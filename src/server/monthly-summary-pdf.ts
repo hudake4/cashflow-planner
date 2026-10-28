@@ -31,6 +31,7 @@ class Report {
   private page!: PDFPage;
   private y = 0;
   private allowed: Set<number>;
+  private currencyDisplay: "symbol" | "code";
 
   constructor(
     doc: PDFDocument,
@@ -40,6 +41,7 @@ class Report {
   ) {
     this.doc = doc;
     this.allowed = new Set(font.getCharacterSet());
+    this.currencyDisplay = currencyDisplayFor(currency, (ch) => this.allowed.has(ch.codePointAt(0)!));
     this.newPage();
   }
 
@@ -157,8 +159,19 @@ class Report {
   }
 
   money(cents: number, signed = false): string {
-    return formatCents(cents, { currency: this.currency, signDisplay: signed ? "exceptZero" : "auto" });
+    return formatCents(cents, { currency: this.currency, currencyDisplay: this.currencyDisplay, signDisplay: signed ? "exceptZero" : "auto" });
   }
+}
+
+/**
+ * "symbol" unless the currency's symbol can't be drawn in Helvetica (₹, ₩, ₽ ...), then "code"
+ * (`INR 1,234.00`): a `?` in place of the symbol would make every amount unreadable. Decided
+ * once per report so all amounts look alike. Sign and digits are ASCII; whitespace is
+ * normalised when drawn.
+ */
+export function currencyDisplayFor(currency: string, canDraw: (ch: string) => boolean): "symbol" | "code" {
+  const sample = formatCents(-123456, { currency });
+  return [...sample.replace(/\s+/g, " ")].every(canDraw) ? "symbol" : "code";
 }
 
 const day = (date: string) => fmtDate(date, "MMM d");

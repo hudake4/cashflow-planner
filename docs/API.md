@@ -57,7 +57,7 @@ Projection slicing details:
 - `totals.lowestBalanceDate`: the range's opening balance counts as the first day's value, and ties pick the earliest date. `firstNegativeDate` is the first day of the range when the opening balance is already negative.
 
 ## Exports (CSV and PDF)
-Downloads built from the same projection as `/api/projection`, so the numbers always match the calendar. Rules are in [`CONVENTIONS.md`](CONVENTIONS.md) section 14. Both are read only and send `Cache-Control: no-store`.
+Downloads built from the same projection as `/api/projection`, so the numbers always match the calendar. Rules are in [`CONVENTIONS.md`](CONVENTIONS.md) section 18. Both are read only and send `Cache-Control: no-store`.
 
 | Method | Path | Query | Response |
 |---|---|---|---|

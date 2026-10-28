@@ -1,4 +1,4 @@
-/** Register CSV (CONVENTIONS section 14): escaping, formula safety, exact money. */
+/** Register CSV (CONVENTIONS section 18): escaping, formula safety, exact money. */
 import { describe, expect, it } from "vitest";
 import { CSV_BOM, csvField, neutralizeFormula, registerToCsv, toCsv } from "@/domain/register-csv";
 import { computeProjection } from "@/domain/projection";

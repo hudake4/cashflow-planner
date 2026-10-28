@@ -43,13 +43,16 @@ export interface FormatOptions {
   locale?: string;
   /** "always" renders +$1.00 for positive values (useful for income/net change). */
   signDisplay?: "auto" | "always" | "exceptZero" | "never";
+  /** "code" writes `INR 1,234.00` instead of `₹1,234.00`, for places that cannot draw the symbol. */
+  currencyDisplay?: "symbol" | "code";
 }
 
 /** Formats integer cents as currency without floating-point conversion. */
-export function formatCents(cents: number, { currency = "USD", locale = "en-US", signDisplay = "auto" }: FormatOptions = {}): string {
+export function formatCents(cents: number, { currency = "USD", locale = "en-US", signDisplay = "auto", currencyDisplay = "symbol" }: FormatOptions = {}): string {
   const formatter = new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
+    currencyDisplay,
     signDisplay,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,

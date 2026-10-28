@@ -1,5 +1,5 @@
 /**
- * CSV export of the calendar register (CONVENTIONS section 14). Pure: it turns a
+ * CSV export of the calendar register (CONVENTIONS section 18). Pure: it turns a
  * `ProjectionResponse` into text and never recomputes a balance.
  */
 import type { LedgerEvent, ProjectionResponse } from "../contracts/api";

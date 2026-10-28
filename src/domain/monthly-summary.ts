@@ -1,5 +1,5 @@
 /**
- * Monthly summary report (CONVENTIONS section 14). Pure: it reads a `ProjectionResponse`
+ * Monthly summary report (CONVENTIONS section 18). Pure: it reads a `ProjectionResponse`
  * already sliced to the month and regroups its numbers. Balances and totals are the
  * engine's own, never recomputed here.
  */

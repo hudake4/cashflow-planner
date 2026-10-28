@@ -1,4 +1,4 @@
-/** Monthly summary (CONVENTIONS section 14). Fixture: start 2025-01-01, $1,000 opening, 90 days. */
+/** Monthly summary (CONVENTIONS section 18). Fixture: start 2025-01-01, $1,000 opening, 90 days. */
 import { describe, expect, it } from "vitest";
 import { buildMonthlySummary, monthBounds, monthLabel } from "@/domain/monthly-summary";
 import { computeProjection } from "@/domain/projection";
