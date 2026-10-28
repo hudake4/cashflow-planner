@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.26.0](https://github.com/hudake4/cashflow-planner/compare/v0.25.0...v0.26.0) (2026-10-28)
+
+
+### Features
+
+* **alerts:** detect a missing recurring paycheck ([8d3b572](https://github.com/hudake4/cashflow-planner/commit/8d3b572c333094dc7b44ac2c9e7d7ec8edc649dc))
+
+
+### Bug Fixes
+
+* **alerts:** scope missing-paycheck scan to BANK accounts ([9a59397](https://github.com/hudake4/cashflow-planner/commit/9a59397c2cca3a84a62223db024c496322d4d7a1))
+* **subscriptions:** polish copy, tabular numerals, shared Button, and memoize audit ([40feb39](https://github.com/hudake4/cashflow-planner/commit/40feb390ff129faedb4726a7251d53ae01766015))
+* **subscriptions:** type annual-cost frequency multiplier and drop silent fallback ([67bddb9](https://github.com/hudake4/cashflow-planner/commit/67bddb908d459e1a81fabdfb0cc480c8f1caa7bb))
+
 ## [0.25.0](https://github.com/hudake4/cashflow-planner/compare/v0.24.1...v0.25.0) (2026-10-27)
 
 
