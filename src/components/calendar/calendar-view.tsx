@@ -19,6 +19,7 @@ import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/ui/states";
 import { CalendarToolbar } from "./calendar-toolbar";
 import { EventDetailDialog } from "./event-detail-dialog";
+import { ExportMenu } from "./export-menu";
 import { HeatmapCalendar, type DayView, type GridWeek } from "./heatmap-calendar";
 import { PeriodDetailDialog, type PeriodDetail } from "./period-detail-dialog";
 import { RegisterList } from "./register-list";
@@ -115,6 +116,12 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
   const fetchFrom = grid.from < projectionStart ? projectionStart : grid.from;
   const fetchTo = grid.to > maxEnd ? maxEnd : grid.to;
   const canFetch = fetchFrom <= fetchTo;
+
+  // The export covers the period named in the title (the month, not the padded weeks around it),
+  // cut to the projection window so it never holds dates without a balance.
+  const periodFrom = view === "month" ? startOfMonth(cursor) : grid.from;
+  const periodTo = view === "month" ? endOfMonth(cursor) : grid.to;
+  const exportRange = { from: periodFrom < projectionStart ? projectionStart : periodFrom, to: periodTo > maxEnd ? maxEnd : periodTo };
 
   const projectionKey = canFetch ? `projection:${fetchFrom}:${fetchTo}` : null;
   const projection = useApi<ProjectionResponse>(projectionKey, () => api.getProjection({ from: fetchFrom, to: fetchTo }));
@@ -243,6 +250,7 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
         onStep={(dir) => setCursor((c) => (view === "week" ? addDays(c, 7 * dir) : addMonths(c, dir)))}
         onToday={() => setCursor(today)}
         onJump={setCursor}
+        actions={<ExportMenu range={exportRange} month={cursor.slice(0, 7)} disabled={exportRange.from > exportRange.to} />}
       />
 
       {visibleNegative && (

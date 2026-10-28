@@ -2,7 +2,7 @@
 
 import { clsx } from "clsx";
 import { CalendarSearch, ChevronLeft, ChevronRight, LoaderCircle } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { CalendarView } from "@/contracts/api";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -26,6 +26,7 @@ export function CalendarToolbar({
   onStep,
   onToday,
   onJump,
+  actions,
 }: {
   view: CalendarView;
   title: string;
@@ -34,6 +35,8 @@ export function CalendarToolbar({
   onStep: (dir: -1 | 1) => void;
   onToday: () => void;
   onJump: (date: string) => void;
+  /** Extra controls after the view toggle (the export menu). */
+  actions?: ReactNode;
 }) {
   const [jump, setJump] = useState("");
   const [jumpOpen, setJumpOpen] = useState(false);
@@ -86,6 +89,7 @@ export function CalendarToolbar({
               Week
             </ToggleGroupItem>
           </ToggleGroup>
+          {actions}
           <Button
             size="icon"
             variant="ghost"

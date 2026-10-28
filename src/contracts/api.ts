@@ -268,6 +268,15 @@ export const projectionQuerySchema = z
   });
 export type ProjectionQuery = z.infer<typeof projectionQuerySchema>;
 
+/** `GET /api/export/monthly-summary?month=YYYY-MM`. */
+export const monthlySummaryQuerySchema = z.object({
+  month: z
+    .string({ required_error: "Month is required", invalid_type_error: "Month is required" })
+    .regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Use the format YYYY-MM")
+    .refine((m) => isValidIsoDate(`${m}-01`), "Not a valid month"),
+});
+export type MonthlySummaryQuery = z.infer<typeof monthlySummaryQuerySchema>;
+
 export type LedgerEventKind = "INCOME" | "BILL";
 
 export interface LedgerEvent {

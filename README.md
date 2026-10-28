@@ -18,7 +18,8 @@ You enter a starting balance, your paychecks (weekly, biweekly, monthly or one-t
 - **Find recurring:** on the Dashboard, Bills and Income pages, scan your saved bank transactions for repeating bills and paychecks, then add the ones you pick with frequency and next date filled in. It reads the local copy only and never uses a SimpleFIN request.
 - **Bill estimates:** for a variable bill, an occurrence's detail panel can suggest an amount from the matching payments in your saved bank transactions (a rolling average of recent weeks or months). It only fills the amount field; nothing changes until you save, and it says so when there is too little history. Local data only.
 - **Paid in your bank?:** on the Bills page, when a saved bank transaction looks like the payment of a bill you haven't marked paid (same merchant, within 3 days of the due date, amount within 10%), you are offered to mark it paid. Nothing is marked until you confirm, marking paid is a tracking note only (the projected balance doesn't change), and it never uses a SimpleFIN request.
-- **Settings:** starting balance, projection start date, currency, forecast length (7–366 days), week start day and default calendar view. Also load demo data or clear everything.
+- **Export:** on the Calendar, the Export menu downloads the register of the month or week on screen as a CSV file (for a spreadsheet) and a short PDF summary of the month: opening and closing balance, income, bills, lowest balance, a week-by-week table, and income and bills grouped by source and category. Both are built locally from the same projection the calendar shows.
+- **Settings:** starting balance, projection start date, currency, forecast length (7â€“366 days), week start day and default calendar view. Also load demo data or clear everything.
 
 ## Prerequisites
 
@@ -37,10 +38,10 @@ You enter a starting balance, your paychecks (weekly, biweekly, monthly or one-t
 npm ci                      # installs locked dependencies and generates the Prisma client
 cp .env.example .env        # PowerShell: Copy-Item .env.example .env
 npm run db:deploy           # creates prisma/dev.db and applies migrations
-npm run db:seed             # OPTIONAL: loads clearly labeled demo data ("Demo: …")
+npm run db:seed             # OPTIONAL: loads clearly labeled demo data ("Demo: â€¦")
 ```
 
-To start with a clean database, skip the seed step. You can also clear everything later from **Settings → Data**, or with `npm run db:reset`.
+To start with a clean database, skip the seed step. You can also clear everything later from **Settings â†’ Data**, or with `npm run db:reset`.
 
 ## Run
 
@@ -60,11 +61,11 @@ npm run desktop:dist     # builds dist-desktop/CashFlow Planner Setup <version>.
 npm run desktop:start    # builds and runs the desktop app from source (data: %APPDATA%\CashFlow Planner (dev))
 ```
 
-The installer adds Start menu and desktop shortcuts. The app opens in its own window and runs the Next.js server inside Electron's main process, on `127.0.0.1` at a random free port, so it never conflicts with `npm run dev`. Closing the window quits the app and frees the port. While it is open it shows Windows notifications when your balance is projected to go negative within two weeks and when a bill is due within three days, once per event; turn them off under Settings → Notifications (see CONVENTIONS section 16). Data lives in `%APPDATA%\CashFlow Planner\cashflow.db`, which is created and migrated on first launch (applied migrations are tracked in `_app_migrations`). The installer is unsigned, so Windows SmartScreen asks once: **More info → Run anyway**.
+The installer adds Start menu and desktop shortcuts. The app opens in its own window and runs the Next.js server inside Electron's main process, on `127.0.0.1` at a random free port, so it never conflicts with `npm run dev`. Closing the window quits the app and frees the port. While it is open it shows Windows notifications when your balance is projected to go negative within two weeks and when a bill is due within three days, once per event; turn them off under Settings â†’ Notifications (see CONVENTIONS section 16). Data lives in `%APPDATA%\CashFlow Planner\cashflow.db`, which is created and migrated on first launch (applied migrations are tracked in `_app_migrations`). The installer is unsigned, so Windows SmartScreen asks once: **More info â†’ Run anyway**.
 
-Before a new version applies a database update, the app copies `cashflow.db` (and any `-journal`, `-wal` or `-shm` file next to it) to `%APPDATA%\CashFlow Planner\backups\cashflow-<YYYYMMDD-HHmmss>-pre-<migration>.db` (with `-2`, `-3`… before `.db` if that name is taken). Once the update has applied, it keeps the newest 10 backups and deletes older ones. If the backup fails, the app shows an error and quits without changing the database. To restore, quit the app, delete `cashflow.db` and any `cashflow.db-journal`, `cashflow.db-wal` or `cashflow.db-shm` next to it, then copy the backup's `.db` file and any of its `-journal`, `-wal` or `-shm` files back, renamed to `cashflow.db`, `cashflow.db-journal`, `cashflow.db-wal` and `cashflow.db-shm`.
+Before a new version applies a database update, the app copies `cashflow.db` (and any `-journal`, `-wal` or `-shm` file next to it) to `%APPDATA%\CashFlow Planner\backups\cashflow-<YYYYMMDD-HHmmss>-pre-<migration>.db` (with `-2`, `-3`â€¦ before `.db` if that name is taken). Once the update has applied, it keeps the newest 10 backups and deletes older ones. If the backup fails, the app shows an error and quits without changing the database. To restore, quit the app, delete `cashflow.db` and any `cashflow.db-journal`, `cashflow.db-wal` or `cashflow.db-shm` next to it, then copy the backup's `.db` file and any of its `-journal`, `-wal` or `-shm` files back, renamed to `cashflow.db`, `cashflow.db-journal`, `cashflow.db-wal` and `cashflow.db-shm`.
 
-Conventional Commits: `fix` → patch release, `feat` → minor release, `!`/`BREAKING CHANGE` → minor while 0.x; other types release nothing. Don't edit the version by hand. Release-please opens a Release PR, and merging it publishes the GitHub Release titled `CashFlow Planner vX.Y.Z`. The Windows NSIS installer is attached to that release. `workflow_dispatch` can rebuild and attach the installer for an existing release tag.
+Conventional Commits: `fix` â†’ patch release, `feat` â†’ minor release, `!`/`BREAKING CHANGE` â†’ minor while 0.x; other types release nothing. Don't edit the version by hand. Release-please opens a Release PR, and merging it publishes the GitHub Release titled `CashFlow Planner vX.Y.Z`. The Windows NSIS installer is attached to that release. `workflow_dispatch` can rebuild and attach the installer for an existing release tag.
 
 > If `ELECTRON_RUN_AS_NODE=1` is set in your shell (some IDE terminals set it), the exe silently runs as plain Node. Run `Remove-Item Env:ELECTRON_RUN_AS_NODE` first.
 
@@ -111,7 +112,7 @@ The full rules are in [docs/CONVENTIONS.md](docs/CONVENTIONS.md). In short:
 - **Money** is stored and calculated as integer cents. Floating-point is never used for money.
 - **Starting balance** is your balance at the start of the projection start date, *before* any paycheck or bill dated that day. Events on the start date are included.
 - **Forecast window** runs from the start date for `forecastDays` days (default 90). The calendar can browse up to 12 months past the start date. Nothing before the start date affects balances.
-- **Recurrence is anchored** to the date you enter. Weekly is every 7 days and biweekly every 14 days from the first payday; biweekly pay is never split into weekly amounts. Monthly, quarterly and yearly keep the original day of the month. When a month is too short, they use its last day (Jan 31 → Feb 28/29 → Mar 31). End dates are inclusive.
+- **Recurrence is anchored** to the date you enter. Weekly is every 7 days and biweekly every 14 days from the first payday; biweekly pay is never split into weekly amounts. Monthly, quarterly and yearly keep the original day of the month. When a month is too short, they use its last day (Jan 31 â†’ Feb 28/29 â†’ Mar 31). End dates are inclusive.
 - **Same-day order:** income first, then bills, each alphabetically. Daily and weekly totals don't depend on this order. The "lowest balance" uses end-of-day balances.
 - **Weeks** start on Sunday by default (Monday is available). The first week may be partial. Each week's opening balance equals the previous week's closing balance.
 - **Paid vs. skipped:**

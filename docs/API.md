@@ -56,6 +56,16 @@ Projection slicing details:
 - `sequence` and `balanceAfterCents` are global (computed from `projectionStartDate`), so they are identical across different slices.
 - `totals.lowestBalanceDate`: the range's opening balance counts as the first day's value, and ties pick the earliest date. `firstNegativeDate` is the first day of the range when the opening balance is already negative.
 
+## Exports (CSV and PDF)
+Downloads built from the same projection as `/api/projection`, so the numbers always match the calendar. Rules are in [`CONVENTIONS.md`](CONVENTIONS.md) section 14. Both are read only and send `Cache-Control: no-store`.
+
+| Method | Path | Query | Response |
+|---|---|---|---|
+| GET | `/api/export/register` | `from?`, `to?` (YYYY-MM-DD), with the same defaults, clamping and validation as `/api/projection` (empty means missing; `from > to` is a 400 `VALIDATION_ERROR` on `to`; the default is the full window) | `200 text/csv; charset=utf-8` attachment named `cashflow-register-<from>-to-<to>.csv` (the dates actually covered, after clamping). One row per ledger event in ledger order. Columns: `Date`, `Name`, `Type` (`Income` or `Bill`), `Category`, `Frequency`, `Status` (`Scheduled`, `Upcoming`, `Paid`, `Skipped`), `Amount (<currency>)`, `Balance after (<currency>)`. |
+| GET | `/api/export/monthly-summary` | `month` (required, `YYYY-MM`) | `200 application/pdf` attachment named `cashflow-summary-<month>.pdf`. 400 `VALIDATION_ERROR` on `month` when it is missing or not a real month. 400 `BAD_REQUEST` when the whole month is before `projectionStartDate` or after `maxEndDate`. A month the window only partly covers is exported for the dates it covers, and the PDF says so. |
+
+CSV details: UTF-8 with a byte-order mark (so Excel reads accents correctly), CRLF line endings, fields quoted per RFC 4180. `Amount` is signed like the register (income `+`, bills `-`, a per-occurrence override applied) as an exact decimal such as `-1199.99` with no currency symbol or thousands separator. A skipped bill keeps its amount, but its `Status` is `Skipped` and `Balance after` does not change, so leave `Skipped` rows out before summing `Amount`. `Balance after` is the engine's running balance. Text cells (name, category) that start with `=`, `+`, `-`, `@`, a tab or a line break get a leading `'` so a spreadsheet cannot run them as a formula.
+
 ## Institutions (read-only bank connections through SimpleFIN Bridge)
 Only the server talks to SimpleFIN (`src/server/simplefin.ts`). The setup token and the Access URL (which embeds credentials) are never returned by any endpoint. The app keeps a local snapshot (accounts, balances, transactions) and contacts SimpleFIN only on connect and on an explicit refresh, because SimpleFIN allows about 24 requests a day. Bank amounts are **signed**: money in is positive, money out is negative.
 
