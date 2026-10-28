@@ -17,6 +17,7 @@ import { centsToInputValue, formatCents, parseMoneyToCents } from "@/domain/mone
 import { startDateFromAccounts } from "@/domain/starting-balance";
 import { ApiError, api, errorMessage } from "@/lib/api-client";
 import { fmtShort } from "@/lib/dates";
+import { saveFile } from "@/lib/download";
 import { CURRENCIES } from "@/lib/format";
 import { applyTheme, currentTheme, type Theme } from "@/lib/theme";
 import { useApi } from "@/lib/use-api";
@@ -158,19 +159,6 @@ function readFile(file: File): Promise<string> {
     reader.onerror = () => reject(reader.error);
     reader.readAsText(file);
   });
-}
-
-/** Saves a blob through a temporary download link. */
-function saveFile(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  // Revoke after the click has handed the file to the browser.
-  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 function DataCard({ onConfirmDemo, onConfirmReset, onRestore }: { onConfirmDemo: () => void; onConfirmReset: () => void; onRestore: (data: DataRestoreInput) => void }) {

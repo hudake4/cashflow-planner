@@ -6,11 +6,16 @@ import { CalendarPage } from "@/components/calendar/calendar-view";
 import { ToastProvider } from "@/components/ui/toast";
 import { addDays, eachDay, fmtDate, startOfWeek } from "@/lib/dates";
 
-const { getSettings, getProjection } = vi.hoisted(() => ({ getSettings: vi.fn(), getProjection: vi.fn() }));
+const { getSettings, getProjection, downloadRegisterCsv, downloadMonthlySummary } = vi.hoisted(() => ({
+  getSettings: vi.fn(),
+  getProjection: vi.fn(),
+  downloadRegisterCsv: vi.fn(),
+  downloadMonthlySummary: vi.fn(),
+}));
 
 vi.mock("@/lib/api-client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api-client")>();
-  return { ...actual, api: { ...actual.api, getSettings, getProjection } };
+  return { ...actual, api: { ...actual.api, getSettings, getProjection, downloadRegisterCsv, downloadMonthlySummary } };
 });
 
 // A fixed "today" (a Wednesday, mid-month) so the events below always fall inside the visible month.
@@ -535,5 +540,115 @@ describe("out-of-range message and register notes", () => {
     await waitFor(() => expect(screen.getByTestId("calendar-register")).toHaveTextContent(/\d+ earlier weeks? (is|are) before your projection start\./));
     expect(screen.getAllByTestId(/^week-summary-/).length).toBeGreaterThan(0);
     expect(screen.queryByRole("link", { name: "Change projection settings" })).not.toBeInTheDocument();
+  });
+});
+
+describe("calendar export menu", () => {
+  let clicked: string[];
+
+  beforeEach(() => {
+    downloadRegisterCsv.mockReset().mockResolvedValue({ blob: new Blob(["x"]), filename: "cashflow-register-2026-10-21-to-2026-10-31.csv" });
+    downloadMonthlySummary.mockReset().mockResolvedValue({ blob: new Blob(["x"]), filename: "cashflow-summary-2026-10.pdf" });
+    // jsdom has no object URLs and does not navigate on a link click.
+    Object.assign(URL, { createObjectURL: vi.fn(() => "blob:file"), revokeObjectURL: vi.fn() });
+    clicked = [];
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+      clicked.push(this.download);
+    });
+  });
+
+  it("downloads the visible month's register, cut to the projection window, and its summary", async () => {
+    const user = userEvent.setup();
+    renderCalendar();
+    await screen.findByTestId("calendar-register");
+
+    await user.click(screen.getByTestId("calendar-export"));
+    expect(within(await screen.findByRole("menu")).getByText("Oct 21 – Oct 31, 2026")).toBeInTheDocument();
+    await user.click(screen.getByTestId("calendar-export-csv"));
+    await waitFor(() => expect(clicked).toEqual(["cashflow-register-2026-10-21-to-2026-10-31.csv"]));
+    expect(downloadRegisterCsv).toHaveBeenCalledWith({ from: "2026-10-21", to: "2026-10-31" });
+    expect(await screen.findByText("Register downloaded.")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("calendar-export"));
+    await user.click(await screen.findByTestId("calendar-export-pdf"));
+    await waitFor(() => expect(clicked).toHaveLength(2));
+    expect(downloadMonthlySummary).toHaveBeenCalledWith("2026-10");
+    expect(clicked[1]).toBe("cashflow-summary-2026-10.pdf");
+  });
+
+  it("follows the month being viewed", async () => {
+    const user = userEvent.setup();
+    renderCalendar();
+    await screen.findByTestId("calendar-register");
+    await user.click(screen.getByTestId("calendar-next"));
+    await waitFor(() => expect(screen.getByTestId("calendar-title")).toHaveTextContent("November 2026"));
+
+    await user.click(screen.getByTestId("calendar-export"));
+    await user.click(await screen.findByTestId("calendar-export-csv"));
+    await waitFor(() => expect(downloadRegisterCsv).toHaveBeenCalledWith({ from: "2026-11-01", to: "2026-11-30" }));
+  });
+
+  it("in week view exports the week cut to the projection window", async () => {
+    const user = userEvent.setup();
+    renderCalendar();
+    await screen.findByTestId("calendar-register");
+    await user.click(screen.getByTestId("calendar-view-week"));
+    await waitFor(() => expect(screen.getByTestId("calendar-week")).toBeInTheDocument());
+
+    // The week is Oct 18 - 24, but the projection starts Oct 21.
+    await user.click(screen.getByTestId("calendar-export"));
+    expect(within(await screen.findByRole("menu")).getByText("Oct 21 – Oct 24, 2026")).toBeInTheDocument();
+    await user.click(screen.getByTestId("calendar-export-csv"));
+    await waitFor(() => expect(downloadRegisterCsv).toHaveBeenCalledWith({ from: "2026-10-21", to: "2026-10-24" }));
+    await user.click(screen.getByTestId("calendar-export"));
+    await user.click(await screen.findByTestId("calendar-export-pdf"));
+    await waitFor(() => expect(downloadMonthlySummary).toHaveBeenCalledWith("2026-10"));
+  });
+
+  it("in week view asks for the summary of the month the covered days are in, never one outside the window", async () => {
+    // Monday weeks: the viewed day (Oct 28) is in Oct 26 - Nov 1, and only Nov 1 is inside the window.
+    getSettings.mockResolvedValue(settings({ projectionStartDate: "2026-11-01", weekStartsOn: 1, defaultCalendarView: "week" }));
+    getProjection.mockImplementation(async ({ from, to }: { from: string; to: string }) => projectionFor(from, to, { weekStartsOn: 1 }));
+    const user = userEvent.setup();
+    renderCalendar();
+    await waitFor(() => expect(screen.getByTestId("calendar-week")).toBeInTheDocument());
+    await user.click(screen.getByTestId("calendar-next"));
+    await waitFor(() => expect(screen.getByTestId("calendar-title")).toHaveTextContent("Oct 26"));
+
+    await user.click(screen.getByTestId("calendar-export"));
+    expect(within(await screen.findByRole("menu")).getByText("Nov 1, 2026")).toBeInTheDocument();
+    await user.click(screen.getByTestId("calendar-export-csv"));
+    await waitFor(() => expect(downloadRegisterCsv).toHaveBeenCalledWith({ from: "2026-11-01", to: "2026-11-01" }));
+    await user.click(screen.getByTestId("calendar-export"));
+    await user.click(await screen.findByTestId("calendar-export-pdf"));
+    await waitFor(() => expect(downloadMonthlySummary).toHaveBeenCalledWith("2026-11"));
+    expect(downloadMonthlySummary).not.toHaveBeenCalledWith("2026-10");
+  });
+
+  it("is disabled in week view when the whole week lies outside the projection window", async () => {
+    getSettings.mockResolvedValue(settings({ projectionStartDate: addDays(TODAY, 30), defaultCalendarView: "week" }));
+    renderCalendar();
+    await screen.findByTestId("calendar-register");
+    expect(screen.getByTestId("calendar-export")).toBeDisabled();
+  });
+
+  it("is disabled when the period lies before the projection start", async () => {
+    getSettings.mockResolvedValue(settings({ projectionStartDate: addDays(TODAY, 30) }));
+    renderCalendar();
+    await screen.findByTestId("calendar-register");
+    expect(screen.getByTestId("calendar-export")).toBeDisabled();
+  });
+
+  it("shows the server's error and downloads nothing when the export fails", async () => {
+    downloadMonthlySummary.mockRejectedValue(new Error("November 2027 is beyond the 12-month forecast limit."));
+    const user = userEvent.setup();
+    renderCalendar();
+    await screen.findByTestId("calendar-register");
+
+    await user.click(screen.getByTestId("calendar-export"));
+    await user.click(await screen.findByTestId("calendar-export-pdf"));
+    expect(await screen.findByText("November 2027 is beyond the 12-month forecast limit.")).toBeInTheDocument();
+    expect(clicked).toEqual([]);
+    expect(screen.getByTestId("calendar-export")).toBeEnabled();
   });
 });

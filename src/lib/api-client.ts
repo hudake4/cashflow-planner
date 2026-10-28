@@ -90,11 +90,16 @@ function toApiError(status: number, body: unknown): ApiError {
   return new ApiError(status, code, status === 404 ? "Not found." : `Request failed (${status}).`);
 }
 
-/** Fetches the backup file. The file name comes from the server's Content-Disposition header. */
-async function downloadBackup(): Promise<{ blob: Blob; filename: string }> {
+export interface DownloadedFile {
+  blob: Blob;
+  filename: string;
+}
+
+/** Fetches a file the server sends as a download. The file name comes from its Content-Disposition header. */
+async function downloadFile(path: string, accept: string, fallbackName: string): Promise<DownloadedFile> {
   let res: Response;
   try {
-    res = await fetch("/api/data/export", { headers: { Accept: "application/json" }, cache: "no-store" });
+    res = await fetch(`/api${path}`, { headers: { Accept: accept }, cache: "no-store" });
   } catch {
     throw new ApiError(0, "NETWORK_ERROR", "Could not reach the app server. Is it still running?");
   }
@@ -108,8 +113,21 @@ async function downloadBackup(): Promise<{ blob: Blob; filename: string }> {
     throw toApiError(res.status, body);
   }
   const match = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "");
-  return { blob: await res.blob(), filename: match?.[1] ?? "cashflow-planner-backup.json" };
+  return { blob: await res.blob(), filename: match?.[1] ?? fallbackName };
 }
+
+const downloadBackup = () => downloadFile("/data/export", "application/json", "cashflow-planner-backup.json");
+
+const downloadRegisterCsv = (range: { from?: string; to?: string } = {}) => {
+  const qs = new URLSearchParams();
+  if (range.from) qs.set("from", range.from);
+  if (range.to) qs.set("to", range.to);
+  const q = qs.toString();
+  return downloadFile(`/export/register${q ? `?${q}` : ""}`, "text/csv", "cashflow-register.csv");
+};
+
+const downloadMonthlySummary = (month: string) =>
+  downloadFile(`/export/monthly-summary?${new URLSearchParams({ month }).toString()}`, "application/pdf", "cashflow-summary.pdf");
 
 const json = (method: string, data?: unknown): RequestInit => ({
   method,
@@ -213,6 +231,10 @@ export const api = {
   restoreBackup: (data: DataRestoreInput) => request<{ ok: true }>("/data/restore", json("POST", data)),
   /** The full backup as a JSON file (bank credentials are never included). */
   downloadBackup,
+  /** The register for a date range (default: the whole window) as a CSV file. */
+  downloadRegisterCsv,
+  /** One month ("YYYY-MM") as a PDF summary. */
+  downloadMonthlySummary,
 };
 
 export function errorMessage(err: unknown): string {

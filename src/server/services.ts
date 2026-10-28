@@ -16,10 +16,13 @@ import { buildAlerts } from "../domain/alerts";
 import { buildDashboard } from "../domain/dashboard";
 import { todayLocal } from "../domain/dates";
 import { findMissingPaychecks } from "../domain/missing-paycheck";
+import { buildMonthlySummary, monthBounds, monthLabel, type MonthlySummary } from "../domain/monthly-summary";
 import { computeProjection, type ProjectionInput } from "../domain/projection";
+import { registerToCsv } from "../domain/register-csv";
 import { applyScenario } from "../domain/scenario";
 import { effectiveProjectionStartDate, effectiveStartingBalanceCents } from "../domain/starting-balance";
 import { db } from "./db";
+import { badRequest } from "./http";
 import { listAllOccurrences, listBills } from "./repositories/bills";
 import { listIncome } from "./repositories/income";
 import { listAllTransactionsByConnection, listBankAccountTransactions, listConnections } from "./repositories/institutions";
@@ -49,6 +52,22 @@ async function loadInputs() {
 
 export async function getProjection(from?: string, to?: string): Promise<ProjectionResponse> {
   return computeProjection({ ...(await loadInputs()), from, to });
+}
+
+/** The register for `from`..`to` (clamped like `getProjection`) as CSV, plus the dates it covers. */
+export async function getRegisterCsv(from?: string, to?: string): Promise<{ csv: string; range: ProjectionResponse["range"] }> {
+  const projection = await getProjection(from, to);
+  return { csv: registerToCsv(projection), range: projection.range };
+}
+
+/** One month's report from the same projection every view uses. A month outside the computable window has no balances, so it is a 400. */
+export async function getMonthlySummary(month: string): Promise<MonthlySummary> {
+  const bounds = monthBounds(month);
+  const projection = await getProjection(bounds.from, bounds.to);
+  const { startDate, maxEndDate } = projection.window;
+  if (bounds.to < startDate) throw badRequest(`${monthLabel(month)} is before your projection start date (${startDate}), so there is no projected balance for it.`);
+  if (bounds.from > maxEndDate) throw badRequest(`${monthLabel(month)} is beyond the 12-month forecast limit (${maxEndDate}).`);
+  return buildMonthlySummary(month, projection);
 }
 
 export async function getDashboard(today: string = todayLocal()): Promise<DashboardResponse> {
