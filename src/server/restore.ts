@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
-import type { DataRestoreInput } from "../contracts/api";
+import { DEFAULT_DEBT_MONTHLY_PAYMENT_CENTS, type DataRestoreInput } from "../contracts/api";
 import { HOUSEHOLD_ID } from "./defaults";
 import { badRequest } from "./http";
 
@@ -49,6 +49,7 @@ export async function restoreData(prisma: PrismaClient, data: DataRestoreInput):
         defaultCalendarView: settings.defaultCalendarView,
         desktopNotifications: settings.desktopNotifications ?? true,
         balanceFloorCents: settings.balanceFloorCents ?? 0,
+        debtMonthlyPaymentCents: settings.debtMonthlyPaymentCents ?? DEFAULT_DEBT_MONTHLY_PAYMENT_CENTS,
       },
       update: {
         startingBalanceCents: settings.startingBalanceCents,
@@ -60,6 +61,7 @@ export async function restoreData(prisma: PrismaClient, data: DataRestoreInput):
         defaultCalendarView: settings.defaultCalendarView,
         desktopNotifications: settings.desktopNotifications ?? true,
         balanceFloorCents: settings.balanceFloorCents ?? 0,
+        debtMonthlyPaymentCents: settings.debtMonthlyPaymentCents ?? DEFAULT_DEBT_MONTHLY_PAYMENT_CENTS,
       },
     });
   });

@@ -47,6 +47,13 @@ export const balanceCentsSchema = z
   .min(-MAX_AMOUNT_CENTS, "Balance is too small")
   .max(MAX_AMOUNT_CENTS, "Balance is too large");
 
+/** A real monthly minimum payment on a debt account (Debt payoff page). Null clears it back to the planner's estimate. */
+export const minimumPaymentCentsSchema = z
+  .number({ invalid_type_error: "Minimum payment must be a number" })
+  .int("Minimum payment must be in whole cents")
+  .positive("Minimum payment must be greater than zero")
+  .max(MAX_AMOUNT_CENTS, "Minimum payment is too large");
+
 const nameSchema = z
   .string({ required_error: "Name is required", invalid_type_error: "Name is required" })
   .trim()
@@ -106,6 +113,15 @@ export const startingBalanceSourceSchema = z.enum(STARTING_BALANCE_SOURCES, {
 });
 export type StartingBalanceSource = z.infer<typeof startingBalanceSourceSchema>;
 
+/** The total a user sets aside each month for debt payoff (Debt payoff page). Zero is allowed: the page then asks for a payment. */
+export const debtMonthlyPaymentCentsSchema = z
+  .number({ invalid_type_error: "Monthly payment must be a number" })
+  .int("Monthly payment must be in whole cents")
+  .min(0, "Monthly payment can't be negative")
+  .max(MAX_AMOUNT_CENTS, "Monthly payment is too large");
+/** What the Debt payoff page assumes until the user saves a payment: $500.00. */
+export const DEFAULT_DEBT_MONTHLY_PAYMENT_CENTS = 50_000;
+
 export const settingsInputSchema = z.object({
   startingBalanceCents: balanceCentsSchema,
   startingBalanceSource: startingBalanceSourceSchema.default("MANUAL"),
@@ -128,8 +144,16 @@ export const settingsInputSchema = z.object({
   defaultCalendarView: calendarViewSchema.default("month"),
   desktopNotifications: z.boolean({ invalid_type_error: "Desktop notifications must be on or off" }).default(true),
   balanceFloorCents: balanceCentsSchema.default(0),
+  /** Optional: when omitted the stored value is left alone (the Settings form doesn't edit it). */
+  debtMonthlyPaymentCents: debtMonthlyPaymentCentsSchema.optional(),
 });
 export type SettingsInput = z.input<typeof settingsInputSchema>;
+
+/** PATCH /api/settings: change only the listed settings. The Debt payoff page saves its monthly payment this way. */
+export const settingsPatchSchema = z
+  .object({ debtMonthlyPaymentCents: debtMonthlyPaymentCentsSchema.optional() })
+  .refine((v) => v.debtMonthlyPaymentCents !== undefined, { path: ["debtMonthlyPaymentCents"], message: "At least one field is required" });
+export type SettingsPatchInput = z.input<typeof settingsPatchSchema>;
 
 export interface SettingsDTO {
   /** The balance the user typed. Used when `startingBalanceSource` is MANUAL (or no accounts are connected). */
@@ -161,6 +185,8 @@ export interface SettingsDTO {
   desktopNotifications: boolean;
   /** Lowest projected balance the user wants to stay above (safe-to-spend). */
   balanceFloorCents: number;
+  /** Total monthly payment on the Debt payoff page. */
+  debtMonthlyPaymentCents: number;
   updatedAt: string | null; // null when defaults have never been saved
 }
 
@@ -486,6 +512,7 @@ export const accountCardFieldsInputSchema = z.object({
   paymentDueDay: z.number().int().min(1).max(31).nullable().optional(),
   aprBasisPoints: z.number().int().min(0).max(100000).nullable().optional(),
   minimumPaymentRule: z.string().trim().max(200).nullable().optional(),
+  minimumPaymentCents: minimumPaymentCentsSchema.nullable().optional(),
 });
 export type AccountCardFieldsInput = z.input<typeof accountCardFieldsInputSchema>;
 
@@ -496,6 +523,7 @@ export const accountUpdateInputSchema = z
     paymentDueDay: z.number().int().min(1).max(31).nullable().optional(),
     aprBasisPoints: z.number().int().min(0).max(100000).nullable().optional(),
     minimumPaymentRule: z.string().trim().max(200).nullable().optional(),
+    minimumPaymentCents: minimumPaymentCentsSchema.nullable().optional(),
   })
   .refine(
     (v) =>
@@ -503,7 +531,8 @@ export const accountUpdateInputSchema = z
       v.statementClosingDay !== undefined ||
       v.paymentDueDay !== undefined ||
       v.aprBasisPoints !== undefined ||
-      v.minimumPaymentRule !== undefined,
+      v.minimumPaymentRule !== undefined ||
+      v.minimumPaymentCents !== undefined,
     { path: ["kind"], message: "At least one field is required" },
   );
 export type AccountUpdateInput = z.input<typeof accountUpdateInputSchema>;
@@ -525,6 +554,8 @@ export interface BankAccountDTO {
   paymentDueDay: number | null;
   aprBasisPoints: number | null;
   minimumPaymentRule: string | null;
+  /** The real monthly minimum the Debt payoff planner uses; null means it estimates 2% of the balance (floor $25.00). */
+  minimumPaymentCents: number | null;
 }
 
 export interface InstitutionDTO {
@@ -708,6 +739,7 @@ const settingsDTOSchema = z.object({
   defaultCalendarView: calendarViewSchema,
   desktopNotifications: z.boolean(),
   balanceFloorCents: balanceCentsSchema,
+  debtMonthlyPaymentCents: debtMonthlyPaymentCentsSchema,
   updatedAt: timestampSchema.nullable(),
 });
 
@@ -761,6 +793,7 @@ const bankAccountDTOSchema = z
     paymentDueDay: z.number().int().min(1).max(31).nullable(),
     aprBasisPoints: z.number().int().min(0).max(100000).nullable(),
     minimumPaymentRule: z.string().nullable(),
+    minimumPaymentCents: minimumPaymentCentsSchema.nullable(),
   })
   .strict();
 
@@ -815,6 +848,7 @@ export const dataRestoreSchema = z.object({
     accountsStaleCount: z.number().int().min(0).optional(),
     desktopNotifications: z.boolean().optional(),
     balanceFloorCents: balanceCentsSchema.optional(),
+    debtMonthlyPaymentCents: debtMonthlyPaymentCentsSchema.optional(),
     updatedAt: timestampSchema.nullable().optional(),
   }),
   incomes: z.array(incomeDTOSchema),

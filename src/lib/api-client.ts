@@ -26,6 +26,7 @@ import type {
   ScenarioInput,
   SettingsDTO,
   SettingsInput,
+  SettingsPatchInput,
   SavingsGoalDTO,
   SavingsGoalInput,
   SpendingCategoryInput,
@@ -137,6 +138,8 @@ const json = (method: string, data?: unknown): RequestInit => ({
 export const api = {
   getSettings: () => request<SettingsDTO>("/settings"),
   saveSettings: (input: SettingsInput) => request<SettingsDTO>("/settings", json("PUT", input)),
+  /** Changes only the listed settings (the Debt payoff page saves its monthly payment this way). */
+  patchSettings: (input: SettingsPatchInput) => request<SettingsDTO>("/settings", json("PATCH", input)),
 
   listIncome: () => request<IncomeDTO[]>("/income"),
   getIncome: (id: string) => request<IncomeDTO>(`/income/${encodeURIComponent(id)}`),
@@ -188,6 +191,7 @@ export const api = {
     paymentDueDay?: number | null;
     aprBasisPoints?: number | null;
     minimumPaymentRule?: string | null;
+    minimumPaymentCents?: number | null;
   }) =>
     request<BankAccountDTO>(
       `/institutions/${encodeURIComponent(id)}/accounts/${encodeURIComponent(accountId)}`,

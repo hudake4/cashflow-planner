@@ -16,7 +16,7 @@ const SETTINGS: SettingsDTO = {
   startingBalanceCents: 0, startingBalanceSource: "MANUAL", accountsBalanceCents: null, accountCount: 0,
   accountsBalanceDate: null, accountsStaleCount: 0, projectionStartDate: "2026-10-25", currency: "USD",
   forecastDays: 90, weekStartsOn: 0, defaultCalendarView: "month", desktopNotifications: true,
-  balanceFloorCents: 0, updatedAt: null,
+  balanceFloorCents: 0, debtMonthlyPaymentCents: 50000, updatedAt: null,
 };
 const backup: DataExportDTO = {
   format: "cashflow-planner-export", formatVersion: 1, appVersion: "1.0.0", exportedAt: "2026-10-24T15:00:00.000Z",

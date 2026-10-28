@@ -119,6 +119,7 @@ describe("connecting", () => {
         paymentDueDay: null,
         aprBasisPoints: null,
         minimumPaymentRule: null,
+        minimumPaymentCents: null,
       },
     ]);
 
@@ -375,6 +376,7 @@ describe("account labels", () => {
       paymentDueDay: null,
       aprBasisPoints: null,
       minimumPaymentRule: null,
+      minimumPaymentCents: null,
     });
     expect((await testPrisma.bankAccount.findUniqueOrThrow({ where: { id: acc } })).kind).toBe("OTHER");
     const list = await call<InstitutionDTO[]>(listRoute.GET as never, "GET", "/api/institutions");
@@ -409,6 +411,34 @@ describe("account labels", () => {
     const again = await syncConnection(first.id, new Date(NOW.getTime() + 40 * MIN));
     expect(again.accounts.find((a) => a.id.endsWith(":a9"))?.kind).toBe("BANK");
   });
+
+  it("stores a real minimum payment, clears it with null, and a sync leaves it alone", async () => {
+    const first = await connect({ setupToken: SETUP_TOKEN }, NOW);
+    const acc = `${first.id}:a1`;
+    expect((await patchKind(first.id, acc, { kind: "LOAN" })).body.minimumPaymentCents).toBeNull();
+
+    const set = await patchKind(first.id, acc, { minimumPaymentCents: 41250 });
+    expect(set.status).toBe(200);
+    expect(set.body).toMatchObject({ kind: "LOAN", minimumPaymentCents: 41250 });
+    expect((await testPrisma.bankAccount.findUniqueOrThrow({ where: { id: acc } })).minimumPaymentCents).toBe(41250);
+
+    mocked.fetchAccountSet.mockResolvedValueOnce(normalizeAccountSet({ accounts: [rawAccount("a1", "Checking")] }, "2026-10-24"));
+    const synced = await syncConnection(first.id, new Date(NOW.getTime() + 20 * MIN));
+    expect(synced.accounts.find((a) => a.id === acc)).toMatchObject({ kind: "LOAN", minimumPaymentCents: 41250 });
+
+    const cleared = await patchKind(first.id, acc, { minimumPaymentCents: null });
+    expect(cleared.body.minimumPaymentCents).toBeNull();
+  });
+
+  it.each([{ minimumPaymentCents: 0 }, { minimumPaymentCents: -5 }, { minimumPaymentCents: 12.5 }, { minimumPaymentCents: "35" }, { minimumPaymentCents: 1_000_000_001 }])(
+    "400 VALIDATION_ERROR for minimum payment %j",
+    async (body) => {
+      const first = await connect({ setupToken: SETUP_TOKEN }, NOW);
+      const acc = `${first.id}:a1`;
+      expectApiError(await patchKind(first.id, acc, body), 400, "VALIDATION_ERROR", ["minimumPaymentCents"]);
+      expect((await testPrisma.bankAccount.findUniqueOrThrow({ where: { id: acc } })).minimumPaymentCents).toBeNull();
+    },
+  );
 
   it.each([{ kind: "CHECKING" }, { kind: "bank" }, { kind: 1 }, {}, { kind: null }])("400 VALIDATION_ERROR for %j", async (body) => {
     const first = await connect({ setupToken: SETUP_TOKEN }, NOW);

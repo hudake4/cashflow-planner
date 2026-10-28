@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { SettingsDTO, settingsInputSchema } from "../../contracts/api";
+import type { SettingsDTO, settingsInputSchema, settingsPatchSchema } from "../../contracts/api";
 import { addDays, minDate, todayLocal } from "../../domain/dates";
 import { db, HOUSEHOLD_ID, type DbClient } from "../db";
 import { defaultSettings } from "../defaults";
@@ -47,6 +47,17 @@ export async function getSettings(client: DbClient = db): Promise<SettingsDTO> {
     accountsBalanceDate: accounts.count ? accounts.oldestBalanceDate : null,
     accountsStaleCount: accounts.staleCount,
   };
+}
+
+/** Changes only the given settings. Creates the row from the defaults when settings were never saved. */
+export async function patchSettings(data: z.output<typeof settingsPatchSchema>): Promise<SettingsDTO> {
+  const defaults = defaultSettings();
+  const row = await db.settings.upsert({
+    where: { householdId: HOUSEHOLD_ID },
+    create: { householdId: HOUSEHOLD_ID, projectionStartDate: defaults.projectionStartDate, ...data },
+    update: data,
+  });
+  return toSettingsDTO(row, await accountsTotal());
 }
 
 export async function saveSettings(data: SettingsData): Promise<SettingsDTO> {

@@ -26,6 +26,7 @@ model Settings {
   defaultCalendarView   String   @default("month") // "month" | "week"
   desktopNotifications  Boolean  @default(true) // desktop app: notify about low balance and bills due soon (CONVENTIONS section 16)
   balanceFloorCents     Int      @default(0) // lowest projected balance the user wants to stay above (safe-to-spend)
+  debtMonthlyPaymentCents Int    @default(50000) // total monthly payment on the Debt payoff page ($500.00 until changed)
   updatedAt             DateTime @updatedAt
 }
 
@@ -110,6 +111,7 @@ model BankAccount {
   paymentDueDay         Int? // day of month the payment is due (1-31)
   aprBasisPoints       Int? // APR in basis points (100 = 1.00%), e.g. 2499 = 24.99%
   minimumPaymentRule    String? // optional issuer rule label/text; null means pay in full
+  minimumPaymentCents   Int? // real monthly minimum for the Debt payoff planner; null means use its 2% / $25 estimate
   currency              String // 3-letter code, "USD" when SimpleFIN gives a non-ISO currency
   balanceCents          Int
   availableBalanceCents Int?

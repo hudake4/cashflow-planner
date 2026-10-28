@@ -28,7 +28,7 @@ const SETTINGS: SettingsDTO = {
   weekStartsOn: 0,
   defaultCalendarView: "month",
   desktopNotifications: true,
-  balanceFloorCents: 0,
+  balanceFloorCents: 0, debtMonthlyPaymentCents: 50000,
   updatedAt: "2026-10-24T12:00:00.000Z",
 };
 

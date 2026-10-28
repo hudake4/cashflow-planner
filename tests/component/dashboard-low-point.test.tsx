@@ -13,7 +13,7 @@ vi.mock("@/lib/api-client", async (importOriginal) => {
 });
 vi.mock("@/components/dashboard/trend-chart", () => ({ TrendChart: () => <div /> }));
 
-const fullSettings = (): SettingsDTO => ({ ...settings({ forecastDays: 30 }), defaultCalendarView: "month", desktopNotifications: true, balanceFloorCents: 0, startingBalanceSource: "MANUAL", accountsBalanceCents: null, accountCount: 0, accountsBalanceDate: null, accountsStaleCount: 0, updatedAt: null });
+const fullSettings = (): SettingsDTO => ({ ...settings({ forecastDays: 30 }), defaultCalendarView: "month", desktopNotifications: true, balanceFloorCents: 0, debtMonthlyPaymentCents: 50000, startingBalanceSource: "MANUAL", accountsBalanceCents: null, accountCount: 0, accountsBalanceDate: null, accountsStaleCount: 0, updatedAt: null });
 const dashboard = (today: string) => buildDashboard({
   settings: fullSettings(), today,
   incomes: [income("pay", 50000, "WEEKLY", "2025-01-03", { name: "Paycheck" })],

@@ -48,6 +48,7 @@ const toAccountDTO = (a: BankAccount): BankAccountDTO => ({
   paymentDueDay: a.paymentDueDay,
   aprBasisPoints: a.aprBasisPoints,
   minimumPaymentRule: a.minimumPaymentRule,
+  minimumPaymentCents: a.minimumPaymentCents,
 });
 
 const toTransactionDTO = (t: BankTransaction): BankTransactionDTO => ({
@@ -255,7 +256,7 @@ export async function setAccountKind(connectionId: string, accountId: string, ki
 export async function setAccountCardFields(
   connectionId: string,
   accountId: string,
-  fields: { statementClosingDay?: number | null; paymentDueDay?: number | null; aprBasisPoints?: number | null; minimumPaymentRule?: string | null },
+  fields: { statementClosingDay?: number | null; paymentDueDay?: number | null; aprBasisPoints?: number | null; minimumPaymentRule?: string | null; minimumPaymentCents?: number | null },
 ): Promise<BankAccountDTO> {
   const account = await db.bankAccount.findFirst({
     where: { id: accountId, connectionId, connection: { householdId: HOUSEHOLD_ID } },
@@ -267,6 +268,7 @@ export async function setAccountCardFields(
   if (fields.paymentDueDay !== undefined) data.paymentDueDay = fields.paymentDueDay;
   if (fields.aprBasisPoints !== undefined) data.aprBasisPoints = fields.aprBasisPoints;
   if (fields.minimumPaymentRule !== undefined) data.minimumPaymentRule = fields.minimumPaymentRule;
+  if (fields.minimumPaymentCents !== undefined) data.minimumPaymentCents = fields.minimumPaymentCents;
   return toAccountDTO(await db.bankAccount.update({ where: { id: accountId }, data }));
 }
 

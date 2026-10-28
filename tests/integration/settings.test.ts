@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { GET, PUT } from "@/app/api/settings/route";
+import { GET, PATCH, PUT } from "@/app/api/settings/route";
 import { GET as projectionGET } from "@/app/api/projection/route";
 import { GET as dashboardGET } from "@/app/api/dashboard/route";
 import * as incomeList from "@/app/api/income/route";
@@ -36,6 +36,7 @@ describe("/api/settings", () => {
       defaultCalendarView: "month",
       desktopNotifications: true,
   balanceFloorCents: 0,
+      debtMonthlyPaymentCents: 50000,
       updatedAt: null,
     });
   });
@@ -73,6 +74,37 @@ describe("/api/settings", () => {
     expect((await call(GET, "GET", "/api/settings")).body.desktopNotifications).toBe(false);
     const on = await call(PUT, "PUT", "/api/settings", { body: { ...valid, desktopNotifications: true } });
     expect(on.body.desktopNotifications).toBe(true);
+  });
+
+  describe("debt payoff monthly payment", () => {
+    it("PATCH saves it before settings were ever saved, and a fresh GET reads it back", async () => {
+      const patch = await call(PATCH, "PATCH", "/api/settings", { body: { debtMonthlyPaymentCents: 123456 } });
+      expect(patch.status).toBe(200);
+      expect(patch.body).toMatchObject({ debtMonthlyPaymentCents: 123456, startingBalanceCents: 0, currency: "USD" });
+      expect((await call(GET, "GET", "/api/settings")).body.debtMonthlyPaymentCents).toBe(123456);
+    });
+
+    it("PATCH changes only the payment on saved settings", async () => {
+      await call(PUT, "PUT", "/api/settings", { body: { ...valid, weekStartsOn: 3, balanceFloorCents: 7000 } });
+      const patch = await call(PATCH, "PATCH", "/api/settings", { body: { debtMonthlyPaymentCents: 0 } });
+      expect(patch.body).toMatchObject({ ...valid, weekStartsOn: 3, balanceFloorCents: 7000, debtMonthlyPaymentCents: 0 });
+    });
+
+    it("a PUT that leaves the payment out keeps the stored one", async () => {
+      await call(PATCH, "PATCH", "/api/settings", { body: { debtMonthlyPaymentCents: 90000 } });
+      const put = await call(PUT, "PUT", "/api/settings", { body: valid });
+      expect(put.body.debtMonthlyPaymentCents).toBe(90000);
+      const withIt = await call(PUT, "PUT", "/api/settings", { body: { ...valid, debtMonthlyPaymentCents: 25000 } });
+      expect(withIt.body.debtMonthlyPaymentCents).toBe(25000);
+    });
+
+    it.each([{ debtMonthlyPaymentCents: -1 }, { debtMonthlyPaymentCents: 10.5 }, { debtMonthlyPaymentCents: "500" }, { debtMonthlyPaymentCents: 1_000_000_001 }, {}])(
+      "PATCH 400 VALIDATION_ERROR for %j",
+      async (body) => {
+        expectApiError(await call(PATCH, "PATCH", "/api/settings", { body }), 400, "VALIDATION_ERROR", ["debtMonthlyPaymentCents"]);
+        expect((await call(GET, "GET", "/api/settings")).body.updatedAt).toBeNull();
+      },
+    );
   });
 
   it.each([
