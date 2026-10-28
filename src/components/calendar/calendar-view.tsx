@@ -19,7 +19,7 @@ import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/ui/states";
 import { CalendarToolbar } from "./calendar-toolbar";
 import { EventDetailDialog } from "./event-detail-dialog";
-import { ExportMenu } from "./export-menu";
+import { ExportMenu, summaryMonth } from "./export-menu";
 import { HeatmapCalendar, type DayView, type GridWeek } from "./heatmap-calendar";
 import { PeriodDetailDialog, type PeriodDetail } from "./period-detail-dialog";
 import { RegisterList } from "./register-list";
@@ -250,7 +250,7 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
         onStep={(dir) => setCursor((c) => (view === "week" ? addDays(c, 7 * dir) : addMonths(c, dir)))}
         onToday={() => setCursor(today)}
         onJump={setCursor}
-        actions={<ExportMenu range={exportRange} month={cursor.slice(0, 7)} disabled={exportRange.from > exportRange.to} />}
+        actions={<ExportMenu range={exportRange} month={summaryMonth(cursor, exportRange)} disabled={exportRange.from > exportRange.to} />}
       />
 
       {visibleNegative && (

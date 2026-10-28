@@ -10,6 +10,17 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { useToast } from "@/components/ui/toast";
 
 /**
+ * The month the summary PDF reports for the export range (which is already cut to the projection
+ * window): the month being viewed when the range reaches into it, else the range's first month.
+ * A week can straddle two months, and the viewed one may lie wholly outside the window, which the
+ * server answers with a 400.
+ */
+export function summaryMonth(viewed: string, range: { from: string; to: string }): string {
+  const month = viewed.slice(0, 7);
+  return range.from.slice(0, 7) <= month && month <= range.to.slice(0, 7) ? month : range.from.slice(0, 7);
+}
+
+/**
  * Downloads for the period on screen: the register as CSV, and the month's summary as PDF.
  * The server builds both from the same projection the calendar shows.
  */
