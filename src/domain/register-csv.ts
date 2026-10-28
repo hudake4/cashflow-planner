@@ -3,6 +3,7 @@
  * `ProjectionResponse` into text and never recomputes a balance.
  */
 import type { LedgerEvent, ProjectionResponse } from "../contracts/api";
+import { FREQUENCY_LABELS } from "./frequency-labels";
 import { centsToDecimalString } from "./money";
 
 /** Lets Excel read the file as UTF-8 (names with accents or symbols). */
@@ -17,23 +18,14 @@ const STATUS_LABEL: Record<LedgerEvent["status"], string> = {
   SKIPPED: "Skipped",
 };
 
-const FREQUENCY_LABEL: Record<LedgerEvent["frequency"], string> = {
-  ONE_TIME: "One time",
-  WEEKLY: "Weekly",
-  BIWEEKLY: "Biweekly",
-  MONTHLY: "Monthly",
-  QUARTERLY: "Quarterly",
-  YEARLY: "Yearly",
-};
-
 /**
- * Text that a spreadsheet would run as a formula starts with `=`, `+`, `-`, `@`, a tab or a
- * line break (leading spaces are ignored by some programs, so look past them). Prefixing a
- * single quote makes it plain text. Only user-entered text goes through this: the amounts
- * are our own decimal strings, and a negative one must stay a number.
+ * Text that a spreadsheet would run as a formula starts with `=`, `+`, `-`, `@`, `|` (a DDE
+ * command), a tab or a line break (leading spaces are ignored by some programs, so look past
+ * them). Prefixing a single quote makes it plain text. Only user-entered text goes through
+ * this: the amounts are our own decimal strings, and a negative one must stay a number.
  */
 export function neutralizeFormula(text: string): string {
-  return /^\s*[=+\-@\t\r\n]/.test(text) ? `'${text}` : text;
+  return /^\s*[=+\-@|\t\r\n]/.test(text) ? `'${text}` : text;
 }
 
 /** One RFC 4180 field: quoted when it holds a comma, a quote or a line break; quotes are doubled. */
@@ -61,7 +53,7 @@ export function registerToCsv(projection: Pick<ProjectionResponse, "events" | "c
     neutralizeFormula(e.name),
     TYPE_LABEL[e.kind],
     neutralizeFormula(e.category ?? ""),
-    FREQUENCY_LABEL[e.frequency],
+    FREQUENCY_LABELS[e.frequency],
     STATUS_LABEL[e.status],
     centsToDecimalString(e.kind === "INCOME" ? e.amountCents : -e.amountCents),
     centsToDecimalString(e.balanceAfterCents),

@@ -22,12 +22,12 @@ describe("csvField", () => {
 });
 
 describe("neutralizeFormula", () => {
-  it.each(["=SUM(A1:A9)", "+1+1", "-2+3", "@cmd", "\t=1", "\r=1", "  =1+1", ' =HYPERLINK("http://x")'])("prefixes %j", (text) => {
+  it.each(["=SUM(A1:A9)", "+1+1", "-2+3", "@cmd", "|cmd", "\t=1", "\r=1", "  =1+1", ' =HYPERLINK("http://x")', " |calc"])("prefixes %j", (text) => {
     expect(neutralizeFormula(text)).toBe(`'${text}`);
   });
 
   it("leaves ordinary text, including a dash or equals sign inside it", () => {
-    for (const text of ["Rent", "A-B", "1=1", "Mom's gift", "", "  spaced"]) expect(neutralizeFormula(text)).toBe(text);
+    for (const text of ["Rent", "A-B", "1=1", "Mom's gift", "", "  spaced", "A|B"]) expect(neutralizeFormula(text)).toBe(text);
   });
 });
 
@@ -67,7 +67,7 @@ describe("registerToCsv", () => {
     // $1,000 opening; 01-02 gym -$10.05.
     expect(rows[1]).toBe('2025-01-02,"Gym, ""Big"" Club",Bill,Health,Weekly,Upcoming,-10.05,989.95');
     // 01-03 paycheck +$2,500.00.
-    expect(rows[2]).toBe("2025-01-03,Paycheck,Income,,Biweekly,Scheduled,2500.00,3489.95");
+    expect(rows[2]).toBe("2025-01-03,Paycheck,Income,,Every 2 weeks,Scheduled,2500.00,3489.95");
     // 01-05 rent is paid with an override of $1,199.99.
     expect(rows[3]).toBe("2025-01-05,Rent,Bill,Housing,Monthly,Paid,-1199.99,2289.96");
   });
@@ -83,20 +83,25 @@ describe("registerToCsv", () => {
 
   it("exports negative balances as plain negative numbers", () => {
     const p = computeProjection(input({ settings: settings({ startingBalanceCents: 500 }), bills: [bill("b", 1234, "ONE_TIME", "2025-01-02")] }));
-    expect(lines(registerToCsv(p))[1]).toBe("2025-01-02,b,Bill,,One time,Upcoming,-12.34,-7.34");
+    expect(lines(registerToCsv(p))[1]).toBe("2025-01-02,b,Bill,,One-time,Upcoming,-12.34,-7.34");
   });
 
   it("neutralizes formulas in user text only", () => {
     const p = computeProjection(
       input({
         incomes: [income("i", 100, "ONE_TIME", "2025-01-02", { name: "=1+1" })],
-        bills: [bill("b", 100, "ONE_TIME", "2025-01-03", { name: "@SUM(A1)", category: "-cmd" })],
+        bills: [
+          bill("b", 100, "ONE_TIME", "2025-01-03", { name: "@SUM(A1)", category: "-cmd" }),
+          bill("d", 100, "ONE_TIME", "2025-01-04", { name: "|calc!A1", category: "A|B" }),
+        ],
       }),
     );
     const rows = lines(registerToCsv(p));
-    expect(rows[1]).toBe("2025-01-02,'=1+1,Income,,One time,Scheduled,1.00,1001.00");
+    expect(rows[1]).toBe("2025-01-02,'=1+1,Income,,One-time,Scheduled,1.00,1001.00");
     // The leading minus of the amount stays: it is a number, not text.
-    expect(rows[2]).toBe("2025-01-03,'@SUM(A1),Bill,'-cmd,One time,Upcoming,-1.00,1000.00");
+    expect(rows[2]).toBe("2025-01-03,'@SUM(A1),Bill,'-cmd,One-time,Upcoming,-1.00,1000.00");
+    // A leading pipe is neutralized; one inside the text is left alone.
+    expect(rows[3]).toBe("2025-01-04,'|calc!A1,Bill,A|B,One-time,Upcoming,-1.00,999.00");
   });
 
   it("is just the header for an empty register", () => {
