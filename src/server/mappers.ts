@@ -39,6 +39,7 @@ export function toSettingsDTO(row: Settings, accounts: AccountsSummary): Setting
     defaultCalendarView: row.defaultCalendarView as CalendarView,
     desktopNotifications: row.desktopNotifications,
     balanceFloorCents: row.balanceFloorCents,
+    debtMonthlyPaymentCents: row.debtMonthlyPaymentCents,
     updatedAt: row.updatedAt.toISOString(),
   };
 }

@@ -118,3 +118,37 @@ describe("planDebtPayoff", () => {
     expect(planDebtPayoff(cards, 5000, "avalanche").strategy).toBe("avalanche");
   });
 });
+
+describe("planDebtPayoff stored minimum payments", () => {
+  // $3,000 at 19.99% and a $1,000 loan; the budget is far above any minimum, so only the split changes.
+  const withMin = (minimumPaymentCents: number | null) => [
+    card({ id: "card", balanceCents: 300000, aprBasisPoints: 1999, minimumPaymentCents }),
+    card({ id: "loan", balanceCents: 100000, aprBasisPoints: 600, minimumPaymentCents: null }),
+  ];
+
+  it("uses a stored minimum instead of the 2% / $25 estimate", () => {
+    const estimated = planDebtPayoff(withMin(null), 40000, "avalanche");
+    const stored = planDebtPayoff(withMin(25000), 40000, "avalanche");
+
+    // Estimate for month 1: 2% of ~$3,050 on the card and the $25 floor on the loan.
+    expect(estimated[0].cards[0].minimumPaymentCents).toBeLessThan(25000);
+    expect(estimated[0].cards[1].minimumPaymentCents).toBe(2500);
+    expect(stored[0].cards[0].minimumPaymentCents).toBe(25000);
+    expect(stored[0].totalMinimumPaymentCents).toBe(25000 + 2500);
+  });
+
+  it("changes the plan when the stored minimum exceeds what the budget leaves after the estimate", () => {
+    // Budget just covers the stored minimums, so nothing is left over for the priority account.
+    const estimated = planDebtPayoff(withMin(null), 30000, "snowball");
+    const stored = planDebtPayoff(withMin(28000), 30000, "snowball");
+    expect(stored.monthsToPayoff).not.toBe(estimated.monthsToPayoff);
+    expect(stored.totalInterestCents).not.toBe(estimated.totalInterestCents);
+  });
+
+  it("never pays more than the balance when the stored minimum is larger than what is left", () => {
+    const plan = planDebtPayoff([card({ id: "c", balanceCents: 10000, aprBasisPoints: 0, minimumPaymentCents: 50000 })], 60000, "snowball");
+    expect(plan.monthsToPayoff).toBe(1);
+    expect(plan[0].cards[0].paymentCents).toBe(10000);
+    expect(plan.paidOff).toBe(true);
+  });
+});

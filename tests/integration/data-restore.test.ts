@@ -26,7 +26,7 @@ async function snapshot() {
 
 describe("POST /api/data/restore", () => {
   it("round-trips stored settings, income, bills and occurrences", async () => {
-    await testPrisma.settings.create({ data: { householdId: "local", startingBalanceCents: -23000, startingBalanceSource: "MANUAL", projectionStartDate: "2026-10-20", currency: "CAD", forecastDays: 120, weekStartsOn: 1, defaultCalendarView: "week" } });
+    await testPrisma.settings.create({ data: { householdId: "local", startingBalanceCents: -23000, startingBalanceSource: "MANUAL", projectionStartDate: "2026-10-20", currency: "CAD", forecastDays: 120, weekStartsOn: 1, defaultCalendarView: "week", debtMonthlyPaymentCents: 87500 } });
     await testPrisma.incomeSource.create({ data: { id: "income-roundtrip", householdId: "local", name: "Paycheck", amountCents: 100000, frequency: "BIWEEKLY", anchorDate: "2026-10-30", createdAt: new Date("2026-01-01T00:00:00Z") } });
     await testPrisma.bill.create({ data: { id: "bill-roundtrip", householdId: "local", name: "Rent", amountCents: 90000, frequency: "MONTHLY", anchorDate: "2026-10-01", createdAt: new Date("2026-02-01T00:00:00Z") } });
     await testPrisma.billOccurrence.create({ data: { billId: "bill-roundtrip", dueDate: "2026-10-01", status: "PAID", amountOverrideCents: 88000, note: "sent", updatedAt: new Date("2026-10-02T00:00:00Z") } });
@@ -35,11 +35,11 @@ describe("POST /api/data/restore", () => {
     await testPrisma.billOccurrence.deleteMany();
     await testPrisma.bill.deleteMany();
     await testPrisma.incomeSource.deleteMany();
-    await testPrisma.settings.update({ where: { householdId: "local" }, data: { startingBalanceCents: 0, currency: "USD" } });
+    await testPrisma.settings.update({ where: { householdId: "local" }, data: { startingBalanceCents: 0, currency: "USD", debtMonthlyPaymentCents: 50000 } });
 
     expect(await call(restoreRoute.POST, "POST", "/api/data/restore", { body: original })).toMatchObject({ status: 200, body: { ok: true } });
     const restored = await exported();
-    expect(restored.settings).toMatchObject({ startingBalanceCents: -23000, startingBalanceSource: "MANUAL", projectionStartDate: "2026-10-20", currency: "CAD", forecastDays: 120, weekStartsOn: 1, defaultCalendarView: "week" });
+    expect(restored.settings).toMatchObject({ startingBalanceCents: -23000, startingBalanceSource: "MANUAL", projectionStartDate: "2026-10-20", currency: "CAD", forecastDays: 120, weekStartsOn: 1, defaultCalendarView: "week", debtMonthlyPaymentCents: 87500 });
     expect(restored.incomes).toEqual(original.incomes);
     expect(restored.bills).toEqual(original.bills);
     expect(restored.billOccurrences).toEqual(original.billOccurrences);
@@ -55,13 +55,14 @@ describe("POST /api/data/restore", () => {
     delete (legacy.settings as Partial<typeof legacy.settings>).accountsBalanceDate;
     delete (legacy.settings as Partial<typeof legacy.settings>).accountsStaleCount;
     delete (legacy.settings as Partial<typeof legacy.settings>).desktopNotifications;
+    delete (legacy.settings as Partial<typeof legacy.settings>).debtMonthlyPaymentCents;
     for (const institution of legacy.institutions) {
       for (const account of institution.accounts) delete (account as { kind?: unknown }).kind;
     }
 
     expect(await call(restoreRoute.POST, "POST", "/api/data/restore", { body: legacy })).toMatchObject({ status: 200, body: { ok: true } });
     const restored = await exported();
-    expect(restored.settings).toMatchObject({ startingBalanceCents: 42000, projectionStartDate: "2026-10-20", currency: "USD", desktopNotifications: true });
+    expect(restored.settings).toMatchObject({ startingBalanceCents: 42000, projectionStartDate: "2026-10-20", currency: "USD", desktopNotifications: true, debtMonthlyPaymentCents: 50000 });
     expect(restored.incomes).toHaveLength(1);
     expect(restored.incomes[0]).toMatchObject({ id: "income-v012", name: "Paycheck" });
     expect(restored.bills).toHaveLength(1);

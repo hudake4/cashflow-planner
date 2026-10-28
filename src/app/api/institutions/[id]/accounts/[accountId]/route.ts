@@ -22,13 +22,15 @@ export const PATCH = (req: Request, { params }: Ctx) =>
       body.statementClosingDay !== undefined ||
       body.paymentDueDay !== undefined ||
       body.aprBasisPoints !== undefined ||
-      body.minimumPaymentRule !== undefined
+      body.minimumPaymentRule !== undefined ||
+      body.minimumPaymentCents !== undefined
     ) {
       account = await setAccountCardFields(id, accountId, {
         statementClosingDay: body.statementClosingDay,
         paymentDueDay: body.paymentDueDay,
         aprBasisPoints: body.aprBasisPoints,
         minimumPaymentRule: body.minimumPaymentRule,
+        minimumPaymentCents: body.minimumPaymentCents,
       });
     }
     if (!account) throw new Error("no update");

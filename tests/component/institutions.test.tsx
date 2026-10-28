@@ -39,6 +39,7 @@ const INSTITUTION: InstitutionDTO = {
       paymentDueDay: null,
       aprBasisPoints: null,
       minimumPaymentRule: null,
+      minimumPaymentCents: null,
     },
     {
       id: "conn1:a2",
@@ -53,6 +54,7 @@ const INSTITUTION: InstitutionDTO = {
       paymentDueDay: null,
       aprBasisPoints: null,
       minimumPaymentRule: null,
+      minimumPaymentCents: null,
     },
   ],
 };
