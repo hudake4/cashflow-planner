@@ -143,7 +143,8 @@ The domain modules are the contract that the tests are written against. Their ex
 | `src/domain/subscriptions.ts` | `buildSubscriptionAudit`, `annualCostCents`, `isCancelCandidate`, the Subscriptions page's rows, annual cost and cancel candidates (section 12) |
 | `src/domain/spending.ts` | `categorize`, `merchantKey` and `buildSpending` (section 13) |
 | `src/domain/card-bill.ts` | `estimateCardBill` credit-card bill estimator (issue #61) |
-| `src/domain/debt-payoff.ts` | `planDebtPayoff` debt payoff planner, snowball vs. avalanche (issue #50) |
+| `src/domain/debt-payoff.ts` | `planDebtPayoff` debt payoff planner, snowball vs. avalanche (issue #50), and `estimateMinimumPaymentCents`, the assumed minimum (2% of balance, $25.00 floor, never above the balance). The planner counts a card with no APR as 0%, so the Debt payoff page flags that card ("APR needed") and warns on the results until an APR is entered (issue #103) |
+| `src/domain/apr.ts` | `parseAprInput` and `aprToInputText`, APR percent text ("19.99") to and from integer basis points (1999); blank means no APR (null). Shared by the Institutions card form and the Debt payoff page |
 | `src/domain/bill-match.ts` | `matchBillPayments`, bank transactions to unpaid bill occurrences (section 14) |
 | `src/domain/estimate.ts` | `estimateBillAmount`, the suggested amount for a variable bill (section 15) |
 | `src/domain/alerts.ts` | `buildAlerts`, the desktop notifications' content (section 16) |
