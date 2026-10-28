@@ -411,7 +411,7 @@ export interface GoalReserveDTO {
 // Alerts (desktop notifications)
 // ---------------------------------------------------------------------------
 
-export type AlertKind = "LOW_BALANCE" | "BILL_DUE";
+export type AlertKind = "LOW_BALANCE" | "BILL_DUE" | "MISSED_PAYCHECK";
 
 export interface AlertDTO {
   /** Stable for the same event, so a client can remember which alerts it already showed. */

@@ -314,3 +314,17 @@ export async function listAllTransactionsByConnection(client: DbClient = db): Pr
   }
   return byConnection;
 }
+
+/**
+ * Stored transactions of the household's BANK (depository) accounts, newest first. Used by
+ * the missing-paycheck check, which must ignore credit, loan and "other" accounts: a paycheck
+ * can only land in a bank account, so a credit-card-only connection must not produce
+ * "missing paycheck" alerts.
+ */
+export async function listBankAccountTransactions(client: DbClient = db): Promise<BankTransactionDTO[]> {
+  const rows = await client.bankTransaction.findMany({
+    where: { account: { kind: "BANK", connection: { householdId: HOUSEHOLD_ID } } },
+    orderBy: [{ date: "desc" }, { id: "desc" }],
+  });
+  return rows.map(toTransactionDTO);
+}

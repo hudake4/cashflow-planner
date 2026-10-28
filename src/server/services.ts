@@ -15,13 +15,14 @@ import {
 import { buildAlerts } from "../domain/alerts";
 import { buildDashboard } from "../domain/dashboard";
 import { todayLocal } from "../domain/dates";
+import { findMissingPaychecks } from "../domain/missing-paycheck";
 import { computeProjection, type ProjectionInput } from "../domain/projection";
 import { applyScenario } from "../domain/scenario";
 import { effectiveProjectionStartDate, effectiveStartingBalanceCents } from "../domain/starting-balance";
 import { db } from "./db";
 import { listAllOccurrences, listBills } from "./repositories/bills";
 import { listIncome } from "./repositories/income";
-import { listAllTransactionsByConnection, listConnections } from "./repositories/institutions";
+import { listAllTransactionsByConnection, listBankAccountTransactions, listConnections } from "./repositories/institutions";
 import { listSavingsGoals } from "./repositories/savings-goals";
 import { getSettings } from "./repositories/settings";
 
@@ -82,9 +83,18 @@ export async function getScenarioDashboard(
 }
 
 export async function getAlerts(today: string = todayLocal()): Promise<AlertsResponse> {
-  const { desktopNotifications } = await getSettings();
-  if (!desktopNotifications) return { today, enabled: false, alerts: [] };
-  return { today, enabled: true, alerts: buildAlerts(await getProjection(), today) };
+  const settings = await getSettings();
+  if (!settings.desktopNotifications) return { today, enabled: false, alerts: [] };
+  const [projection, incomes, bankTransactions] = await Promise.all([
+    getProjection(),
+    listIncome(),
+    listBankAccountTransactions(),
+  ]);
+  return {
+    today,
+    enabled: true,
+    alerts: [...buildAlerts(projection, today), ...findMissingPaychecks({ incomes, transactions: bankTransactions, currency: settings.currency }, today)],
+  };
 }
 
 /**
