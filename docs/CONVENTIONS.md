@@ -152,6 +152,7 @@ The domain modules are the contract that the tests are written against. Their ex
 | `src/domain/low-point.ts` | `findLowPointBills`, bills before the next payday that raise the dashboard's full-window low when moved (section 17) |
 | `src/domain/register-csv.ts` | `registerToCsv`, CSV escaping and formula neutralizing (section 18) |
 | `src/domain/monthly-summary.ts` | `buildMonthlySummary`, month bounds and labels (section 18) |
+| `src/domain/search.ts` | `normalizeQuery`, `matchRank`, `rankFields`, `parseAmountQuery`, `amountMatches` and `selectTop`, the matching and ranking of global search (section 20) |
 
 Rules for every module: pure functions, no Prisma, no I/O, no `Date.now()` (today is passed in). ESLint enforces this (`eslint.config.mjs`, the `src/domain` block), and bans `parseFloat` across `src/` because money is parsed from strings. If you change an exported signature, update its callers and tests in the same PR and mention it in the PR description.
 
@@ -282,3 +283,13 @@ Two downloads from the Calendar's Export menu, built on the server from the one 
 - **APR.** `aprBasisPoints`; a missing APR is counted at 0% and flagged on the page until entered (issue #103).
 - **Monthly payment.** `Settings.debtMonthlyPaymentCents`, default 50000 ($500.00). The page plans with what is typed and saves it on request (`PATCH /api/settings`); a `PUT /api/settings` that omits it leaves it alone. If it is smaller than the sum of the minimums, minimums are paid in priority order until the budget runs out; if it only covers interest the plan is flagged as never paying off.
 - **Debt-free date.** Month `n` of a plan is `n` calendar months after the current month; "Debt-free by" shows the month of the last payment, only for a plan that pays everything off. The collapsible schedule lists, per month, the total paid, the interest and the balance left.
+
+## 20. Global search (the Ctrl/Cmd+K palette)
+
+`GET /api/search` ([API.md](API.md)) finds bills, income, bank transactions, savings goals and accounts for the command palette. Pure matching and ranking are in `src/domain/search.ts`; `src/server/repositories/search.ts` loads the rows. It reads the local database only, **never calls SimpleFIN**, writes nothing, and no result carries an Access URL.
+
+- **What is searched.** Bills: name, category, notes. Income: name, notes. Bank transactions: description, account name, institution, date (`YYYY-MM-DD` text) and amount. Savings goals: name (an unnamed goal is "Savings goal"). Accounts: name, institution, type. Inactive bills and income are included and marked "Paused". Transactions come from every account kind and include pending ones, but only from the stored 89-day history window (section 9): anything older is not stored, so it cannot be found.
+- **Matching.** The query and every searched text are lower-cased, stripped of accents and have runs of whitespace collapsed; the match is a substring. `%` and `_` are ordinary characters. Rows are matched in the repository, not with SQL `LIKE`, so every group follows the same rules.
+- **Ranking.** Per group, by the best field: the text equals the query, then starts with it, then a word in it starts with it, then it contains it. A match only in a secondary field (notes, category, account name, institution, date) ranks below any match in the name or description. Ties go to the newest transaction, otherwise to name then id. `limit` caps each group after ranking.
+- **Amounts.** A query that reads as a plain amount (`45.20`, `$45`, `-1,200`; zero is ignored) also matches transactions whose amount has that magnitude, either sign, because a debit is stored negative and people type what they remember. It ranks like a prefix match. Bills, income and goals are not searched by amount.
+- **Results and links.** Groups appear in the order bills, income, transactions, goals, accounts. Bills and income link to `/bills?edit=<id>` and `/income?edit=<id>`, goals to `/savings-goals`, transactions to `/spending`, accounts to `/institutions/<connection id>?account=<id>`. The palette itself still lists Pages and Quick add, filtered in the browser. With an empty query it shows only those two groups and makes no request.

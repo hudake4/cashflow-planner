@@ -999,6 +999,57 @@ export interface SavingsGoalDTO {
   createdAt: string;
   updatedAt: string;
 }
+
+// ---------------------------------------------------------------------------
+// Global search (reads the local database only; never calls SimpleFIN)
+// ---------------------------------------------------------------------------
+
+export const SEARCH_MAX_QUERY_LENGTH = 100;
+export const SEARCH_DEFAULT_LIMIT = 20;
+export const SEARCH_MAX_LIMIT = 50;
+
+/** Result groups, in the order they are listed. */
+export const SEARCH_KINDS = ["BILL", "INCOME", "TRANSACTION", "GOAL", "ACCOUNT"] as const;
+export type SearchKind = (typeof SEARCH_KINDS)[number];
+
+export const searchInputSchema = z.object({
+  q: z
+    .string({ required_error: "Type something to search", invalid_type_error: "Type something to search" })
+    .trim()
+    .min(1, "Type something to search")
+    .max(SEARCH_MAX_QUERY_LENGTH, `Search is limited to ${SEARCH_MAX_QUERY_LENGTH} characters`),
+  /** Cap per group, not for the whole response. */
+  limit: z.coerce
+    .number()
+    .int("limit must be a whole number")
+    .min(1, "limit must be at least 1")
+    .max(SEARCH_MAX_LIMIT, `limit must be at most ${SEARCH_MAX_LIMIT}`)
+    .default(SEARCH_DEFAULT_LIMIT),
+});
+export type SearchInput = z.input<typeof searchInputSchema>;
+
+export interface SearchResultDTO {
+  /** Unique within a response together with `kind`. */
+  id: string;
+  kind: SearchKind;
+  title: string;
+  /** Plain text for a second line (account and date, frequency, ...); null when there is nothing to add. */
+  subtitle: string | null;
+  /** Signed for transactions (money in positive, money out negative); a positive magnitude for bills, income and goals; null for accounts. */
+  amountCents: number | null;
+  /** 3-letter code for `amountCents`; null when `amountCents` is null. */
+  currency: string | null;
+  /** App path to open for this result. */
+  href: string;
+}
+
+export interface SearchResponse {
+  /** The query as the server read it (trimmed). */
+  query: string;
+  /** Grouped by `kind` in `SEARCH_KINDS` order, best match first within a group, at most `limit` per group. */
+  results: SearchResultDTO[];
+}
+
 // ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------

@@ -121,6 +121,13 @@ Last month's and this month's spending by category. Rules are in [`CONVENTIONS.m
 | GET | `/api/spending` | — | `SpendingResponse` `{ thisMonth, lastMonth, lastMonthToDateCents, coverageStart, currency, connectionCount, transactionCount, lastSyncedAt }`. Each period is a `SpendingPeriodDTO`: `from`, `to`, `totalCents`, `transactionCount`, `transfersCents`, `categories`, `topMerchants` and `transactions` (every money-out transaction of the period, transfers included, newest first: `id`, `date`, `name`, `description`, `cents`, `category`, `source` (`AUTO`, `MERCHANT` or `MANUAL`) and `merchantLearnable`). Reads accounts labelled `BANK` or `CREDIT`; a bank debit that a credit account received is a transfer (`CONVENTIONS.md` section 13). |
 | PUT | `/api/spending/transactions/:id/category` | `{ category, applyToMerchant? }` | The refreshed `SpendingResponse`. `category` is a `SpendingCategory` (including `TRANSFERS`) or `null` to go back to the automatic category. `applyToMerchant` defaults to `true`: the choice is remembered for the transaction's merchant, replacing any per-transaction choices for it; `false` changes only this transaction. 404 for a transaction that isn't a settled one in the 89-day history; 400 `BAD_REQUEST` for money in, or for `applyToMerchant` on a description with no merchant name (`merchantLearnable: false`); 400 `VALIDATION_ERROR` for an unknown category or extra fields. |
 
+## Global search (Ctrl/Cmd+K)
+Search across the app's own data for the command palette. Rules are in [`CONVENTIONS.md`](CONVENTIONS.md) section 20. It reads the local database only and never calls SimpleFIN.
+
+| Method | Path | Body / query | Response |
+|---|---|---|---|
+| GET | `/api/search` | `q` (required, trimmed, 1-100 characters), `limit?` (1-50, default 20, a cap **per group**) | `SearchResponse` `{ query, results }`. `results` is a flat list grouped by `kind` in the order `BILL`, `INCOME`, `TRANSACTION`, `GOAL`, `ACCOUNT`, best match first within a group. Each `SearchResultDTO` is `{ id, kind, title, subtitle, amountCents, currency, href }`: `amountCents` is signed for transactions (money in positive, money out negative), a positive magnitude for bills, income and goals, and `null` for accounts (`currency` is `null` with it); `href` is the app path to open. Bank transactions are limited to the stored 89-day history. 400 `VALIDATION_ERROR` on `q` when it is missing, blank or over 100 characters, and on `limit` when it is not a whole number from 1 to 50. |
+
 ## Data management (local only)
 | Method | Path | Body | Response |
 |---|---|---|---|

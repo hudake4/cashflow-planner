@@ -5,16 +5,23 @@ import Link from "next/link";
 import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
-import type { BillDTO, IncomeDTO } from "@/contracts/api";
+import { kindMoney, money, signedMoney } from "@/lib/format";
+import { SEARCH_MAX_QUERY_LENGTH, type SearchKind, type SearchResultDTO } from "@/contracts/api";
 
 type Command = {
   id: string;
   label: string;
   hint?: string;
+  /** Second line under the label (account and date, frequency, ...). */
+  subtitle?: string | null;
+  /** Formatted amount shown on the right instead of the hint. */
+  amount?: string;
   href: string;
   group: string;
   keywords?: string[];
 };
+
+type SearchState = "idle" | "loading" | "done" | "error";
 
 const NAV_COMMANDS: Command[] = [
   { id: "nav-dashboard", label: "Dashboard", href: "/", group: "Pages", keywords: ["home", "overview"] },
@@ -31,12 +38,49 @@ const QUICK_ADD: Command[] = [
   { id: "add-income", label: "Add income", href: "/income?new=1", group: "Quick add", keywords: ["new", "create", "paycheck"] },
 ];
 
+const GROUP_LABELS: Record<SearchKind, string> = {
+  BILL: "Bills",
+  INCOME: "Income",
+  TRANSACTION: "Transactions",
+  GOAL: "Savings Goals",
+  ACCOUNT: "Accounts",
+};
+
+/** Wait this long after the last keystroke before asking the server. */
+const SEARCH_DEBOUNCE_MS = 200;
+/** Results per group; the endpoint caps each group separately. */
+const RESULTS_PER_GROUP = 8;
+
+function resultAmount(result: SearchResultDTO): string | undefined {
+  if (result.amountCents === null || result.currency === null) return undefined;
+  switch (result.kind) {
+    case "BILL":
+      return kindMoney("BILL", result.amountCents, result.currency);
+    case "INCOME":
+      return kindMoney("INCOME", result.amountCents, result.currency);
+    case "TRANSACTION":
+      return signedMoney(result.amountCents, result.currency);
+    default:
+      return money(result.amountCents, result.currency);
+  }
+}
+
+function resultToCommand(result: SearchResultDTO): Command {
+  return {
+    id: `${result.kind.toLowerCase()}-${result.id}`,
+    label: result.title,
+    subtitle: result.subtitle,
+    amount: resultAmount(result),
+    href: result.href,
+    group: GROUP_LABELS[result.kind],
+  };
+}
+
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [bills, setBills] = useState<BillDTO[]>([]);
-  const [income, setIncome] = useState<IncomeDTO[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState<SearchResultDTO[]>([]);
+  const [searchState, setSearchState] = useState<SearchState>("idle");
   const [activeIndex, setActiveIndex] = useState(0);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -64,26 +108,8 @@ export function CommandPalette() {
     setQuery("");
     setActiveIndex(0);
 
-    let cancelled = false;
-    setLoading(true);
-    Promise.all([
-      api.listBills().catch(() => [] as BillDTO[]),
-      api.listIncome().catch(() => [] as IncomeDTO[]),
-    ])
-      .then(([nextBills, nextIncome]) => {
-        if (cancelled) return;
-        setBills(nextBills);
-        setIncome(nextIncome);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
     const focusTimer = window.setTimeout(() => inputRef.current?.focus(), 0);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(focusTimer);
-    };
+    return () => window.clearTimeout(focusTimer);
   }, [open]);
 
   useEffect(() => {
@@ -95,41 +121,59 @@ export function CommandPalette() {
     previousFocusRef.current = null;
   }, [open]);
 
+  // Bills, income, transactions, goals and accounts come from the server; the cleanup drops a
+  // response that arrives after the query changed or the palette closed.
+  useEffect(() => {
+    const trimmed = query.trim();
+    setResults([]);
+    if (!open || !trimmed) {
+      setSearchState("idle");
+      return;
+    }
+    setSearchState("loading");
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      api
+        .search(trimmed, RESULTS_PER_GROUP)
+        .then((response) => {
+          if (cancelled) return;
+          setResults(response.results);
+          setSearchState("done");
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setSearchState("error");
+        });
+    }, SEARCH_DEBOUNCE_MS);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [open, query]);
+
   const filtered = (() => {
     const q = query.trim().toLowerCase();
-    const commands: Command[] = [...NAV_COMMANDS, ...QUICK_ADD];
-
-    const billCommands: Command[] = bills.map((bill) => ({
-      id: `bill-${bill.id}`,
-      label: bill.name,
-      hint: "Bill",
-      href: `/bills?edit=${encodeURIComponent(bill.id)}`,
-      group: "Bills",
-      keywords: [bill.category ?? "", bill.notes ?? ""],
-    }));
-
-    const incomeCommands: Command[] = income.map((source) => ({
-      id: `income-${source.id}`,
-      label: source.name,
-      hint: "Income",
-      href: `/income?edit=${encodeURIComponent(source.id)}`,
-      group: "Income",
-      keywords: [source.notes ?? ""],
-    }));
-
-    const all = [...commands, ...billCommands, ...incomeCommands];
-    if (!q) return all.slice(0, 60);
-    return all.filter((command) => {
+    const local: Command[] = [...NAV_COMMANDS, ...QUICK_ADD];
+    if (!q) return local;
+    const matching = local.filter((command) => {
       const haystack = [command.label, command.hint ?? "", command.group, ...(command.keywords ?? [])]
         .join(" ")
         .toLowerCase();
       return haystack.includes(q);
     });
+    return [...matching, ...results.map(resultToCommand)];
   })();
 
   useEffect(() => {
     setActiveIndex(0);
   }, [query]);
+
+  // With several groups of results the active row can be below the fold.
+  const activeCommandId = filtered[activeIndex]?.id;
+  useEffect(() => {
+    if (!activeCommandId) return;
+    itemRefs.current.get(activeCommandId)?.scrollIntoView?.({ block: "nearest" });
+  }, [activeCommandId]);
 
   // Query handling for ?new=1 / ?edit= is intentionally left to the destination pages.
 
@@ -203,6 +247,8 @@ export function CommandPalette() {
   if (!open) return null;
 
   const activeId = filtered[activeIndex] ? `command-option-${filtered[activeIndex].id}` : undefined;
+  // "idle" with text typed is the render before the effect starts the search; don't flash "No results".
+  const searching = searchState === "loading" || (searchState === "idle" && query.trim() !== "");
 
   return (
     <div
@@ -232,24 +278,17 @@ export function CommandPalette() {
             type="text"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
+            maxLength={SEARCH_MAX_QUERY_LENGTH}
             aria-label="Search commands"
             aria-controls="command-palette-list"
             aria-activedescendant={activeId}
-            placeholder="Search pages, bills, income…"
+            placeholder="Search bills, income, transactions…"
             data-testid="command-palette-input"
             className="h-10 w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
           />
         </div>
         <div className="max-h-80 overflow-y-auto p-2" data-testid="command-palette-results">
-          {loading ? (
-            <p className="px-2 py-6 text-sm text-muted-foreground" data-testid="command-palette-loading">
-              Loading…
-            </p>
-          ) : filtered.length === 0 ? (
-            <p className="px-2 py-6 text-sm text-muted-foreground" data-testid="command-palette-empty">
-              No results
-            </p>
-          ) : (
+          {filtered.length > 0 && (
             <ul
               id="command-palette-list"
               role="listbox"
@@ -259,8 +298,18 @@ export function CommandPalette() {
             >
               {filtered.map((command, index) => {
                 const isActive = index === activeIndex;
+                const startsGroup = index === 0 || filtered[index - 1].group !== command.group;
                 return (
-                  <li key={command.id}>
+                  <li key={command.id} role="presentation" className="contents">
+                    {startsGroup && (
+                      <span
+                        role="presentation"
+                        data-testid="command-palette-group"
+                        className="px-3 pb-1 pt-2 text-xs font-medium text-muted-foreground"
+                      >
+                        {command.group}
+                      </span>
+                    )}
                     <Link
                       ref={(element) => {
                         if (element) itemRefs.current.set(command.id, element);
@@ -278,13 +327,37 @@ export function CommandPalette() {
                         isActive ? "bg-muted text-foreground" : "text-foreground hover:bg-muted/60",
                       )}
                     >
-                      <span className="truncate">{command.label}</span>
-                      <span className="shrink-0 text-xs text-muted-foreground">{command.hint ?? command.group}</span>
+                      <span className="min-w-0">
+                        <span className="block truncate">{command.label}</span>
+                        {command.subtitle && (
+                          <span className="block truncate text-xs text-muted-foreground">{command.subtitle}</span>
+                        )}
+                      </span>
+                      {(command.amount ?? command.hint) && (
+                        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                          {command.amount ?? command.hint}
+                        </span>
+                      )}
                     </Link>
                   </li>
                 );
               })}
             </ul>
+          )}
+          {searching && (
+            <p className="px-2 py-3 text-sm text-muted-foreground" role="status" data-testid="command-palette-loading">
+              Searching…
+            </p>
+          )}
+          {searchState === "error" && (
+            <p className="px-2 py-3 text-sm text-muted-foreground" role="status" data-testid="command-palette-error">
+              Search is unavailable right now. Pages and shortcuts still work.
+            </p>
+          )}
+          {filtered.length === 0 && !searching && searchState !== "error" && (
+            <p className="px-2 py-6 text-sm text-muted-foreground" data-testid="command-palette-empty">
+              No results
+            </p>
           )}
         </div>
         <div className="border-t border-border px-4 py-2 text-xs text-muted-foreground">
