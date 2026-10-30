@@ -29,6 +29,7 @@ import type {
   SettingsPatchInput,
   SavingsGoalDTO,
   SavingsGoalInput,
+  SearchResponse,
   SpendingCategoryInput,
   SpendingResponse,
   SubscriptionAuditResponse,
@@ -229,6 +230,13 @@ export const api = {
   createSavingsGoal: (input: SavingsGoalInput) => request<SavingsGoalDTO>("/savings-goals", json("POST", input)),
   updateSavingsGoal: (id: string, input: SavingsGoalInput) => request<SavingsGoalDTO>(`/savings-goals/${encodeURIComponent(id)}`, json("PUT", input)),
   deleteSavingsGoal: (id: string) => request<void>(`/savings-goals/${encodeURIComponent(id)}`, json("DELETE")),
+
+  /** Global search across bills, income, bank transactions, savings goals and accounts; `limit` caps each group. Reads local data only. */
+  search: (q: string, limit?: number) => {
+    const qs = new URLSearchParams({ q });
+    if (limit !== undefined) qs.set("limit", String(limit));
+    return request<SearchResponse>(`/search?${qs.toString()}`);
+  },
 
   loadDemoData: () => request<{ ok: true }>("/data/demo", json("POST")),
   resetAllData: () => request<{ ok: true }>("/data/reset", json("POST")),
