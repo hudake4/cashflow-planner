@@ -1,10 +1,12 @@
 "use client";
 
 import { ArrowLeftRight, ChevronDown, ChevronRight } from "lucide-react";
-import { useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import type { SpendingCategory, SpendingPeriodDTO, SpendingTransactionDTO } from "@/contracts/api";
 import { fmtDate, fmtShort } from "@/lib/dates";
 import { money } from "@/lib/format";
+import { LINK_TARGET_CLASS, revealLinkTarget } from "@/lib/use-link-target";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
@@ -32,16 +34,27 @@ function TransactionRow({
   onEdit,
   showCategory,
   testId,
+  linked = false,
+  reveal = false,
 }: {
   transaction: SpendingTransactionDTO;
   currency: string;
   onEdit: (transaction: SpendingTransactionDTO) => void;
   showCategory: boolean;
   testId: string;
+  /** The row a search result linked to (`?tx=`): marked, and with `reveal` scrolled to and focused. */
+  linked?: boolean;
+  reveal?: boolean;
 }) {
   const note = SOURCE_NOTES[t.source];
   return (
-    <li className="flex items-center justify-between gap-3 py-2.5" data-testid={testId}>
+    <li
+      ref={linked && reveal ? revealLinkTarget : undefined}
+      tabIndex={linked && reveal ? -1 : undefined}
+      className={cn("flex items-center justify-between gap-3 py-2.5", linked && cn("-mx-2 rounded-control px-2", LINK_TARGET_CLASS))}
+      data-testid={testId}
+      data-linked={linked || undefined}
+    >
       <div className="min-w-0">
         <p className="truncate text-sm font-medium text-foreground" title={t.description}>
           {t.name}
@@ -68,14 +81,21 @@ function TransactionList({
   transactions,
   currency,
   onEdit,
+  linkedId,
 }: {
   id: string;
   transactions: SpendingTransactionDTO[];
   currency: string;
   onEdit: (transaction: SpendingTransactionDTO) => void;
+  linkedId: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const listId = useId();
+  // A search result for one of these transactions opens the list so its row can be shown.
+  const holdsLinked = linkedId !== null && transactions.some((t) => t.id === linkedId);
+  useEffect(() => {
+    if (holdsLinked) setOpen(true);
+  }, [holdsLinked, linkedId]);
   const Chevron = open ? ChevronDown : ChevronRight;
   return (
     <div>
@@ -93,7 +113,16 @@ function TransactionList({
       {open && (
         <ul id={listId} className="mt-1 divide-y divide-border" data-testid={`spending-transactions-${id}`}>
           {transactions.map((t) => (
-            <TransactionRow key={t.id} transaction={t} currency={currency} onEdit={onEdit} showCategory testId="spending-transaction-row" />
+            <TransactionRow
+              key={t.id}
+              transaction={t}
+              currency={currency}
+              onEdit={onEdit}
+              showCategory
+              testId="spending-transaction-row"
+              linked={t.id === linkedId}
+              reveal
+            />
           ))}
         </ul>
       )}
@@ -112,6 +141,7 @@ export function PeriodPanel({
   currency,
   comparison,
   onEditTransaction,
+  linkedId = null,
 }: {
   /** "this-month" or "last-month": suffixes the test ids. */
   id: string;
@@ -120,6 +150,8 @@ export function PeriodPanel({
   currency: string;
   comparison?: ReactNode;
   onEditTransaction: (transaction: SpendingTransactionDTO) => void;
+  /** A transaction a search result linked to; its rows are marked and the full list opens to show it. */
+  linkedId?: string | null;
 }) {
   const headingId = `spending-${id}-heading`;
   const categoriesId = useId();
@@ -217,6 +249,7 @@ export function PeriodPanel({
                                   onEdit={onEditTransaction}
                                   showCategory={false}
                                   testId="spending-category-transaction-row"
+                                  linked={t.id === linkedId}
                                 />
                               ))
                             )}
@@ -257,7 +290,7 @@ export function PeriodPanel({
           )}
 
           {period.transactions.length > 0 && (
-            <TransactionList id={id} transactions={period.transactions} currency={currency} onEdit={onEditTransaction} />
+            <TransactionList id={id} transactions={period.transactions} currency={currency} onEdit={onEditTransaction} linkedId={linkedId} />
           )}
 
           {period.transfersCents > 0 && (

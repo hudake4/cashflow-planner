@@ -299,6 +299,19 @@ function buildPeriod(spends: Spend[], from: string, to: string): SpendingPeriodD
   };
 }
 
+/**
+ * Whether a stored transaction is listed on the Spend Analyzer: settled money out of a bank or card
+ * account, dated from the first of last month to today (the two periods buildSpending shows).
+ */
+export function isOnSpendAnalyzer(
+  t: { date: string; amountCents: number; pending: boolean; accountKind: AccountKind },
+  today: string,
+): boolean {
+  const { year, month } = parseIsoDate(today);
+  const lastFrom = month === 1 ? formatIsoDate(year - 1, 12, 1) : formatIsoDate(year, month - 1, 1);
+  return !t.pending && t.amountCents < 0 && (t.accountKind === "BANK" || t.accountKind === "CREDIT") && t.date >= lastFrom && t.date <= today;
+}
+
 export function buildSpending({ transactions, today, overrides, merchantRules }: SpendingInput): SpendingAnalysisDTO {
   const { year, month, day } = parseIsoDate(today);
   const lastYear = month === 1 ? year - 1 : year;

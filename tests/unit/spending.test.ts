@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SpendingCategory } from "@/contracts/api";
-import { buildSpending, categorize, merchantKey, type SpendingTransaction } from "@/domain/spending";
+import { buildSpending, categorize, isOnSpendAnalyzer, merchantKey, type SpendingTransaction } from "@/domain/spending";
 
 const TODAY = "2026-10-24";
 
@@ -325,5 +325,30 @@ describe("buildSpending user categories", () => {
   it("flags descriptions with no merchant name as not learnable and ignores a rule for the empty key", () => {
     const out = run2([tx("2026-10-02", "12345 6789", -1000)], { rules: [["", "DINING"]] });
     expect(out.thisMonth.transactions[0]).toMatchObject({ category: "OTHER", source: "AUTO", merchantLearnable: false });
+  });
+});
+
+describe("isOnSpendAnalyzer", () => {
+  const t = { date: "2026-10-10", amountCents: -100, pending: false, accountKind: "BANK" as const };
+
+  it("takes settled money out of bank and card accounts from the first of last month to today", () => {
+    expect(isOnSpendAnalyzer(t, "2026-10-24")).toBe(true);
+    expect(isOnSpendAnalyzer({ ...t, accountKind: "CREDIT" }, "2026-10-24")).toBe(true);
+    expect(isOnSpendAnalyzer({ ...t, date: "2026-09-01" }, "2026-10-24")).toBe(true);
+    expect(isOnSpendAnalyzer({ ...t, date: "2026-10-24" }, "2026-10-24")).toBe(true);
+  });
+
+  it("leaves out pending, money in, loan and other accounts, and dates outside the two months", () => {
+    expect(isOnSpendAnalyzer({ ...t, pending: true }, "2026-10-24")).toBe(false);
+    expect(isOnSpendAnalyzer({ ...t, amountCents: 100 }, "2026-10-24")).toBe(false);
+    expect(isOnSpendAnalyzer({ ...t, accountKind: "LOAN" }, "2026-10-24")).toBe(false);
+    expect(isOnSpendAnalyzer({ ...t, accountKind: "OTHER" }, "2026-10-24")).toBe(false);
+    expect(isOnSpendAnalyzer({ ...t, date: "2026-08-31" }, "2026-10-24")).toBe(false);
+    expect(isOnSpendAnalyzer({ ...t, date: "2026-10-25" }, "2026-10-24")).toBe(false);
+  });
+
+  it("reaches back into December in January", () => {
+    expect(isOnSpendAnalyzer({ ...t, date: "2025-12-01" }, "2026-01-05")).toBe(true);
+    expect(isOnSpendAnalyzer({ ...t, date: "2025-11-30" }, "2026-01-05")).toBe(false);
   });
 });

@@ -175,7 +175,7 @@ export function CommandPalette() {
     itemRefs.current.get(activeCommandId)?.scrollIntoView?.({ block: "nearest" });
   }, [activeCommandId]);
 
-  // Query handling for ?new=1 / ?edit= is intentionally left to the destination pages.
+  // The destination pages read ?new=1, ?edit=, ?tx=, ?goal= and ?account= (CONVENTIONS section 20).
 
   function close() {
     setOpen(false);
