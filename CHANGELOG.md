@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.27.0](https://github.com/hudake4/cashflow-planner/compare/v0.26.0...v0.27.0) (2026-10-30)
+
+
+### Features
+
+* **debt:** real minimum payments, loans, saved monthly payment and schedule on Debt payoff ([15231f0](https://github.com/hudake4/cashflow-planner/commit/15231f0f1934c802ce563d214455da78df91590c)), closes [#104](https://github.com/hudake4/cashflow-planner/issues/104)
+* **debt:** show and edit APR per card, warn when APR is missing ([7c24959](https://github.com/hudake4/cashflow-planner/commit/7c2495983ac76a0acb8a6d33a235796643b0e988)), closes [#103](https://github.com/hudake4/cashflow-planner/issues/103)
+* **export:** export the register as CSV and a monthly summary as PDF ([d583a38](https://github.com/hudake4/cashflow-planner/commit/d583a3814b31d5764f22b8b14b5845d7359f135e))
+* **export:** export the register as CSV and a monthly summary as PDF ([a23cc97](https://github.com/hudake4/cashflow-planner/commit/a23cc97f10f670402d66a81a3ba268c02a0f73b4)), closes [#52](https://github.com/hudake4/cashflow-planner/issues/52)
+* **search:** global search in the Ctrl+K palette across bills, income, transactions, goals and accounts ([83a2939](https://github.com/hudake4/cashflow-planner/commit/83a293981489e697adc48c5b70ca86eb17121e37))
+
+
+### Bug Fixes
+
+* **calendar:** ask for the summary of a month inside the projection window in week view ([acad8e6](https://github.com/hudake4/cashflow-planner/commit/acad8e606ed95fdec1bf4b1cd9f3722e20043608))
+* **export:** neutralize a leading pipe, use the app's frequency wording, align API docs ([b2332c1](https://github.com/hudake4/cashflow-planner/commit/b2332c1c0469ee33c56bf42a28fecf9c184100ca))
+* **export:** write PDF amounts with the currency code when Helvetica lacks its symbol ([250dd99](https://github.com/hudake4/cashflow-planner/commit/250dd999d87f0399f96dd0e8d26ebd6b9009dde5))
+
 ## [0.26.0](https://github.com/hudake4/cashflow-planner/compare/v0.25.0...v0.26.0) (2026-10-28)
 
 
