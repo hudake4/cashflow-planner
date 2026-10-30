@@ -16,6 +16,7 @@ import {
   rankFields,
   selectTop,
 } from "../../domain/search";
+import { isOnSpendAnalyzer } from "../../domain/spending";
 import { db, HOUSEHOLD_ID } from "../db";
 import { defaultSettings } from "../defaults";
 import { historyCutoff } from "../simplefin-mapping";
@@ -38,6 +39,7 @@ const frequencyLabel = (frequency: string) => FREQUENCY_LABELS[frequency as keyo
 export async function search(rawQuery: string, limit: number, now: Date = new Date()): Promise<SearchResponse> {
   const query = normalizeQuery(rawQuery);
   const amountQuery = parseAmountQuery(rawQuery);
+  const today = todayLocal(now);
   const where = { householdId: HOUSEHOLD_ID };
 
   const [settings, bills, income, goals, accounts, transactions] = await Promise.all([
@@ -47,8 +49,8 @@ export async function search(rawQuery: string, limit: number, now: Date = new Da
     db.savingsGoal.findMany({ where }),
     db.bankAccount.findMany({ where: { connection: where } }),
     db.bankTransaction.findMany({
-      where: { date: { gte: historyCutoff(todayLocal(now)) }, account: { connection: where } },
-      include: { account: { select: { name: true, institutionName: true, currency: true } } },
+      where: { date: { gte: historyCutoff(today) }, account: { connection: where } },
+      include: { account: { select: { name: true, institutionName: true, currency: true, kind: true, connectionId: true } } },
     }),
   ]);
   const currency = settings?.currency ?? defaultSettings().currency;
@@ -100,7 +102,10 @@ export async function search(rawQuery: string, limit: number, now: Date = new Da
     subtitle: joinParts(t.account.name, t.account.institutionName, t.date, t.pending && "Pending"),
     amountCents: t.amountCents,
     currency: t.account.currency,
-    href: "/spending",
+    // The Spend Analyzer lists only some transactions; every other one is found in its account's list.
+    href: isOnSpendAnalyzer({ ...t, accountKind: t.account.kind as AccountKind }, today)
+      ? `/spending?tx=${encodeURIComponent(t.id)}`
+      : `/institutions/${encodeURIComponent(t.account.connectionId)}?account=${encodeURIComponent(t.accountId)}&tx=${encodeURIComponent(t.id)}`,
   }));
 
   const goalResults = selectTop(
@@ -115,7 +120,7 @@ export async function search(rawQuery: string, limit: number, now: Date = new Da
     subtitle: `Target date ${g.targetDate}`,
     amountCents: g.targetAmountCents,
     currency,
-    href: "/savings-goals",
+    href: `/savings-goals?goal=${encodeURIComponent(g.id)}`,
   }));
 
   const accountResults = selectTop(
@@ -131,7 +136,7 @@ export async function search(rawQuery: string, limit: number, now: Date = new Da
     subtitle: joinParts(a.institutionName, ACCOUNT_KIND_LABELS[a.kind] ?? a.kind),
     amountCents: null,
     currency: null,
-    href: `/institutions/${encodeURIComponent(a.connectionId)}?account=${encodeURIComponent(a.id)}`,
+    href: `/institutions?account=${encodeURIComponent(a.id)}`,
   }));
 
   return {

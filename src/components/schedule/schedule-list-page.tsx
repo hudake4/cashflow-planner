@@ -13,13 +13,14 @@ import {
   Receipt,
   Trash,
 } from "lucide-react";
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { BillDTO, BillInput, IncomeDTO, IncomeInput, SettingsDTO } from "@/contracts/api";
 import { api, errorMessage } from "@/lib/api-client";
 import { fmtShort } from "@/lib/dates";
 import { FREQUENCY_LABELS, money } from "@/lib/format";
 import { nextSort, sortScheduleItems, type SortKey, type SortState } from "@/lib/sort-schedule";
 import { useApi } from "@/lib/use-api";
+import { LINK_TARGET_CLASS, scrollToLinkTarget, useLinkTarget } from "@/lib/use-link-target";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/app-shell";
 import { BillPaymentMatches } from "@/components/bills/bill-payment-matches";
@@ -40,6 +41,7 @@ import { Expandable, ExpandableContent, ExpandableTrigger } from "@/components/u
 import { Switch } from "@/components/ui/field";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmptyState, ErrorState } from "@/components/ui/states";
+import { LinkTargetMissing } from "@/components/ui/link-target-missing";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
@@ -92,7 +94,23 @@ function itemInput(item: Item, active: boolean): BillInput | IncomeInput {
   };
 }
 
-export function ScheduleListPage({ kind }: { kind: ScheduleKind }) {
+/** Deep-link parameters this page reads (CONVENTIONS section 20). */
+const LINK_PARAMS = ["edit", "new"] as const;
+const ADD_TARGET = "new";
+
+/** The row's actions button that is on screen (the table on desktop, the card on phones), for focus after a linked edit. */
+function visibleActionsButton(kind: ScheduleKind, id: string): HTMLButtonElement | null {
+  const buttons = Array.from(
+    document.querySelectorAll<HTMLButtonElement>(`[data-testid="actions-${kind}-${id}"], [data-testid="actions-${kind}-${id}-mobile"]`),
+  );
+  return buttons.find((button) => button.offsetParent !== null) ?? buttons[0] ?? null;
+}
+
+/**
+ * `editId` (`?edit=<id>`) opens that item's editor and marks its row; `openNew` (`?new=1`) opens
+ * the add dialog. Both come from the command palette.
+ */
+export function ScheduleListPage({ kind, editId, openNew = false }: { kind: ScheduleKind; editId?: string; openNew?: boolean }) {
   const copy = COPY[kind];
   const toast = useToast();
   const list = useApi<Item[]>(kind, () => (kind === "bill" ? api.listBills() : api.listIncome()));
@@ -107,6 +125,29 @@ export function ScheduleListPage({ kind }: { kind: ScheduleKind }) {
   const deleteFocusTarget = useRef<HTMLButtonElement | null>(null);
   const [pendingToggle, setPendingToggle] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  const [linkTarget, clearLinkTarget] = useLinkTarget(editId ?? (openNew ? ADD_TARGET : undefined), LINK_PARAMS);
+  const [linkedId, setLinkedId] = useState<string | null>(null);
+  const [linkMissing, setLinkMissing] = useState(false);
+  useEffect(() => {
+    if (!linkTarget) return;
+    if (linkTarget === ADD_TARGET) {
+      clearLinkTarget();
+      setLinkMissing(false);
+      setEditing(null);
+      setFormOpen(true);
+      return;
+    }
+    if (!list.data) return;
+    clearLinkTarget();
+    const item = list.data.find((i) => i.id === linkTarget);
+    setLinkedId(item?.id ?? null);
+    setLinkMissing(!item);
+    if (!item) return;
+    editFocusTarget.current = visibleActionsButton(kind, item.id);
+    setEditing(item);
+    setFormOpen(true);
+  }, [linkTarget, clearLinkTarget, list.data, kind]);
 
   const openAdd = () => {
     setEditing(null);
@@ -186,6 +227,8 @@ export function ScheduleListPage({ kind }: { kind: ScheduleKind }) {
         </Alert>
       )}
 
+      {linkMissing && <LinkTargetMissing>That {copy.noun} wasn&apos;t found. It may have been deleted.</LinkTargetMissing>}
+
       {kind === "bill" && <BillPaymentMatches />}
 
       {list.error && list.data && <ErrorState message={list.error} onRetry={list.reload} className="mb-5" />}
@@ -232,8 +275,10 @@ export function ScheduleListPage({ kind }: { kind: ScheduleKind }) {
                 {items.map((item) => (
                   <TableRow
                     key={item.id}
+                    ref={linkedId === item.id ? scrollToLinkTarget : undefined}
                     data-testid={`${kind}-row-${item.id}`}
-                    className={cn(!item.active && "bg-muted/40 text-muted-foreground")}
+                    data-linked={linkedId === item.id || undefined}
+                    className={cn(!item.active && "bg-muted/40 text-muted-foreground", linkedId === item.id && LINK_TARGET_CLASS)}
                   >
                     <TableCell className="min-w-52 whitespace-normal px-4">
                       <div className="font-semibold text-foreground">{item.name}</div>
@@ -283,7 +328,12 @@ export function ScheduleListPage({ kind }: { kind: ScheduleKind }) {
                 <li key={item.id} className="min-w-0">
                   <Expandable className="h-full">
                     {({ isExpanded }) => (
-                      <Card className="h-full p-4" data-testid={`${kind}-card-${item.id}`}>
+                      <Card
+                        ref={linkedId === item.id ? scrollToLinkTarget : undefined}
+                        className={cn("h-full p-4", linkedId === item.id && LINK_TARGET_CLASS)}
+                        data-testid={`${kind}-card-${item.id}`}
+                        data-linked={linkedId === item.id || undefined}
+                      >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="truncate font-semibold text-foreground">{item.name}</p>

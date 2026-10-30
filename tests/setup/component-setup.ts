@@ -1,6 +1,20 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
-import { afterEach } from "vitest";
+import { afterEach, vi } from "vitest";
+
+// Components render outside a Next.js app router here. A test reads the stub through
+// `useRouter()` from "next/navigation" (e.g. to check `replace` calls).
+const navigation = vi.hoisted(() => ({
+  router: { push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn(), forward: vi.fn(), prefetch: vi.fn() },
+}));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  useRouter: () => navigation.router,
+  usePathname: () => window.location.pathname,
+}));
+afterEach(() => {
+  for (const fn of Object.values(navigation.router)) fn.mockClear();
+});
 
 // jsdom does not implement <dialog>.showModal()/close(); minimal polyfill.
 if (typeof HTMLDialogElement !== "undefined") {

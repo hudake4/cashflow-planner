@@ -148,14 +148,14 @@ describe("GET /api/search results", () => {
         subtitle: "Target date 2027-06-01",
         amountCents: 300000,
         currency: "USD",
-        href: "/savings-goals",
+        href: `/savings-goals?goal=${trip.id}`,
       },
     ]);
     expect(titles(ofKind((await find("savings goal")).body, "GOAL"))).toEqual(["Savings goal"]);
   });
 
-  it("finds accounts by name, institution and type, and links to the account", async () => {
-    const { connectionId, accountId } = await seedBank([], {
+  it("finds accounts by name, institution and type, and links to the account on Institutions", async () => {
+    const { accountId } = await seedBank([], {
       accountName: "Sapphire Preferred",
       institutionName: "Chase",
       kind: "CREDIT",
@@ -170,7 +170,7 @@ describe("GET /api/search results", () => {
           subtitle: "Chase · Credit",
           amountCents: null,
           currency: null,
-          href: `/institutions/${connectionId}?account=${encodeURIComponent(accountId)}`,
+          href: `/institutions?account=${encodeURIComponent(accountId)}`,
         },
       ]);
     }
@@ -253,7 +253,32 @@ describe("GET /api/search bank transactions", () => {
       subtitle: "Checking · Demo Bank · 2026-10-20",
       amountCents: -1999,
       currency: "USD",
-      href: "/spending",
+      href: `/spending?tx=${encodeURIComponent(`${accountId}:new`)}`,
+    });
+  });
+
+  it("links a transaction the Spend Analyzer lists there, and any other one to its account's list", async () => {
+    // Today is 2026-10-24, so the Spend Analyzer shows 2026-09-01 to 2026-10-24.
+    const bank = await seedBank([
+      { id: "spend", date: "2026-09-01", amount: -100, description: "Linkcheck spend" },
+      { id: "early", date: "2026-08-31", amount: -100, description: "Linkcheck early" },
+      { id: "in", date: "2026-10-20", amount: 100, description: "Linkcheck refund" },
+      { id: "pending", date: "2026-10-23", amount: -100, description: "Linkcheck pending", pending: true },
+    ]);
+    const loan = await seedBank([{ id: "loan", date: "2026-10-20", amount: -100, description: "Linkcheck loan" }], { kind: "LOAN" });
+    const card = await seedBank([{ id: "card", date: "2026-10-20", amount: -100, description: "Linkcheck card" }], { kind: "CREDIT" });
+
+    const hrefs = Object.fromEntries(ofKind((await find("linkcheck")).body, "TRANSACTION").map((r) => [r.title, r.href]));
+    const spending = (accountId: string, tx: string) => `/spending?tx=${encodeURIComponent(`${accountId}:${tx}`)}`;
+    const account = ({ connectionId, accountId }: { connectionId: string; accountId: string }, tx: string) =>
+      `/institutions/${connectionId}?account=${encodeURIComponent(accountId)}&tx=${encodeURIComponent(`${accountId}:${tx}`)}`;
+    expect(hrefs).toEqual({
+      "Linkcheck spend": spending(bank.accountId, "spend"),
+      "Linkcheck card": spending(card.accountId, "card"),
+      "Linkcheck early": account(bank, "early"),
+      "Linkcheck refund": account(bank, "in"),
+      "Linkcheck pending": account(bank, "pending"),
+      "Linkcheck loan": account(loan, "loan"),
     });
   });
 

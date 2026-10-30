@@ -2,14 +2,16 @@
 
 import { ArrowDown, ArrowUp, ChartPie, Equal, Landmark, TriangleAlert } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { SpendingResponse, SpendingTransactionDTO } from "@/contracts/api";
 import { api } from "@/lib/api-client";
 import { fmtShort } from "@/lib/dates";
 import { money } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
+import { useLinkTarget } from "@/lib/use-link-target";
 import { PageHeader } from "@/components/app-shell";
 import { Card, CardBody } from "@/components/ui/card";
+import { LinkTargetMissing } from "@/components/ui/link-target-missing";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/ui/states";
 import { CategoryDialog } from "./category-dialog";
@@ -21,11 +23,25 @@ const linkButton =
 const textLink =
   "inline-flex min-h-11 items-center rounded-control font-semibold text-brand-700 underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
 
-export function SpendingView() {
+const LINK_PARAMS = ["tx"] as const;
+
+/** `transactionId` (`?tx=<id>`, from the command palette) opens the list that holds that transaction and marks its row. */
+export function SpendingView({ transactionId }: { transactionId?: string } = {}) {
   const spending = useApi<SpendingResponse>("spending", api.getSpending);
   // A category change returns the refreshed analysis; it replaces the loaded one until the next load.
   const [saved, setSaved] = useState<{ base: SpendingResponse; next: SpendingResponse } | null>(null);
   const data = saved && saved.base === spending.data ? saved.next : spending.data;
+
+  const [linkTarget, clearLinkTarget] = useLinkTarget(transactionId, LINK_PARAMS);
+  const [linkedId, setLinkedId] = useState<string | null>(null);
+  const [linkMissing, setLinkMissing] = useState(false);
+  useEffect(() => {
+    if (!linkTarget || !data) return;
+    clearLinkTarget();
+    const found = [data.thisMonth, data.lastMonth].some((p) => p.transactions.some((t) => t.id === linkTarget));
+    setLinkedId(found ? linkTarget : null);
+    setLinkMissing(!found);
+  }, [linkTarget, clearLinkTarget, data]);
 
   return (
     <>
@@ -33,11 +49,14 @@ export function SpendingView() {
         title="Spend Analyzer"
         description="Where your money went last month and so far this month, from your connected banks."
       />
+      {linkMissing && (
+        <LinkTargetMissing>That transaction isn&apos;t in last month or this month&apos;s spending. Find it in its account on Institutions.</LinkTargetMissing>
+      )}
       {spending.error && !spending.data ? (
         <ErrorState message={spending.error} onRetry={spending.reload} title="Couldn't load your spending" />
       ) : data ? (
         <div aria-busy={spending.refreshing || undefined}>
-          <SpendingContent s={data} onSaved={(next) => spending.data && setSaved({ base: spending.data, next })} />
+          <SpendingContent s={data} linkedId={linkedId} onSaved={(next) => spending.data && setSaved({ base: spending.data, next })} />
         </div>
       ) : (
         <SpendingSkeleton />
@@ -82,7 +101,7 @@ function Comparison({ thisMonthCents, lastToDateCents, currency }: { thisMonthCe
   );
 }
 
-function SpendingContent({ s, onSaved }: { s: SpendingResponse; onSaved: (next: SpendingResponse) => void }) {
+function SpendingContent({ s, linkedId, onSaved }: { s: SpendingResponse; linkedId: string | null; onSaved: (next: SpendingResponse) => void }) {
   const [editing, setEditing] = useState<SpendingTransactionDTO | null>(null);
 
   if (s.connectionCount === 0) {
@@ -129,8 +148,16 @@ function SpendingContent({ s, onSaved }: { s: SpendingResponse; onSaved: (next: 
           currency={s.currency}
           comparison={<Comparison thisMonthCents={s.thisMonth.totalCents} lastToDateCents={s.lastMonthToDateCents} currency={s.currency} />}
           onEditTransaction={setEditing}
+          linkedId={linkedId}
         />
-        <PeriodPanel id="last-month" title="Last month" period={s.lastMonth} currency={s.currency} onEditTransaction={setEditing} />
+        <PeriodPanel
+          id="last-month"
+          title="Last month"
+          period={s.lastMonth}
+          currency={s.currency}
+          onEditTransaction={setEditing}
+          linkedId={linkedId}
+        />
       </div>
       <CategoryDialog transaction={editing} currency={s.currency} onClose={() => setEditing(null)} onSaved={onSaved} />
 

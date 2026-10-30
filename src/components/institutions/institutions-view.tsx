@@ -3,11 +3,13 @@
 import { formatDistanceToNow } from "date-fns";
 import { ExternalLink, Landmark, Plus, RefreshCw, Trash } from "lucide-react";
 import Link from "next/link";
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ACCOUNT_KINDS, connectInstitutionSchema, type AccountKind, type BankAccountDTO, type InstitutionDTO } from "@/contracts/api";
 import { api, errorMessage } from "@/lib/api-client";
 import { fmtShort, todayLocal } from "@/lib/dates";
 import { useApi } from "@/lib/use-api";
+import { LINK_TARGET_CLASS, revealLinkTarget, useLinkTarget } from "@/lib/use-link-target";
+import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/app-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -21,6 +23,7 @@ import { paymentDueDate, statementClosingDate } from "@/domain/card-bill";
 import { Balance } from "@/components/ui/money";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState, InlineStatus } from "@/components/ui/states";
+import { LinkTargetMissing } from "@/components/ui/link-target-missing";
 import { useToast } from "@/components/ui/toast";
 
 const SIMPLEFIN_CREATE_URL = "https://bridge.simplefin.org/simplefin/create";
@@ -30,7 +33,10 @@ interface Notice {
   messages: string[];
 }
 
-export function InstitutionsView() {
+const LINK_PARAMS = ["account"] as const;
+
+/** `accountId` (`?account=<id>`, from the command palette) marks that account's card and scrolls to it. */
+export function InstitutionsView({ accountId }: { accountId?: string } = {}) {
   const addFocusTarget = useRef<HTMLButtonElement | null>(null);
   const toast = useToast();
   const list = useApi<InstitutionDTO[]>("institutions", api.listInstitutions);
@@ -39,6 +45,17 @@ export function InstitutionsView() {
   const [notice, setNotice] = useState<Notice | null>(null);
 
   const items = list.data ?? [];
+
+  const [linkTarget, clearLinkTarget] = useLinkTarget(accountId, LINK_PARAMS);
+  const [linkedId, setLinkedId] = useState<string | null>(null);
+  const [linkMissing, setLinkMissing] = useState(false);
+  useEffect(() => {
+    if (!linkTarget || !list.data) return;
+    clearLinkTarget();
+    const found = list.data.some((i) => i.accounts.some((a) => a.id === linkTarget));
+    setLinkedId(found ? linkTarget : null);
+    setLinkMissing(!found);
+  }, [linkTarget, clearLinkTarget, list.data]);
 
   const addButton = (
     <Button ref={addFocusTarget} variant="primary" className="w-full sm:w-auto" onClick={() => setConnectOpen(true)} data-testid="add-institution-button">
@@ -72,6 +89,8 @@ export function InstitutionsView() {
         </Alert>
       )}
 
+      {linkMissing && <LinkTargetMissing>That account wasn&apos;t found. Its connection may have been removed.</LinkTargetMissing>}
+
       {list.error && !list.data ? (
         <ErrorState message={list.error} onRetry={list.reload} />
       ) : list.loading ? (
@@ -96,6 +115,7 @@ export function InstitutionsView() {
             <li key={inst.id} className="min-w-0">
               <InstitutionCard
                 institution={inst}
+                linkedAccountId={linkedId}
                 onRemove={setRemoving}
                 onSynced={async (warnings) => {
                   if (warnings.length) setNotice({ title: `Notices for ${inst.name}`, messages: warnings });
@@ -260,10 +280,12 @@ function lastSyncedText(institution: InstitutionDTO): string {
 
 function InstitutionCard({
   institution,
+  linkedAccountId,
   onRemove,
   onSynced,
 }: {
   institution: InstitutionDTO;
+  linkedAccountId: string | null;
   onRemove: (i: InstitutionDTO) => void;
   onSynced: (warnings: string[]) => Promise<void>;
 }) {
@@ -329,6 +351,7 @@ function InstitutionCard({
           <AccountRow
             key={a.id}
             account={a}
+            linked={a.id === linkedAccountId}
             institutionId={institution.id}
             showInstitution={new Set(institution.accounts.map((x) => x.institutionName)).size > 1}
             onKindChanged={() => onSynced([])}
@@ -348,11 +371,14 @@ const KIND_LABELS: Record<AccountKind, string> = {
 
 function AccountRow({
   account,
+  linked,
   institutionId,
   showInstitution,
   onKindChanged,
 }: {
   account: BankAccountDTO;
+  /** The account a search result linked to: marked, scrolled to and focused. */
+  linked: boolean;
   institutionId: string;
   showInstitution: boolean;
   onKindChanged: () => Promise<void>;
@@ -429,8 +455,12 @@ function AccountRow({
   const available = account.kind === "CREDIT" || account.kind === "LOAN" ? account.availableBalanceCents || null : account.availableBalanceCents;
 
   return (
-    <li className="min-w-0" data-testid={`account-row-${account.id}`}>
-      <Card className="flex h-full flex-col gap-2 p-4">
+    <li className="min-w-0" data-testid={`account-row-${account.id}`} data-linked={linked || undefined}>
+      <Card
+        ref={linked ? revealLinkTarget : undefined}
+        tabIndex={linked ? -1 : undefined}
+        className={cn("flex h-full flex-col gap-2 p-4", linked && LINK_TARGET_CLASS)}
+      >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <Link
