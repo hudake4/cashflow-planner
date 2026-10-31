@@ -6,7 +6,7 @@ A local, single-user personal cash-flow planner. It answers one question:
 
 You enter a starting balance, your paychecks (weekly, biweekly, monthly or one-time) and your bills (one-time, weekly, biweekly, monthly, quarterly, yearly). CashFlow Planner projects your running balance day by day and week by week on a calendar, and explains every number with an event ledger.
 
-- Runs entirely on your machine at **http://localhost:3000**. There are no accounts and no analytics. The only external call is the optional [SimpleFIN Bridge](https://www.simplefin.org) bank connection, and only when you connect or refresh a bank.
+- Runs entirely on your machine at **http://localhost:3000**. There are no accounts and no analytics. The only external call is the optional [SimpleFIN Bridge](https://www.simplefin.org) bank connection, and only when you connect or refresh a bank (including the daily 4 am refresh).
 - Projections are estimates. They assume every scheduled paycheck arrives and every listed bill is paid on time.
 
 ## Features
@@ -81,7 +81,8 @@ The **Institutions** page connects your bank read-only through [SimpleFIN Bridge
 
 The app claims the token on the server, saves the connection and loads your accounts, balances and recent transactions (the last 89 days on the first sync).
 
-- **Sync is explicit.** SimpleFIN allows about 24 requests per day and refreshes bank data roughly once a day, and a token that goes over the limit can be disabled. So the app never fetches while you browse: it fetches when you connect and when you press **Refresh**, and refuses a second refresh within 15 minutes.
+- **Sync is deliberate, never while you browse.** SimpleFIN allows about 24 requests per day and refreshes bank data roughly once a day, and a token that goes over the limit can be disabled. So the app fetches when you connect, when you press **Refresh**, and once a day automatically at **4:00 am** (your computer's local time). It refuses a second refresh within 15 minutes.
+- **The 4 am refresh needs the app running.** If the app was closed or the computer asleep at 4 am, the missed refresh runs shortly after the app next starts (and each connection is skipped if you already refreshed it since 4 am). A failed automatic refresh is not retried until the next 4 am or the next launch; press **Refresh** to retry sooner.
 - **Transactions are stored locally this time.** Because live fetching isn't practical, the accounts, balances and transactions from the last sync are saved in the local database (`prisma/dev.db`) so the pages work offline and don't spend your daily requests. Each refresh re-reads the last week or so and replaces what it covers. Only the last 89 days are ever shown or kept: older transactions are deleted on each refresh.
 - **The Access URL is a secret.** SimpleFIN's Access URL contains the credentials for your connection. It is used only by the server and is never sent to the browser or included in any API response or log. It is **encrypted at rest**:
   - **Desktop app:** sealed with Windows DPAPI (Electron `safeStorage`), tied to your Windows account. A connection saved before this existed is encrypted the next time you press **Refresh**. If you restore `cashflow.db` onto another computer or Windows account, the stored URL can't be decrypted: remove the connection and connect again with a new setup token.
