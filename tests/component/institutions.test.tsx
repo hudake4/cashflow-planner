@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BankTransactionDTO, InstitutionDTO } from "@/contracts/api";
@@ -12,7 +12,10 @@ beforeEach(() => {
   fetchMock.mockReset();
   vi.stubGlobal("fetch", fetchMock);
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -32,6 +35,11 @@ const INSTITUTION: InstitutionDTO = {
       balanceCents: 123456,
       availableBalanceCents: 100000,
       balanceDate: "2026-10-24",
+      statementClosingDay: null,
+      paymentDueDay: null,
+      aprBasisPoints: null,
+      minimumPaymentRule: null,
+      minimumPaymentCents: null,
     },
     {
       id: "conn1:a2",
@@ -42,6 +50,11 @@ const INSTITUTION: InstitutionDTO = {
       balanceCents: -5000,
       availableBalanceCents: null,
       balanceDate: "2026-10-23",
+      statementClosingDay: null,
+      paymentDueDay: null,
+      aprBasisPoints: null,
+      minimumPaymentRule: null,
+      minimumPaymentCents: null,
     },
   ],
 };
@@ -64,6 +77,73 @@ const renderView = () =>
   );
 
 describe("InstitutionsView", () => {
+  it("prefills card dates from the stored days and saves selected days with APR basis points", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-26T12:00:00"));
+    const card = { ...INSTITUTION.accounts[1], statementClosingDay: 5, paymentDueDay: 2, aprBasisPoints: 1999 };
+    route({
+      "GET /institutions": () => json(200, [{ ...INSTITUTION, accounts: [INSTITUTION.accounts[0], card] }]),
+      "PATCH /institutions/conn1/accounts/conn1%3Aa2": () => json(200, card),
+    });
+    const user = userEvent.setup();
+    renderView();
+
+    const closing = await screen.findByTestId("card-closing-conn1:a2");
+    const due = screen.getByTestId("card-due-conn1:a2");
+    const apr = screen.getByTestId("card-apr-conn1:a2");
+    expect(closing).toHaveAttribute("type", "date");
+    expect(closing).toHaveValue("2026-11-05");
+    expect(due).toHaveAttribute("type", "date");
+    expect(due).toHaveValue("2026-12-02");
+    expect(apr).toHaveAttribute("type", "text");
+    expect(apr).toHaveAttribute("inputmode", "decimal");
+
+    fireEvent.change(closing, { target: { value: "2026-11-18" } });
+    fireEvent.change(due, { target: { value: "2026-12-07" } });
+    fireEvent.change(apr, { target: { value: "19.99" } });
+    await user.click(screen.getByTestId("card-save-conn1:a2"));
+
+    const patchCall = fetchMock.mock.calls.find(([, init]) => init?.method === "PATCH");
+    expect(JSON.parse(patchCall![1].body)).toEqual({ statementClosingDay: 18, paymentDueDay: 7, aprBasisPoints: 1999 });
+  });
+
+  it("preserves stored closing and due days 29-31 when saving only APR", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-10T12:00:00"));
+    const card = { ...INSTITUTION.accounts[1], statementClosingDay: 31, paymentDueDay: 31, aprBasisPoints: null };
+    route({
+      "GET /institutions": () => json(200, [{ ...INSTITUTION, accounts: [INSTITUTION.accounts[0], card] }]),
+      "PATCH /institutions/conn1/accounts/conn1%3Aa2": () => json(200, card),
+    });
+    const user = userEvent.setup();
+    renderView();
+
+    expect(await screen.findByTestId("card-closing-conn1:a2")).toHaveValue("2026-11-30");
+    fireEvent.change(screen.getByTestId("card-apr-conn1:a2"), { target: { value: "19.99" } });
+    await user.click(screen.getByTestId("card-save-conn1:a2"));
+
+    const patchCall = fetchMock.mock.calls.find(([, init]) => init?.method === "PATCH");
+    expect(JSON.parse(patchCall![1].body)).toEqual({ statementClosingDay: 31, paymentDueDay: 31, aprBasisPoints: 1999 });
+  });
+
+  it("rejects invalid APR text without sending a PATCH and clears the error on edit", async () => {
+    route({ "GET /institutions": () => json(200, [INSTITUTION]) });
+    const user = userEvent.setup();
+    renderView();
+
+    const apr = await screen.findByTestId("card-apr-conn1:a2");
+    fireEvent.change(apr, { target: { value: "abc" } });
+    await user.click(screen.getByTestId("card-save-conn1:a2"));
+    expect(await screen.findByTestId("card-apr-conn1:a2-error")).toHaveTextContent("Enter a rate like 19.99");
+    expect(fetchMock.mock.calls.filter(([, init]) => init?.method === "PATCH")).toHaveLength(0);
+
+    fireEvent.change(apr, { target: { value: "1.234" } });
+    await user.click(screen.getByTestId("card-save-conn1:a2"));
+    expect(screen.getByTestId("card-apr-conn1:a2-error")).toBeInTheDocument();
+    fireEvent.change(apr, { target: { value: "19.99" } });
+    expect(screen.queryByTestId("card-apr-conn1:a2-error")).toBeNull();
+  });
+
   it("shows the empty state and opens the connect dialog, rejecting an empty token client-side", async () => {
     route({ "GET /institutions": () => json(200, []) });
     const user = userEvent.setup();
@@ -79,6 +159,20 @@ describe("InstitutionsView", () => {
     await user.click(within(dialog).getByTestId("connect-submit"));
     expect(await within(dialog).findByTestId("setup-token-error")).toHaveTextContent(/paste your simplefin setup token/i);
     expect(fetchMock).toHaveBeenCalledTimes(1); // only the initial list request
+  });
+
+  it("hides a zero Available on credit cards but keeps it on bank accounts", async () => {
+    const accounts = [
+      { ...INSTITUTION.accounts[0], id: "conn1:bank0", availableBalanceCents: 0 },
+      { ...INSTITUTION.accounts[1], id: "conn1:card0", availableBalanceCents: 0 },
+      { ...INSTITUTION.accounts[1], id: "conn1:card1", availableBalanceCents: 250000 },
+    ];
+    route({ "GET /institutions": () => json(200, [{ ...INSTITUTION, accounts }]) });
+    renderView();
+
+    expect(await screen.findByTestId("account-row-conn1:bank0")).toHaveTextContent("Available");
+    expect(screen.getByTestId("account-row-conn1:card0")).not.toHaveTextContent("Available");
+    expect(screen.getByTestId("account-row-conn1:card1")).toHaveTextContent("Available");
   });
 
   it("connects with a pasted token and shows SimpleFIN warnings as text", async () => {

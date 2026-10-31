@@ -11,6 +11,7 @@ import * as billItem from "@/app/api/bills/[id]/route";
 import * as occItem from "@/app/api/bills/[id]/occurrences/[date]/route";
 import * as projectionRoute from "@/app/api/projection/route";
 import * as dashboardRoute from "@/app/api/dashboard/route";
+import * as goalList from "@/app/api/savings-goals/route";
 import type { DashboardResponse, ProjectionResponse } from "@/contracts/api";
 import { call, expectApiError } from "../helpers/api";
 import { assertReconciled } from "../helpers/invariants";
@@ -22,6 +23,8 @@ const SETTINGS = {
   forecastDays: 90,
   weekStartsOn: 0,
   defaultCalendarView: "month",
+  desktopNotifications: true,
+  balanceFloorCents: 0,
 };
 const projection = async (qs = "") => {
   const res = await call<ProjectionResponse>(projectionRoute.GET, "GET", `/api/projection${qs}`);
@@ -140,5 +143,21 @@ describe("GET /api/dashboard", () => {
     // today (2026+) is after the 2025 window -> reference = window end 2025-03-31
     expect(d.currentWeek).toMatchObject({ weekStart: "2025-03-30", rangeEnd: "2025-03-31" });
     expect(d.nextWeek).toBeNull();
+    expect(d.goalReserve).toEqual({ setAsideCents: 0, goals: [], limitedBy: null });
+  });
+
+  it("reserves savings-goal set-asides in safe to spend", async () => {
+    // Reference is the window end, so the last balance ($3,900) is the lowest future balance.
+    // A goal far in the future is never past due; $1,100 short of $5,000 is spread over the weeks left.
+    const created = await call(goalList.POST, "POST", "/api/savings-goals", {
+      body: { name: "Boat", targetAmountCents: 500000, targetDate: "2099-12-31" },
+    });
+    expect(created.status).toBe(201);
+    const d = (await call<DashboardResponse>(dashboardRoute.GET, "GET", "/api/dashboard")).body;
+    expect(d.goalReserve.goals).toHaveLength(1);
+    expect(d.goalReserve.goals[0]).toMatchObject({ name: "Boat", shortfallCents: 110000 });
+    expect(d.goalReserve.setAsideCents).toBe(d.goalReserve.goals[0].weeklySetAsideCents);
+    expect(d.goalReserve.setAsideCents).toBeGreaterThan(0);
+    expect(d.safeToSpendCents).toBe(390000 - d.goalReserve.setAsideCents);
   });
 });

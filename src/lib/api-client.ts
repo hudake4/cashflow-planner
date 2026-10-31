@@ -9,10 +9,13 @@ import type {
   BankAccountDTO,
   BillDTO,
   BillInput,
+  BillMatchesResponse,
   BankTransactionsResponse,
+  BillEstimateDTO,
   BillOccurrenceDTO,
   ConnectInstitutionInput,
   DashboardResponse,
+  DataRestoreInput,
   IncomeDTO,
   IncomeInput,
   InstitutionDTO,
@@ -20,10 +23,16 @@ import type {
   OccurrenceUpdateInput,
   ProjectionResponse,
   RecurringScanResponse,
+  ScenarioInput,
   SettingsDTO,
   SettingsInput,
+  SettingsPatchInput,
+  SavingsGoalDTO,
+  SavingsGoalInput,
+  SearchResponse,
   SpendingCategoryInput,
   SpendingResponse,
+  SubscriptionAuditResponse,
 } from "@/contracts/api";
 
 export class ApiError extends Error {
@@ -83,11 +92,16 @@ function toApiError(status: number, body: unknown): ApiError {
   return new ApiError(status, code, status === 404 ? "Not found." : `Request failed (${status}).`);
 }
 
-/** Fetches the backup file. The file name comes from the server's Content-Disposition header. */
-async function downloadBackup(): Promise<{ blob: Blob; filename: string }> {
+export interface DownloadedFile {
+  blob: Blob;
+  filename: string;
+}
+
+/** Fetches a file the server sends as a download. The file name comes from its Content-Disposition header. */
+async function downloadFile(path: string, accept: string, fallbackName: string): Promise<DownloadedFile> {
   let res: Response;
   try {
-    res = await fetch("/api/data/export", { headers: { Accept: "application/json" }, cache: "no-store" });
+    res = await fetch(`/api${path}`, { headers: { Accept: accept }, cache: "no-store" });
   } catch {
     throw new ApiError(0, "NETWORK_ERROR", "Could not reach the app server. Is it still running?");
   }
@@ -101,8 +115,21 @@ async function downloadBackup(): Promise<{ blob: Blob; filename: string }> {
     throw toApiError(res.status, body);
   }
   const match = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "");
-  return { blob: await res.blob(), filename: match?.[1] ?? "cashflow-planner-backup.json" };
+  return { blob: await res.blob(), filename: match?.[1] ?? fallbackName };
 }
+
+const downloadBackup = () => downloadFile("/data/export", "application/json", "cashflow-planner-backup.json");
+
+const downloadRegisterCsv = (range: { from?: string; to?: string } = {}) => {
+  const qs = new URLSearchParams();
+  if (range.from) qs.set("from", range.from);
+  if (range.to) qs.set("to", range.to);
+  const q = qs.toString();
+  return downloadFile(`/export/register${q ? `?${q}` : ""}`, "text/csv", "cashflow-register.csv");
+};
+
+const downloadMonthlySummary = (month: string) =>
+  downloadFile(`/export/monthly-summary?${new URLSearchParams({ month }).toString()}`, "application/pdf", "cashflow-summary.pdf");
 
 const json = (method: string, data?: unknown): RequestInit => ({
   method,
@@ -112,6 +139,8 @@ const json = (method: string, data?: unknown): RequestInit => ({
 export const api = {
   getSettings: () => request<SettingsDTO>("/settings"),
   saveSettings: (input: SettingsInput) => request<SettingsDTO>("/settings", json("PUT", input)),
+  /** Changes only the listed settings (the Debt payoff page saves its monthly payment this way). */
+  patchSettings: (input: SettingsPatchInput) => request<SettingsDTO>("/settings", json("PATCH", input)),
 
   listIncome: () => request<IncomeDTO[]>("/income"),
   getIncome: (id: string) => request<IncomeDTO>(`/income/${encodeURIComponent(id)}`),
@@ -132,6 +161,9 @@ export const api = {
   resetOccurrence: (billId: string, date: string) =>
     request<void>(`/bills/${encodeURIComponent(billId)}/occurrences/${date}`, json("DELETE")),
 
+  /** Synced bank transactions that look like payments of unpaid bill occurrences. Reads local data only; marking one paid is a separate `setOccurrence` call. */
+  listBillMatches: () => request<BillMatchesResponse>("/bills/matches"),
+
   getProjection: (range?: { from?: string; to?: string }) => {
     const qs = new URLSearchParams();
     if (range?.from) qs.set("from", range.from);
@@ -139,7 +171,11 @@ export const api = {
     const q = qs.toString();
     return request<ProjectionResponse>(`/projection${q ? `?${q}` : ""}`);
   },
+  getScenarioProjection: (scenario: ScenarioInput | ScenarioInput[], range?: { from?: string; to?: string }) =>
+    request<ProjectionResponse>("/projection/scenario", json("POST", { scenario, from: range?.from, to: range?.to })),
   getDashboard: () => request<DashboardResponse>("/dashboard"),
+  getScenarioDashboard: (scenario: ScenarioInput | ScenarioInput[], today?: string) =>
+    request<DashboardResponse>("/dashboard/scenario", json("POST", { scenario, today })),
 
   listInstitutions: () => request<InstitutionDTO[]>("/institutions"),
   /** Claims a SimpleFIN setup token (one use only) and runs the first sync. */
@@ -151,6 +187,22 @@ export const api = {
       `/institutions/${encodeURIComponent(id)}/accounts/${encodeURIComponent(accountId)}`,
       json("PATCH", { kind }),
     ),
+  setAccountCardFields: (id: string, accountId: string, fields: {
+    statementClosingDay?: number | null;
+    paymentDueDay?: number | null;
+    aprBasisPoints?: number | null;
+    minimumPaymentRule?: string | null;
+    minimumPaymentCents?: number | null;
+  }) =>
+    request<BankAccountDTO>(
+      `/institutions/${encodeURIComponent(id)}/accounts/${encodeURIComponent(accountId)}`,
+      json("PATCH", fields),
+    ),
+  estimateCardBill: (id: string, accountId: string, variableSpendCents?: number) =>
+    request<{ accountId: string; closingDate: string; dueDate: string; projectedBillCents: number; minimumPaymentCents: number | null; billId: string }>(
+      `/institutions/${encodeURIComponent(id)}/accounts/${encodeURIComponent(accountId)}/card-bill`,
+      json("POST", { variableSpendCents }),
+    ),
   listBankTransactions: (id: string, { accountId, offset = 0 }: { accountId: string; offset?: number }) => {
     const qs = new URLSearchParams({ accountId, offset: String(offset) });
     return request<BankTransactionsResponse>(`/institutions/${encodeURIComponent(id)}/transactions?${qs.toString()}`);
@@ -158,6 +210,14 @@ export const api = {
 
   /** Finds repeating payments/deposits in the stored bank history. Reads local data only. */
   scanRecurring: () => request<RecurringScanResponse>("/recurring"),
+  /** Subscription audit: detected recurring charges plus the user's tracked bills. Reads local data only. */
+  getSubscriptions: () => request<SubscriptionAuditResponse>("/subscriptions"),
+  /** Marks a recurring charge as "not a subscription" so the audit stops showing it. */
+  dismissSubscription: (key: string) => request<void>("/subscriptions/dismiss", json("POST", { key })),
+
+  /** Suggested amount for a bill from the stored bank history. Nothing is saved. Reads local data only. */
+  getBillEstimate: (billId: string, date: string) =>
+    request<BillEstimateDTO>(`/bills/${encodeURIComponent(billId)}/estimate?date=${date}`),
 
   /** Last month's and this month's spending by category from the stored bank history. Reads local data only. */
   getSpending: () => request<SpendingResponse>("/spending"),
@@ -165,10 +225,28 @@ export const api = {
   setTransactionCategory: (transactionId: string, input: SpendingCategoryInput) =>
     request<SpendingResponse>(`/spending/transactions/${encodeURIComponent(transactionId)}/category`, json("PUT", input)),
 
+  listSavingsGoals: () => request<SavingsGoalDTO[]>("/savings-goals"),
+  getSavingsGoal: (id: string) => request<SavingsGoalDTO>(`/savings-goals/${encodeURIComponent(id)}`),
+  createSavingsGoal: (input: SavingsGoalInput) => request<SavingsGoalDTO>("/savings-goals", json("POST", input)),
+  updateSavingsGoal: (id: string, input: SavingsGoalInput) => request<SavingsGoalDTO>(`/savings-goals/${encodeURIComponent(id)}`, json("PUT", input)),
+  deleteSavingsGoal: (id: string) => request<void>(`/savings-goals/${encodeURIComponent(id)}`, json("DELETE")),
+
+  /** Global search across bills, income, bank transactions, savings goals and accounts; `limit` caps each group. Reads local data only. */
+  search: (q: string, limit?: number) => {
+    const qs = new URLSearchParams({ q });
+    if (limit !== undefined) qs.set("limit", String(limit));
+    return request<SearchResponse>(`/search?${qs.toString()}`);
+  },
+
   loadDemoData: () => request<{ ok: true }>("/data/demo", json("POST")),
   resetAllData: () => request<{ ok: true }>("/data/reset", json("POST")),
+  restoreBackup: (data: DataRestoreInput) => request<{ ok: true }>("/data/restore", json("POST", data)),
   /** The full backup as a JSON file (bank credentials are never included). */
   downloadBackup,
+  /** The register for a date range (default: the whole window) as a CSV file. */
+  downloadRegisterCsv,
+  /** One month ("YYYY-MM") as a PDF summary. */
+  downloadMonthlySummary,
 };
 
 export function errorMessage(err: unknown): string {

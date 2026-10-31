@@ -47,6 +47,13 @@ export const balanceCentsSchema = z
   .min(-MAX_AMOUNT_CENTS, "Balance is too small")
   .max(MAX_AMOUNT_CENTS, "Balance is too large");
 
+/** A real monthly minimum payment on a debt account (Debt payoff page). Null clears it back to the planner's estimate. */
+export const minimumPaymentCentsSchema = z
+  .number({ invalid_type_error: "Minimum payment must be a number" })
+  .int("Minimum payment must be in whole cents")
+  .positive("Minimum payment must be greater than zero")
+  .max(MAX_AMOUNT_CENTS, "Minimum payment is too large");
+
 const nameSchema = z
   .string({ required_error: "Name is required", invalid_type_error: "Name is required" })
   .trim()
@@ -106,6 +113,15 @@ export const startingBalanceSourceSchema = z.enum(STARTING_BALANCE_SOURCES, {
 });
 export type StartingBalanceSource = z.infer<typeof startingBalanceSourceSchema>;
 
+/** The total a user sets aside each month for debt payoff (Debt payoff page). Zero is allowed: the page then asks for a payment. */
+export const debtMonthlyPaymentCentsSchema = z
+  .number({ invalid_type_error: "Monthly payment must be a number" })
+  .int("Monthly payment must be in whole cents")
+  .min(0, "Monthly payment can't be negative")
+  .max(MAX_AMOUNT_CENTS, "Monthly payment is too large");
+/** What the Debt payoff page assumes until the user saves a payment: $500.00. */
+export const DEFAULT_DEBT_MONTHLY_PAYMENT_CENTS = 50_000;
+
 export const settingsInputSchema = z.object({
   startingBalanceCents: balanceCentsSchema,
   startingBalanceSource: startingBalanceSourceSchema.default("MANUAL"),
@@ -126,8 +142,18 @@ export const settingsInputSchema = z.object({
     .min(0, "Week start must be a day from 0 (Sunday) to 6 (Saturday)")
     .max(6, "Week start must be a day from 0 (Sunday) to 6 (Saturday)"),
   defaultCalendarView: calendarViewSchema.default("month"),
+  desktopNotifications: z.boolean({ invalid_type_error: "Desktop notifications must be on or off" }).default(true),
+  balanceFloorCents: balanceCentsSchema.default(0),
+  /** Optional: when omitted the stored value is left alone (the Settings form doesn't edit it). */
+  debtMonthlyPaymentCents: debtMonthlyPaymentCentsSchema.optional(),
 });
 export type SettingsInput = z.input<typeof settingsInputSchema>;
+
+/** PATCH /api/settings: change only the listed settings. The Debt payoff page saves its monthly payment this way. */
+export const settingsPatchSchema = z
+  .object({ debtMonthlyPaymentCents: debtMonthlyPaymentCentsSchema.optional() })
+  .refine((v) => v.debtMonthlyPaymentCents !== undefined, { path: ["debtMonthlyPaymentCents"], message: "At least one field is required" });
+export type SettingsPatchInput = z.input<typeof settingsPatchSchema>;
 
 export interface SettingsDTO {
   /** The balance the user typed. Used when `startingBalanceSource` is MANUAL (or no accounts are connected). */
@@ -137,11 +163,30 @@ export interface SettingsDTO {
   accountsBalanceCents: number | null;
   /** How many accounts are labelled BANK (the ones in `accountsBalanceCents`). */
   accountCount: number;
+  /**
+   * The oldest `balanceDate` among the accounts labelled BANK that refreshed within the last 7 days
+   * (all of them when none did), capped at today; null when there are none. With the ACCOUNTS source
+   * it is the date the projection starts on (`effectiveProjectionStartDate`).
+   */
+  accountsBalanceDate: string | null;
+  /**
+   * How many BANK accounts were left out of `accountsBalanceDate` because they haven't refreshed in
+   * over 7 days. Their balance is still in `accountsBalanceCents`. 0 when every account is equally
+   * stale (the date then comes from all of them).
+   */
+  accountsStaleCount: number;
+  /** The start date the user typed. Used when `startingBalanceSource` is MANUAL (or no accounts are connected). */
   projectionStartDate: string;
   currency: string;
   forecastDays: number;
   weekStartsOn: number;
   defaultCalendarView: CalendarView;
+  /** Whether the desktop app shows notifications (CONVENTIONS section 16). The web app ignores it. */
+  desktopNotifications: boolean;
+  /** Lowest projected balance the user wants to stay above (safe-to-spend). */
+  balanceFloorCents: number;
+  /** Total monthly payment on the Debt payoff page. */
+  debtMonthlyPaymentCents: number;
   updatedAt: string | null; // null when defaults have never been saved
 }
 
@@ -249,6 +294,15 @@ export const projectionQuerySchema = z
   });
 export type ProjectionQuery = z.infer<typeof projectionQuerySchema>;
 
+/** `GET /api/export/monthly-summary?month=YYYY-MM`. */
+export const monthlySummaryQuerySchema = z.object({
+  month: z
+    .string({ required_error: "Month is required", invalid_type_error: "Month is required" })
+    .regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Use the format YYYY-MM")
+    .refine((m) => isValidIsoDate(`${m}-01`), "Not a valid month"),
+});
+export type MonthlySummaryQuery = z.infer<typeof monthlySummaryQuerySchema>;
+
 export type LedgerEventKind = "INCOME" | "BILL";
 
 export interface LedgerEvent {
@@ -347,12 +401,69 @@ export interface DashboardResponse {
   nextPaycheck: { date: string; name: string; amountCents: number; sourceId: string } | null;
   /** Next up to 8 non-skipped bill events within 14 days of the reference date. */
   upcomingBills: LedgerEvent[];
+  /** Bills before the next payday that raise the projected low if moved there (CONVENTIONS section 17). */
+  lowPointBills: {
+    lowestBalanceCents: number;
+    lowestBalanceDate: string;
+    nextPayday: string;
+    bills: { eventId: string; billId: string; name: string; date: string; amountCents: number; movedLowestBalanceCents: number; movedLowestBalanceDate: string }[];
+  } | null;
   /** Week containing the reference date (today, or the projection start if today is before it). */
   currentWeek: WeekSummary | null;
   nextWeek: WeekSummary | null;
   totals: ProjectionTotals; // over the full forecast window
   /** End-of-day balance for every date in the window (for the trend chart). */
   trend: { date: string; balanceCents: number }[];
+  /** Most the user can spend today without any future end-of-day balance dropping below the configured floor. */
+  safeToSpendCents: number;
+  /** What savings goals took out of `safeToSpendCents` (CONVENTIONS section 8). Empty when there are no goals. */
+  goalReserve: GoalReserveDTO;
+}
+
+/** A goal the forecast does not support, and what to put aside each week to reach it. */
+export interface GoalSetAsideDTO {
+  id: string;
+  name: string | null;
+  targetAmountCents: number;
+  targetDate: string;
+  /** How far the projected balance on the target date falls short of the target. */
+  shortfallCents: number;
+  weeksRemaining: number;
+  /** `ceil(shortfall / max(1, weeksRemaining))`. */
+  weeklySetAsideCents: number;
+}
+
+export interface GoalReserveDTO {
+  /** Sum of `weeklySetAsideCents`; already subtracted from `safeToSpendCents`. */
+  setAsideCents: number;
+  /** Unsupported goals, soonest target date first. */
+  goals: GoalSetAsideDTO[];
+  /** The supported goal whose headroom caps `safeToSpendCents`, or null when no goal does. */
+  limitedBy: { id: string; name: string | null; headroomCents: number } | null;
+}
+
+// ---------------------------------------------------------------------------
+// Alerts (desktop notifications)
+// ---------------------------------------------------------------------------
+
+export type AlertKind = "LOW_BALANCE" | "BILL_DUE" | "MISSED_PAYCHECK";
+
+export interface AlertDTO {
+  /** Stable for the same event, so a client can remember which alerts it already showed. */
+  key: string;
+  kind: AlertKind;
+  title: string;
+  body: string;
+  /** Last date the alert is still relevant (YYYY-MM-DD). A client can forget the key after it. */
+  expiresOn: string;
+}
+
+export interface AlertsResponse {
+  /** Server's local "today". */
+  today: string;
+  /** The "Desktop notifications" setting. When false, `alerts` is empty and a client must not remember anything. */
+  enabled: boolean;
+  alerts: AlertDTO[];
 }
 
 // ---------------------------------------------------------------------------
@@ -396,6 +507,36 @@ export type AccountKind = z.infer<typeof accountKindSchema>;
 export const accountKindInputSchema = z.object({ kind: accountKindSchema });
 export type AccountKindInput = z.input<typeof accountKindInputSchema>;
 
+export const accountCardFieldsInputSchema = z.object({
+  statementClosingDay: z.number().int().min(1).max(31).nullable().optional(),
+  paymentDueDay: z.number().int().min(1).max(31).nullable().optional(),
+  aprBasisPoints: z.number().int().min(0).max(100000).nullable().optional(),
+  minimumPaymentRule: z.string().trim().max(200).nullable().optional(),
+  minimumPaymentCents: minimumPaymentCentsSchema.nullable().optional(),
+});
+export type AccountCardFieldsInput = z.input<typeof accountCardFieldsInputSchema>;
+
+export const accountUpdateInputSchema = z
+  .object({
+    kind: accountKindSchema.optional(),
+    statementClosingDay: z.number().int().min(1).max(31).nullable().optional(),
+    paymentDueDay: z.number().int().min(1).max(31).nullable().optional(),
+    aprBasisPoints: z.number().int().min(0).max(100000).nullable().optional(),
+    minimumPaymentRule: z.string().trim().max(200).nullable().optional(),
+    minimumPaymentCents: minimumPaymentCentsSchema.nullable().optional(),
+  })
+  .refine(
+    (v) =>
+      v.kind !== undefined ||
+      v.statementClosingDay !== undefined ||
+      v.paymentDueDay !== undefined ||
+      v.aprBasisPoints !== undefined ||
+      v.minimumPaymentRule !== undefined ||
+      v.minimumPaymentCents !== undefined,
+    { path: ["kind"], message: "At least one field is required" },
+  );
+export type AccountUpdateInput = z.input<typeof accountUpdateInputSchema>;
+
 export interface BankAccountDTO {
   id: string;
   name: string;
@@ -408,6 +549,13 @@ export interface BankAccountDTO {
   availableBalanceCents: number | null;
   /** YYYY-MM-DD: when the bank reported this balance (UTC date). */
   balanceDate: string;
+  /** Credit-card fields (user-entered). Null/undefined for non-card accounts or unset. */
+  statementClosingDay: number | null;
+  paymentDueDay: number | null;
+  aprBasisPoints: number | null;
+  minimumPaymentRule: string | null;
+  /** The real monthly minimum the Debt payoff planner uses; null means it estimates 2% of the balance (floor $25.00). */
+  minimumPaymentCents: number | null;
 }
 
 export interface InstitutionDTO {
@@ -481,6 +629,90 @@ export interface RecurringScanResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Subscription audit (reads the stored bank transactions and the tracked bills; never calls SimpleFIN)
+// ---------------------------------------------------------------------------
+
+/** The subscription audit: detected recurring charges (bills only) plus the subscriptions the user already tracks. */
+export interface SubscriptionAuditResponse {
+  /** Detected recurring charges (BILL kind only), excluding any the user dismissed as "not a subscription". */
+  suggestions: RecurringSuggestionDTO[];
+  /** The user's tracked bills (any frequency); the view marks them as already tracked. */
+  tracked: BillDTO[];
+  /** Currency for display (the app's currency setting). */
+  currency: string;
+  /** Bank connections stored locally; 0 means there is nothing to scan yet. */
+  connectionCount: number;
+  /** Settled transactions examined (pending ones are ignored). */
+  transactionCount: number;
+  /** ISO timestamp of the most recent successful sync across connections; null if none has succeeded. */
+  lastSyncedAt: string | null;
+}
+
+export const dismissSubscriptionInputSchema = z.object({
+  /** Stable suggestion key, e.g. "BILL:netflix com". */
+  key: z.string().min(1).max(200),
+});
+export type DismissSubscriptionInput = z.infer<typeof dismissSubscriptionInputSchema>;
+
+// ---------------------------------------------------------------------------
+// Bill payment matches (reads the stored bank transactions; never calls SimpleFIN)
+// ---------------------------------------------------------------------------
+
+/** A synced bank transaction that looks like the payment of one unpaid bill occurrence. Only an offer: nothing is marked until the user confirms. */
+export interface BillPaymentMatchDTO {
+  billId: string;
+  billName: string;
+  /** The scheduled due date of the occurrence the payment matches. */
+  dueDate: string;
+  /** What the occurrence is expected to cost (its amount override, else the bill's amount). Positive magnitude. */
+  expectedCents: number;
+  /** The occurrence's recorded override and note, so marking it paid can keep them. */
+  amountOverrideCents: number | null;
+  note: string | null;
+  transaction: {
+    id: string;
+    date: string;
+    description: string;
+    /** Positive magnitude of the money out. */
+    cents: number;
+  };
+}
+
+export interface BillMatchesResponse {
+  matches: BillPaymentMatchDTO[];
+  currency: string;
+}
+
+// ---------------------------------------------------------------------------
+// Bill amount estimate (reads the stored bank transactions; never calls SimpleFIN)
+// ---------------------------------------------------------------------------
+
+/** ROLLING: average of the latest complete periods. SEASONAL: average of the same month in earlier years. */
+export type BillEstimateMethod = "ROLLING" | "SEASONAL";
+
+/** Why no estimate was made. */
+export type BillEstimateReason = "NO_BANK_DATA" | "NO_MATCHES" | "TOO_FEW_PERIODS" | "UNSUPPORTED_FREQUENCY";
+
+export interface BillEstimateValueDTO {
+  /** Positive magnitude, integer cents. */
+  amountCents: number;
+  method: BillEstimateMethod;
+  /** How many periods (weeks, 2-week periods or calendar months) the average is over. */
+  periodCount: number;
+  /** First and last bank transaction date that went into it. */
+  firstDate: string;
+  lastDate: string;
+}
+
+/** A suggestion only: nothing is stored or applied until the user saves it as a per-date amount. */
+export interface BillEstimateDTO {
+  estimate: BillEstimateValueDTO | null;
+  /** Set exactly when `estimate` is null. */
+  reason: BillEstimateReason | null;
+  currency: string;
+}
+
+// ---------------------------------------------------------------------------
 // Data export (backup file from GET /api/data/export)
 // ---------------------------------------------------------------------------
 // Everything the user entered plus the stored bank snapshot, as a single JSON file.
@@ -498,11 +730,16 @@ const settingsDTOSchema = z.object({
   startingBalanceSource: startingBalanceSourceSchema,
   accountsBalanceCents: signedCentsSchema.nullable(),
   accountCount: z.number().int().min(0),
+  accountsBalanceDate: isoDateSchema.nullable(),
+  accountsStaleCount: z.number().int().min(0),
   projectionStartDate: isoDateSchema,
   currency: z.string().regex(/^[A-Z]{3}$/),
   forecastDays: z.number().int().min(MIN_FORECAST_DAYS).max(MAX_FORECAST_DAYS),
   weekStartsOn: z.number().int().min(0).max(6),
   defaultCalendarView: calendarViewSchema,
+  desktopNotifications: z.boolean(),
+  balanceFloorCents: balanceCentsSchema,
+  debtMonthlyPaymentCents: debtMonthlyPaymentCentsSchema,
   updatedAt: timestampSchema.nullable(),
 });
 
@@ -552,6 +789,11 @@ const bankAccountDTOSchema = z
     balanceCents: signedCentsSchema,
     availableBalanceCents: signedCentsSchema.nullable(),
     balanceDate: isoDateSchema,
+    statementClosingDay: z.number().int().min(1).max(31).nullable(),
+    paymentDueDay: z.number().int().min(1).max(31).nullable(),
+    aprBasisPoints: z.number().int().min(0).max(100000).nullable(),
+    minimumPaymentRule: z.string().nullable(),
+    minimumPaymentCents: minimumPaymentCentsSchema.nullable(),
   })
   .strict();
 
@@ -592,6 +834,29 @@ export const dataExportSchema = z.object({
   billOccurrences: z.array(billOccurrenceDTOSchema),
   institutions: z.array(exportedInstitutionSchema),
 });
+
+/** Accept every formatVersion 1 file since v0.12.0; ignored fields may be absent or older-shaped. */
+export const dataRestoreSchema = z.object({
+  format: z.literal(DATA_EXPORT_FORMAT),
+  formatVersion: z.literal(DATA_EXPORT_FORMAT_VERSION),
+  appVersion: z.string().min(1),
+  exportedAt: timestampSchema,
+  settings: settingsDTOSchema.extend({
+    accountsBalanceCents: signedCentsSchema.nullable().optional(),
+    accountCount: z.number().int().min(0).optional(),
+    accountsBalanceDate: isoDateSchema.nullable().optional(),
+    accountsStaleCount: z.number().int().min(0).optional(),
+    desktopNotifications: z.boolean().optional(),
+    balanceFloorCents: balanceCentsSchema.optional(),
+    debtMonthlyPaymentCents: debtMonthlyPaymentCentsSchema.optional(),
+    updatedAt: timestampSchema.nullable().optional(),
+  }),
+  incomes: z.array(incomeDTOSchema),
+  bills: z.array(billDTOSchema),
+  billOccurrences: z.array(billOccurrenceDTOSchema),
+  institutions: z.array(z.unknown()),
+});
+export type DataRestoreInput = z.output<typeof dataRestoreSchema>;
 
 /** InstitutionDTO (id, name, connectedAt, lastSyncedAt, accounts) plus the stored transactions. */
 export interface ExportedInstitutionDTO extends InstitutionDTO {
@@ -716,6 +981,76 @@ export interface SpendingResponse extends SpendingAnalysisDTO {
 }
 
 // ---------------------------------------------------------------------------
+// Savings goals
+// ---------------------------------------------------------------------------
+
+export const savingsGoalInputSchema = z.object({
+  name: optionalText(80, "Name"),
+  targetAmountCents: amountCentsSchema,
+  targetDate: isoDateSchema,
+});
+export type SavingsGoalInput = z.input<typeof savingsGoalInputSchema>;
+
+export interface SavingsGoalDTO {
+  id: string;
+  name: string | null;
+  targetAmountCents: number;
+  targetDate: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Global search (reads the local database only; never calls SimpleFIN)
+// ---------------------------------------------------------------------------
+
+export const SEARCH_MAX_QUERY_LENGTH = 100;
+export const SEARCH_DEFAULT_LIMIT = 20;
+export const SEARCH_MAX_LIMIT = 50;
+
+/** Result groups, in the order they are listed. */
+export const SEARCH_KINDS = ["BILL", "INCOME", "TRANSACTION", "GOAL", "ACCOUNT"] as const;
+export type SearchKind = (typeof SEARCH_KINDS)[number];
+
+export const searchInputSchema = z.object({
+  q: z
+    .string({ required_error: "Type something to search", invalid_type_error: "Type something to search" })
+    .trim()
+    .min(1, "Type something to search")
+    .max(SEARCH_MAX_QUERY_LENGTH, `Search is limited to ${SEARCH_MAX_QUERY_LENGTH} characters`),
+  /** Cap per group, not for the whole response. */
+  limit: z.coerce
+    .number()
+    .int("limit must be a whole number")
+    .min(1, "limit must be at least 1")
+    .max(SEARCH_MAX_LIMIT, `limit must be at most ${SEARCH_MAX_LIMIT}`)
+    .default(SEARCH_DEFAULT_LIMIT),
+});
+export type SearchInput = z.input<typeof searchInputSchema>;
+
+export interface SearchResultDTO {
+  /** Unique within a response together with `kind`. */
+  id: string;
+  kind: SearchKind;
+  title: string;
+  /** Plain text for a second line (account and date, frequency, ...); null when there is nothing to add. */
+  subtitle: string | null;
+  /** Signed for transactions (money in positive, money out negative); a positive magnitude for bills, income and goals; null for accounts. */
+  amountCents: number | null;
+  /** 3-letter code for `amountCents`; null when `amountCents` is null. */
+  currency: string | null;
+  /** App path to open for this result. */
+  href: string;
+}
+
+export interface SearchResponse {
+  /** The query as the server read it (trimmed). */
+  query: string;
+  /** Grouped by `kind` in `SEARCH_KINDS` order, best match first within a group, at most `limit` per group. */
+  results: SearchResultDTO[];
+}
+
+// ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------
 
@@ -735,3 +1070,38 @@ export interface ApiErrorBody {
     fieldErrors?: Record<string, string[]>;
   };
 }
+
+// ---------------------------------------------------------------------------
+// Scenarios (what-if)
+// ---------------------------------------------------------------------------
+
+export const SCENARIO_KINDS = ["ADD_BILL", "ADD_INCOME", "REMOVE_BILL", "REMOVE_INCOME"] as const;
+export const scenarioKindSchema = z.enum(SCENARIO_KINDS, {
+  errorMap: () => ({ message: "Scenario kind must be ADD_BILL, ADD_INCOME, REMOVE_BILL, or REMOVE_INCOME" }),
+});
+export type ScenarioKind = z.infer<typeof scenarioKindSchema>;
+
+export const scenarioInputSchema = z
+  .object({
+    kind: scenarioKindSchema,
+    name: nameSchema.optional(),
+    amountCents: amountCentsSchema.optional(),
+    /** Alias for amountCents (cents). */
+    amount: z.number().int().positive().max(MAX_AMOUNT_CENTS).optional(),
+    date: isoDateSchema.optional(),
+    dueDate: isoDateSchema.optional(),
+    anchorDate: isoDateSchema.optional(),
+    onDate: isoDateSchema.optional(),
+    frequency: z.string().trim().max(20).optional(),
+    id: z.string().optional(),
+    sourceId: z.string().optional(),
+    billId: z.string().optional(),
+    incomeId: z.string().optional(),
+    targetId: z.string().optional(),
+    removeId: z.string().optional(),
+  })
+  .passthrough();
+export type Scenario = z.infer<typeof scenarioInputSchema>;
+export type ScenarioInput = z.input<typeof scenarioInputSchema>;
+
+export const scenarioSchema = scenarioInputSchema;

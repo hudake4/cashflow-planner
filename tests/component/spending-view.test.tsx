@@ -195,22 +195,36 @@ describe("SpendingView", () => {
     render(<SpendingView />);
     await screen.findByTestId("spending-view");
 
-    expect(lastPanel()).toHaveTextContent("Transfers and card payments ($1,234.56) aren't counted as spending.");
+    expect(lastPanel()).toHaveTextContent("Transfers and card payments aren't counted in Total spent or the percentages.");
     expect(thisPanel()).not.toHaveTextContent(/transfers and card payments/i);
   });
 
-  it("never renders TRANSFERS as a category row", async () => {
+  it("lists Transfers as a category row, in amount order, outside the total and percentages", async () => {
+    const withTransfers: SpendingPeriodDTO = { ...THIS_MONTH, transfersCents: 99900 };
+    getSpending.mockResolvedValue(response({ thisMonth: withTransfers }));
+    render(<SpendingView />);
+    await screen.findByTestId("spending-view");
+
+    const rows = within(thisPanel()).getAllByTestId("spending-category-row");
+    expect(rows).toHaveLength(4);
+    expect(rows[0]).toHaveTextContent("Transfers");
+    expect(rows[0]).toHaveTextContent("$999.00");
+    expect(rows[0]).toHaveTextContent("not in total");
+    expect(rows[1]).toHaveTextContent("Groceries");
+    expect(screen.getByTestId("spending-total-this-month")).toHaveTextContent("$1,450.00");
+  });
+
+  it("does not list Transfers twice if a response also puts it in categories", async () => {
     const withTransfers: SpendingPeriodDTO = {
       ...THIS_MONTH,
+      transfersCents: 99900,
       categories: [{ category: "TRANSFERS", totalCents: 99900, transactionCount: 2 }, ...THIS_MONTH.categories],
     };
     getSpending.mockResolvedValue(response({ thisMonth: withTransfers }));
     render(<SpendingView />);
     await screen.findByTestId("spending-view");
 
-    const rows = within(thisPanel()).getAllByTestId("spending-category-row");
-    expect(rows).toHaveLength(3);
-    rows.forEach((row) => expect(row).not.toHaveTextContent(/transfers/i));
+    expect(within(thisPanel()).getAllByTestId("spending-category-row")).toHaveLength(4);
   });
 
   it.each([
@@ -298,6 +312,68 @@ describe("SpendingView", () => {
       expect(rows[2]).toHaveTextContent("Set by you");
       // Last month has no transactions, so no toggle.
       expect(screen.queryByTestId("spending-transactions-toggle-last-month")).toBeNull();
+    });
+
+    it("expands a category to just its transactions, and collapses it again", async () => {
+      getSpending.mockResolvedValue(response());
+      const user = userEvent.setup();
+      renderView();
+      await screen.findByTestId("spending-view");
+
+      const [groceries, , dining] = within(thisPanel()).getAllByTestId("spending-category-row");
+      const toggle = within(groceries).getByTestId("spending-category-toggle");
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      expect(within(groceries).queryByTestId("spending-category-transactions")).toBeNull();
+
+      await user.click(toggle);
+      expect(toggle).toHaveAttribute("aria-expanded", "true");
+      const rows = within(groceries).getAllByTestId("spending-category-transaction-row");
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toHaveTextContent("Whole Foods");
+      expect(rows[0]).toHaveTextContent("$400.00");
+      expect(rows[0]).toHaveTextContent("Learned");
+      expect(rows[0]).not.toHaveTextContent("Groceries");
+      // Other categories stay closed.
+      expect(within(dining).queryByTestId("spending-category-transactions")).toBeNull();
+
+      await user.click(toggle);
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      expect(within(groceries).queryByTestId("spending-category-transactions")).toBeNull();
+    });
+
+    it("changes a transaction's category from inside its category, which then moves with the refreshed data",async () => {
+      getSpending.mockResolvedValue(response());
+      const refreshed = response({
+        thisMonth: {
+          ...THIS_MONTH,
+          categories: [
+            { category: "GROCERIES", totalCents: 40000, transactionCount: 1 },
+            { category: "HEALTH", totalCents: 12000, transactionCount: 1 },
+          ],
+          transactions: THIS_MONTH.transactions.map((t) => (t.id === "t2" ? { ...t, category: "HEALTH" as const, source: "MANUAL" as const } : t)),
+        },
+      });
+      setTransactionCategory.mockResolvedValue(refreshed);
+      const user = userEvent.setup();
+      renderView();
+      await screen.findByTestId("spending-view");
+
+      const [, , dining] = within(thisPanel()).getAllByTestId("spending-category-row");
+      await user.click(within(dining).getByTestId("spending-category-toggle"));
+      await user.click(within(within(dining).getByTestId("spending-category-transaction-row")).getByTestId("spending-transaction-edit"));
+      const dialog = await screen.findByTestId("category-dialog");
+      await user.selectOptions(within(dialog).getByTestId("category-select"), "HEALTH");
+      await user.click(within(dialog).getByTestId("category-save"));
+
+      expect(setTransactionCategory).toHaveBeenCalledWith("t2", { category: "HEALTH", applyToMerchant: true });
+      await waitFor(() => expect(screen.queryByTestId("category-dialog")).toBeNull());
+      const rows = within(thisPanel()).getAllByTestId("spending-category-row");
+      expect(rows).toHaveLength(2);
+      // Dining is gone; Health was not open, so the open state does not leak to it.
+      expect(rows[1]).toHaveTextContent("Health");
+      expect(within(rows[1]).queryByTestId("spending-category-transactions")).toBeNull();
+      await user.click(within(rows[1]).getByTestId("spending-category-toggle"));
+      expect(within(rows[1]).getByTestId("spending-category-transaction-row")).toHaveTextContent("Chipotle");
     });
 
     it("saves the new category for the merchant by default and shows the refreshed analysis", async () => {

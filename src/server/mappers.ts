@@ -2,7 +2,7 @@
  * Prisma row → DTO mappers. Enum-like columns are plain strings in SQLite; they
  * are only ever written after Zod validation, so the casts here are safe.
  */
-import type { Bill, BillOccurrence, IncomeSource, Settings } from "@prisma/client";
+import type { Bill, BillOccurrence, IncomeSource, SavingsGoal, Settings } from "@prisma/client";
 import type {
   BillDTO,
   BillFrequency,
@@ -11,21 +11,35 @@ import type {
   IncomeDTO,
   IncomeFrequency,
   OccurrenceStatus,
+  SavingsGoalDTO,
   SettingsDTO,
   StartingBalanceSource,
 } from "../contracts/api";
 
-export function toSettingsDTO(row: Settings, accounts: { balanceCents: number | null; count: number }): SettingsDTO {
+/** The BANK accounts as `getSettings` sees them: their sum, the date that starts the projection, and how many were left out of that date as stale. */
+export interface AccountsSummary {
+  balanceCents: number | null;
+  oldestBalanceDate: string | null;
+  count: number;
+  staleCount: number;
+}
+
+export function toSettingsDTO(row: Settings, accounts: AccountsSummary): SettingsDTO {
   return {
     startingBalanceCents: row.startingBalanceCents,
     startingBalanceSource: row.startingBalanceSource as StartingBalanceSource,
     accountsBalanceCents: accounts.count ? accounts.balanceCents : null,
     accountCount: accounts.count,
+    accountsBalanceDate: accounts.count ? accounts.oldestBalanceDate : null,
+    accountsStaleCount: accounts.staleCount,
     projectionStartDate: row.projectionStartDate,
     currency: row.currency,
     forecastDays: row.forecastDays,
     weekStartsOn: row.weekStartsOn,
     defaultCalendarView: row.defaultCalendarView as CalendarView,
+    desktopNotifications: row.desktopNotifications,
+    balanceFloorCents: row.balanceFloorCents,
+    debtMonthlyPaymentCents: row.debtMonthlyPaymentCents,
     updatedAt: row.updatedAt.toISOString(),
   };
 }
@@ -68,6 +82,17 @@ export function toOccurrenceDTO(row: BillOccurrence): BillOccurrenceDTO {
     status: row.status as OccurrenceStatus,
     amountOverrideCents: row.amountOverrideCents,
     note: row.note,
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+export function toSavingsGoalDTO(row: SavingsGoal): SavingsGoalDTO {
+  return {
+    id: row.id,
+    name: row.name,
+    targetAmountCents: row.targetAmountCents,
+    targetDate: row.targetDate,
+    createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
 }

@@ -24,6 +24,9 @@ model Settings {
   forecastDays          Int      @default(90)
   weekStartsOn          Int      @default(0) // 0 = Sunday ... 6 = Saturday
   defaultCalendarView   String   @default("month") // "month" | "week"
+  desktopNotifications  Boolean  @default(true) // desktop app: notify about low balance and bills due soon (CONVENTIONS section 16)
+  balanceFloorCents     Int      @default(0) // lowest projected balance the user wants to stay above (safe-to-spend)
+  debtMonthlyPaymentCents Int    @default(50000) // total monthly payment on the Debt payoff page ($500.00 until changed)
   updatedAt             DateTime @updatedAt
 }
 
@@ -80,7 +83,9 @@ model BillOccurrence {
 
 // A SimpleFIN Bridge connection. `accessUrl` embeds the credentials (user:password in the
 // URL), so it is server-only: only src/server/simplefin.ts and the institutions repository
-// read it, and no DTO ever includes it. Stored unencrypted, like the rest of the data.
+// read it, and no DTO ever includes it. The value is encrypted at rest when possible
+// (src/server/secret-box.ts: `enc:v1:os:` desktop keystore, `enc:v1:key:` CASHFLOW_SECRET_KEY);
+// a legacy plain `https://...` value is still read and upgraded on its next sync.
 model BankConnection {
   id           String        @id @default(cuid())
   householdId  String        @default("local")
@@ -101,6 +106,12 @@ model BankAccount {
   institutionName       String // the SimpleFIN connection (bank) name
   name                  String
   kind                  String            @default("BANK") // "BANK" | "CREDIT" | "LOAN" | "OTHER"; user's label, only BANK counts toward the starting balance
+  // Credit-card fields (user-entered; SimpleFIN supplies none of them). Null for non-card accounts.
+  statementClosingDay   Int? // day of month the statement closes (1-31)
+  paymentDueDay         Int? // day of month the payment is due (1-31)
+  aprBasisPoints       Int? // APR in basis points (100 = 1.00%), e.g. 2499 = 24.99%
+  minimumPaymentRule    String? // optional issuer rule label/text; null means pay in full
+  minimumPaymentCents   Int? // real monthly minimum for the Debt payoff planner; null means use its 2% / $25 estimate
   currency              String // 3-letter code, "USD" when SimpleFIN gives a non-ISO currency
   balanceCents          Int
   availableBalanceCents Int?
@@ -149,4 +160,28 @@ model MerchantCategoryRule {
   updatedAt   DateTime @updatedAt
 
   @@unique([householdId, merchantKey])
+}
+
+model SavingsGoal {
+  id               String   @id @default(cuid())
+  householdId      String   @default("local")
+  name             String?
+  targetAmountCents Int
+  targetDate       String // YYYY-MM-DD
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([householdId])
+}
+
+// A recurring charge the user said is not a subscription, so the subscription audit stops
+// suggesting it. Keyed by the suggestion's stable `key` (see RecurringSuggestionDTO).
+model DismissedRecurring {
+  id          String   @id @default(cuid())
+  householdId String   @default("local")
+  key         String
+  createdAt   DateTime @default(now())
+
+  @@unique([householdId, key])
+  @@index([householdId])
 }
