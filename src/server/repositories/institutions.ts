@@ -2,8 +2,8 @@
  * Bank connections through SimpleFIN Bridge. Scoped by household ("local").
  *
  * The app keeps a local snapshot (accounts, balances, transactions) and only talks to
- * SimpleFIN when the user connects or presses Refresh, because SimpleFIN allows 24
- * requests/day and refreshes bank data roughly once a day. `accessUrl` holds credentials:
+ * SimpleFIN when the user connects, presses Refresh, or at the daily 4am refresh
+ * (../auto-sync), because SimpleFIN allows 24 requests/day and refreshes bank data roughly once a day. `accessUrl` holds credentials:
  * it is read only here (to hand to ../simplefin) and is never part of a DTO.
  */
 import type { BankAccount, BankConnection, BankTransaction } from "@prisma/client";
