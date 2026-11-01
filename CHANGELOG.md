@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.28.0](https://github.com/hudake4/cashflow-planner/compare/v0.27.0...v0.28.0) (2026-11-01)
+
+
+### Features
+
+* **history:** keep 400 days of bank transactions instead of 89 ([205dd93](https://github.com/hudake4/cashflow-planner/commit/205dd939abb80e7f788b6429a2723afc23bb951e))
+* **institutions:** refresh bank connections daily at 4am ([e778b5f](https://github.com/hudake4/cashflow-planner/commit/e778b5f670f91e4257e778f00844c11e9bbc07b0))
+
 ## [0.27.0](https://github.com/hudake4/cashflow-planner/compare/v0.26.0...v0.27.0) (2026-10-30)
 
 
