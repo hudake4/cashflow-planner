@@ -13,14 +13,15 @@
  *   - Secrets (setup token, access URL, password) never appear in error messages.
  */
 import { z } from "zod";
+import { HISTORY_DAYS } from "../contracts/api";
 import { addDays } from "../domain/dates";
 import { ApiError, badRequest } from "./http";
 
 const DAY_SECONDS = 86_400;
+/** Longest span one SimpleFIN request covers (they allow 90 days). Not the retention window: see HISTORY_DAYS. */
 const MAX_SPAN_DAYS = 89;
 
-/** Transactions older than this many days (counting today) are neither shown nor kept. */
-export const HISTORY_DAYS = 89;
+export { HISTORY_DAYS };
 
 /** The oldest `YYYY-MM-DD` that is still within the history window, given today's date. */
 export function historyCutoff(today: string): string {

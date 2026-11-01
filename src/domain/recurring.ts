@@ -2,9 +2,9 @@
  * Recurring-payment detection (CONVENTIONS section 12). Pure: no Prisma, no clock (today is
  * passed in), no I/O.
  *
- * Input is the stored bank history, which covers at most 89 days, so only cadences that repeat
- * inside that window can be recognised: weekly (3+ times), every 2 weeks (3+ times) and monthly
- * (2+ times). Quarterly and yearly payments never show up twice in the window.
+ * Input is the stored bank history (HISTORY_DAYS, over a year once it has built up). Only weekly
+ * (3+ times), every 2 weeks (3+ times) and monthly (2+ times) cadences are recognised; quarterly and
+ * yearly payments are not detected.
  *
  * Transactions are grouped by direction (money in / money out) and a normalised merchant name,
  * then each group is tested against the cadences. A group that matches becomes a suggestion with

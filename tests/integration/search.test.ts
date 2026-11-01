@@ -4,7 +4,7 @@ import type { SearchKind, SearchResponse, SearchResultDTO } from "@/contracts/ap
 import { call, expectApiError } from "../helpers/api";
 import { testPrisma } from "../setup/integration-setup";
 
-// Local noon: todayLocal reads the machine-local date. The 89-day window then starts 2026-07-28.
+// Local noon: todayLocal reads the machine-local date. The 400-day window then starts 2025-09-20.
 const NOW = new Date(2026, 9, 24, 12, 0, 0);
 
 const find = (q: string, extra = "") =>
@@ -290,10 +290,10 @@ describe("GET /api/search bank transactions", () => {
     expect(titles(ofKind((await find("credit union")).body, "TRANSACTION"))).toEqual(["Two", "One"]);
   });
 
-  it("only searches the 89-day history window (today counts as day one)", async () => {
+  it("only searches the 400-day history window (today counts as day one)", async () => {
     const { accountId } = await seedBank([
-      { id: "edge", date: "2026-07-28", amount: -100, description: "Windowed charge" },
-      { id: "gone", date: "2026-07-27", amount: -100, description: "Windowed charge" },
+      { id: "edge", date: "2025-09-20", amount: -100, description: "Windowed charge" },
+      { id: "gone", date: "2025-09-19", amount: -100, description: "Windowed charge" },
     ]);
     expect(ofKind((await find("windowed")).body, "TRANSACTION").map((r) => r.id)).toEqual([`${accountId}:edge`]);
   });

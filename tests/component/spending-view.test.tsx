@@ -248,7 +248,7 @@ describe("SpendingView", () => {
     await screen.findByTestId("spending-view");
 
     const coverage = screen.getByTestId("spending-coverage");
-    expect(coverage).toHaveTextContent("Based on transactions from Aug 1, 2026 to today (the app keeps the last 89 days)");
+    expect(coverage).toHaveTextContent("Based on transactions from Aug 1, 2026 to today (the app keeps the last 400 days)");
     expect(coverage).toHaveTextContent("last updated Oct 24, 2026");
     expect(screen.getByRole("link", { name: /refresh your bank/i })).toHaveAttribute("href", "/institutions");
     expect(screen.queryByTestId("spending-coverage-warning")).toBeNull();

@@ -74,11 +74,11 @@ describe("GET /api/recurring", () => {
     ]);
   });
 
-  it("ignores pending transactions and rows older than the 89-day history window", async () => {
+  it("ignores pending transactions and rows older than the 400-day history window", async () => {
     await seedBank([
       { id: "a", date: "2026-10-03", amount: -1000, description: "Gym" },
       { id: "b", date: "2026-09-03", amount: -1000, description: "Gym", pending: true },
-      { id: "c", date: "2026-07-03", amount: -1000, description: "Gym" }, // before 2026-07-28
+      { id: "c", date: "2025-09-03", amount: -1000, description: "Gym" }, // before 2025-09-20
     ]);
     const { body } = await scan();
     expect(body.transactionCount).toBe(1);

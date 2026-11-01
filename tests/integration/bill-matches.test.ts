@@ -91,11 +91,11 @@ describe("GET /api/bills/matches", () => {
     });
   });
 
-  it("ignores pending transactions and rows older than the 89-day history window", async () => {
+  it("ignores pending transactions and rows older than the 400-day history window", async () => {
     await addBill({ name: "Gym", amountCents: 1000, frequency: "MONTHLY", anchorDate: "2026-03-03" });
     await seedBank([
       { id: "a", date: "2026-10-03", amount: -1000, description: "Gym", pending: true },
-      { id: "b", date: "2026-07-03", amount: -1000, description: "Gym" }, // before 2026-07-28
+      { id: "b", date: "2025-09-03", amount: -1000, description: "Gym" }, // before 2025-09-20
     ]);
     expect((await matches()).body.matches).toEqual([]);
   });

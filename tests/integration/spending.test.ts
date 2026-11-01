@@ -132,11 +132,11 @@ describe("GET /api/spending", () => {
     expect(body.lastMonthToDateCents).toBe(6000);
   });
 
-  it("ignores pending transactions and rows older than the 89-day history window", async () => {
+  it("ignores pending transactions and rows older than the 400-day history window", async () => {
     await seedBank([
       { id: "a", date: "2026-10-03", amount: -1000, description: "KROGER" },
       { id: "b", date: "2026-10-04", amount: -1000, description: "KROGER", pending: true },
-      { id: "c", date: "2026-07-03", amount: -1000, description: "KROGER" }, // before 2026-07-28
+      { id: "c", date: "2025-09-03", amount: -1000, description: "KROGER" }, // before 2025-09-20
     ]);
     const { body } = await spending();
     expect(body.transactionCount).toBe(1);
@@ -222,7 +222,7 @@ describe("PUT /api/spending/transactions/:id/category", () => {
 
   it("prunes choices for transactions that have left the history window", async () => {
     await seed();
-    await testPrisma.transactionCategory.create({ data: { transactionId: "gone", category: "DINING", date: "2026-05-01" } });
+    await testPrisma.transactionCategory.create({ data: { transactionId: "gone", category: "DINING", date: "2025-05-01" } });
     await put(txId("s1"), { category: "TRANSPORT", applyToMerchant: false });
     expect((await testPrisma.transactionCategory.findMany()).map((r) => r.transactionId)).toEqual([txId("s1")]);
   });

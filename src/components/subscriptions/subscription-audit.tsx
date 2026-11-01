@@ -3,7 +3,7 @@
 import { Receipt, Scissors, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import type { SubscriptionAuditResponse } from "@/contracts/api";
+import { HISTORY_DAYS, type SubscriptionAuditResponse } from "@/contracts/api";
 import { api, errorMessage } from "@/lib/api-client";
 import { fmtShort, localDateOf } from "@/lib/dates";
 import { FREQUENCY_LABELS, money } from "@/lib/format";
@@ -77,7 +77,7 @@ export function SubscriptionAuditView() {
         <EmptyState
           icon={<Receipt className="h-6 w-6" />}
           title="No subscriptions found"
-          description={`Looked through ${data.transactionCount} transactions from the last 89 days. Weekly and biweekly charges need 3 sightings and monthly ones 2.`}
+          description={`Looked through ${data.transactionCount} transactions from the last ${HISTORY_DAYS} days. Weekly and biweekly charges need 3 sightings and monthly ones 2.`}
           testId="subscriptions-empty-none"
           action={
             <Button asChild variant="primary">
@@ -290,7 +290,7 @@ function SubscriptionAuditContent({
 
       <div className="space-y-2 text-xs leading-relaxed text-muted-foreground">
         <p data-testid="subscription-coverage">
-          Based on {data.transactionCount} transactions from the last 89 days
+          Based on {data.transactionCount} transactions from the last {HISTORY_DAYS} days
           {data.lastSyncedAt ? ` · last updated ${fmtShort(localDateOf(data.lastSyncedAt))}` : ""}
         </p>
         <Link href="/institutions" className="font-semibold text-brand-700 underline">
