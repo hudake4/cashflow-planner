@@ -159,7 +159,7 @@ describe("estimateBillAmount: seasonal", () => {
     expect(out.estimate).toMatchObject({ method: "ROLLING" });
   });
 
-  it("is never used for a short history (the 89-day window), whatever the month", () => {
+  it("is never used for a short history, whatever the month", () => {
     const out = run(history.slice(2), { dueDate: "2026-12-15" });
     expect(out.estimate).toMatchObject({ method: "ROLLING", amountCents: 19000, periodCount: 2 });
   });

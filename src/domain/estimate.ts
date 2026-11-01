@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Suggested amount for a variable bill, from the stored bank history (CONVENTIONS section 15).
  * Pure: no Prisma, no clock (today is passed in), no I/O.
  *
@@ -97,7 +97,7 @@ export function estimateBillAmount(input: EstimateInput): EstimateResult {
   // A period still in progress, or cut off by the start of the history, would understate the bill.
   const complete = [...periods.values()].filter((p) => p.start >= historyStart && p.end < today).sort((a, b) => (a.start < b.start ? -1 : 1));
 
-  // Seasonal: the same calendar month in an earlier year (only reachable if history is kept longer than 89 days).
+  // Seasonal: the same calendar month in an earlier year (reachable once the stored history spans a year).
   if (frequency === "MONTHLY") {
     const dueMonth = dueDate.slice(5, 7);
     const dueYear = dueDate.slice(0, 4);

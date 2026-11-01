@@ -107,6 +107,14 @@ export const MIN_FORECAST_DAYS = 7;
 export const MAX_FORECAST_DAYS = 366;
 export const DEFAULT_FORECAST_DAYS = 90;
 
+/**
+ * Bank transactions older than this many days (counting today) are neither shown nor kept. More than a
+ * year, so a bill's same month of the previous year is always fully inside it (seasonal estimates)
+ * and a yearly payment can be seen twice. SimpleFIN only serves ~90 days per request, so the stored
+ * history grows from the first sync after a change; it is never back-filled.
+ */
+export const HISTORY_DAYS = 400;
+
 export const STARTING_BALANCE_SOURCES = ["MANUAL", "ACCOUNTS"] as const;
 export const startingBalanceSourceSchema = z.enum(STARTING_BALANCE_SOURCES, {
   errorMap: () => ({ message: "Starting balance source must be manual or accounts" }),
@@ -592,7 +600,10 @@ export interface BankTransactionsResponse {
 // Recurring-payment scan (reads the stored bank transactions; never calls SimpleFIN)
 // ---------------------------------------------------------------------------
 
-/** Frequencies the scan can recognise in the 89-day history window (quarterly/yearly can't repeat within it). */
+/**
+ * Frequencies the scan recognises. The history window is long enough to hold quarterly and yearly
+ * payments, but they are not detected yet.
+ */
 export const RECURRING_FREQUENCIES = ["WEEKLY", "BIWEEKLY", "MONTHLY"] as const;
 export type RecurringFrequency = (typeof RECURRING_FREQUENCIES)[number];
 

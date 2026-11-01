@@ -3,7 +3,7 @@
  * never calls SimpleFIN. Rows are loaded for the household and matched in JavaScript with the
  * pure helpers in domain/search, so accents, case and the ranking rules are the same for
  * every group (and `%` or `_` in a query are plain characters, not wildcards). The data is
- * small: a few hundred schedules and the 89-day bank history.
+ * small: a few hundred schedules and the bank history (HISTORY_DAYS, a few thousand rows).
  */
 import type { AccountKind, SearchResponse, SearchResultDTO } from "../../contracts/api";
 import { todayLocal } from "../../domain/dates";

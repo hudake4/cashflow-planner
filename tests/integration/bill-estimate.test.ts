@@ -6,7 +6,7 @@ import type { BillEstimateDTO } from "@/contracts/api";
 import { call, expectApiError } from "../helpers/api";
 import { testPrisma } from "../setup/integration-setup";
 
-// Local noon: todayLocal reads the machine-local date. History window starts 2026-07-28.
+// Local noon: todayLocal reads the machine-local date. History window starts 2025-09-20.
 const NOW = new Date(2026, 9, 24, 12, 0, 0);
 
 const createBill = async (over: object = {}) =>
@@ -50,12 +50,27 @@ describe("GET /api/bills/:id/estimate", () => {
       { id: "e1", date: "2026-08-12", amount: -8000, description: "CITY ELECTRIC 1111" },
       { id: "e2", date: "2026-09-12", amount: -10000, description: "CITY ELECTRIC 2222" },
       { id: "e3", date: "2026-09-13", amount: -99999, description: "CITY ELECTRIC pending", pending: true },
-      { id: "e4", date: "2026-07-12", amount: -99999, description: "CITY ELECTRIC old" }, // outside the 89 days
+      { id: "e4", date: "2025-09-12", amount: -99999, description: "CITY ELECTRIC old" }, // outside the 400 days
       { id: "k1", date: "2026-09-12", amount: -5000, description: "KROGER" },
     ]);
     const res = await estimate(bill.id, "?date=2026-11-15");
     expect(res.body).toEqual({
       estimate: { amountCents: 9000, method: "ROLLING", periodCount: 2, firstDate: "2026-08-12", lastDate: "2026-09-12" },
+      reason: null,
+      currency: "USD",
+    });
+  });
+
+  it("uses the same month of the previous year now that the history is longer than a year", async () => {
+    const bill = await createBill();
+    await seedBank([
+      { id: "e0", date: "2025-11-12", amount: -12000, description: "CITY ELECTRIC 0000" },
+      { id: "e1", date: "2026-08-12", amount: -8000, description: "CITY ELECTRIC 1111" },
+      { id: "e2", date: "2026-09-12", amount: -10000, description: "CITY ELECTRIC 2222" },
+    ]);
+    const res = await estimate(bill.id, "?date=2026-11-15");
+    expect(res.body).toEqual({
+      estimate: { amountCents: 12000, method: "SEASONAL", periodCount: 1, firstDate: "2025-11-12", lastDate: "2025-11-12" },
       reason: null,
       currency: "USD",
     });

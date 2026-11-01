@@ -242,10 +242,10 @@ describe("syncing", () => {
     expect(await testPrisma.bankTransaction.count({ where: { accountId: acc } })).toBe(4);
   });
 
-  it("prunes stored transactions older than 89 days, whatever the bank returns", async () => {
-    // 2026-07-28 is the oldest day inside the window on 2026-10-24 (89 days, counting today).
+  it("prunes stored transactions older than 400 days, whatever the bank returns", async () => {
+    // 2025-09-20 is the oldest day inside the window on 2026-10-24 (400 days, counting today).
     mocked.fetchAccountSet.mockResolvedValue(
-      accountSet([tx("old", "2026-07-27", "-1.00"), tx("edge", "2026-07-28", "-2.00"), tx("new", "2026-10-20", "-3.00")]),
+      accountSet([tx("old", "2025-09-19", "-1.00"), tx("edge", "2025-09-20", "-2.00"), tx("new", "2026-10-20", "-3.00")]),
     );
     const first = await connect({ setupToken: SETUP_TOKEN }, NOW);
     const acc = `${first.id}:a1`;
@@ -514,13 +514,13 @@ describe("transactions", () => {
     expect(res.body.hasMore).toBe(false);
   });
 
-  it("only lists the last 89 days, even for rows already stored", async () => {
+  it("only lists the last 400 days, even for rows already stored", async () => {
     const created = await postConnect();
     const acc = created.body.accounts[0].id;
     await testPrisma.bankTransaction.createMany({
       data: [
-        { id: `${acc}:old`, accountId: acc, date: "2026-07-27", amountCents: -100, description: "Too old", pending: false },
-        { id: `${acc}:edge`, accountId: acc, date: "2026-07-28", amountCents: -200, description: "Oldest shown", pending: false },
+        { id: `${acc}:old`, accountId: acc, date: "2025-09-19", amountCents: -100, description: "Too old", pending: false },
+        { id: `${acc}:edge`, accountId: acc, date: "2025-09-20", amountCents: -200, description: "Oldest shown", pending: false },
       ],
     });
     const res = await getTx(created.body.id, `accountId=${encodeURIComponent(acc)}`);

@@ -3,7 +3,7 @@
 import { CircleCheck, Landmark, ScanSearch } from "lucide-react";
 import Link from "next/link";
 import { useRef, useState } from "react";
-import type { BillInput, IncomeInput, RecurringScanResponse, RecurringSuggestionDTO } from "@/contracts/api";
+import { HISTORY_DAYS, type BillInput, type IncomeInput, type RecurringScanResponse, type RecurringSuggestionDTO } from "@/contracts/api";
 import { ApiError, api, errorMessage } from "@/lib/api-client";
 import { fmtDate, fmtShort } from "@/lib/dates";
 import { FREQUENCY_LABELS } from "@/lib/format";
@@ -149,7 +149,7 @@ export function RecurringScanButton({ onAdded, className }: { onAdded?: () => vo
           <div className="flex flex-col gap-2 text-sm text-muted-foreground" data-testid="recurring-none">
             <p className="font-semibold text-foreground">Nothing new found.</p>
             <p>
-              Looked through {result?.transactionCount ?? 0} transactions from the last 89 days
+              Looked through {result?.transactionCount ?? 0} transactions from the last {HISTORY_DAYS} days
               {result?.lastSyncedAt ? ` (last updated ${fmtShort(result.lastSyncedAt.slice(0, 10))})` : ""} and every
               repeating payment is already a bill or income. Weekly payments need 3 sightings and monthly ones 2.
             </p>
