@@ -5,7 +5,7 @@ import { ScenarioDialog } from "@/components/scenario/scenario-dialog";
 import type { BillDTO, IncomeDTO } from "@/contracts/api";
 
 const bills: BillDTO[] = [
-  { id: "b1", name: "Rent", amountCents: 20000, frequency: "MONTHLY", anchorDate: "2025-01-10", endDate: null, category: null, notes: null, active: true, createdAt: "x", updatedAt: "x" },
+  { id: "b1", name: "Rent", amountCents: 20000, frequency: "MONTHLY", anchorDate: "2025-01-10", endDate: null, category: null, notes: null, active: true, variableAmount: false, createdAt: "x", updatedAt: "x" },
 ];
 const incomes: IncomeDTO[] = [
   { id: "i1", name: "Pay", amountCents: 50000, frequency: "BIWEEKLY", anchorDate: "2025-01-03", endDate: null, active: true, notes: null, createdAt: "x", updatedAt: "x" },

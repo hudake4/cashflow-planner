@@ -67,6 +67,7 @@ export async function estimateAndUpsertCardBill(accountId: string, variableSpend
     category: "Credit card",
     notes: marker,
     active: true,
+    variableAmount: false, // a one-time estimate, re-made on each estimate request
   };
 
   let billId: string;

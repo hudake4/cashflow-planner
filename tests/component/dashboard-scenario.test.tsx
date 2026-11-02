@@ -44,7 +44,7 @@ const fullSettings = (): SettingsDTO => ({
 });
 
 const bills: BillDTO[] = [
-  { id: "gym", name: "Gym", amountCents: 1000, frequency: "WEEKLY", anchorDate: "2025-01-01", endDate: null, category: null, notes: null, active: true, createdAt: "x", updatedAt: "x" },
+  { id: "gym", name: "Gym", amountCents: 1000, frequency: "WEEKLY", anchorDate: "2025-01-01", endDate: null, category: null, notes: null, active: true, variableAmount: false, createdAt: "x", updatedAt: "x" },
 ];
 const incomes: IncomeDTO[] = [
   { id: "pay", name: "Paycheck", amountCents: 50000, frequency: "WEEKLY", anchorDate: "2025-01-03", endDate: null, active: true, notes: null, createdAt: "x", updatedAt: "x" },

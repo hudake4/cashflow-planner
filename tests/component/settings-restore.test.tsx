@@ -22,7 +22,7 @@ const backup: DataExportDTO = {
   format: "cashflow-planner-export", formatVersion: 1, appVersion: "1.0.0", exportedAt: "2026-10-24T15:00:00.000Z",
   settings: { ...SETTINGS, updatedAt: null },
   incomes: [{ id: "paycheck", name: "Paycheck", amountCents: 120000, frequency: "BIWEEKLY", anchorDate: "2026-10-30", endDate: null, active: true, notes: null, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" }],
-  bills: [{ id: "rent", name: "Rent", amountCents: 90000, frequency: "MONTHLY", anchorDate: "2026-10-01", endDate: null, category: "Housing", notes: null, active: true, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" }],
+  bills: [{ id: "rent", name: "Rent", amountCents: 90000, frequency: "MONTHLY", anchorDate: "2026-10-01", endDate: null, category: "Housing", notes: null, active: true, variableAmount: false, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" }],
   billOccurrences: [], institutions: [],
 };
 

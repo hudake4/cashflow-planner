@@ -461,6 +461,7 @@ function DashboardContent({ d, scenarioDashboard }: { d: DashboardResponse; scen
                         {fmtDate(b.date, "EEEE")}
                         {b.status === "PAID" && <Badge tone="positive">Paid</Badge>}
                         {b.amountOverridden && <Badge tone="info">Adjusted</Badge>}
+                        {b.amountEstimated && <Badge tone="warning">Estimate</Badge>}
                       </p>
                     </div>
                     <div className="text-right">

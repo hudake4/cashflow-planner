@@ -31,6 +31,7 @@ const DETECTED: RecurringSuggestionDTO = {
   occurrences: 2,
   seenDates: ["2026-09-03", "2026-10-03"],
   amountVaries: false,
+  cardPayment: false,
 };
 
 const INCOME: RecurringSuggestionDTO = { ...DETECTED, key: "INCOME:acme", kind: "INCOME", name: "Acme Payroll" };
@@ -45,6 +46,7 @@ const TRACKED: BillDTO = {
   category: null,
   notes: null,
   active: true,
+  variableAmount: false,
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
 };

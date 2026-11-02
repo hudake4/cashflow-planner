@@ -28,7 +28,7 @@ describe("POST /api/data/restore", () => {
   it("round-trips stored settings, income, bills and occurrences", async () => {
     await testPrisma.settings.create({ data: { householdId: "local", startingBalanceCents: -23000, startingBalanceSource: "MANUAL", projectionStartDate: "2026-10-20", currency: "CAD", forecastDays: 120, weekStartsOn: 1, defaultCalendarView: "week", debtMonthlyPaymentCents: 87500 } });
     await testPrisma.incomeSource.create({ data: { id: "income-roundtrip", householdId: "local", name: "Paycheck", amountCents: 100000, frequency: "BIWEEKLY", anchorDate: "2026-10-30", createdAt: new Date("2026-01-01T00:00:00Z") } });
-    await testPrisma.bill.create({ data: { id: "bill-roundtrip", householdId: "local", name: "Rent", amountCents: 90000, frequency: "MONTHLY", anchorDate: "2026-10-01", createdAt: new Date("2026-02-01T00:00:00Z") } });
+    await testPrisma.bill.create({ data: { id: "bill-roundtrip", householdId: "local", name: "Rent", amountCents: 90000, frequency: "MONTHLY", anchorDate: "2026-10-01", variableAmount: true, createdAt: new Date("2026-02-01T00:00:00Z") } });
     await testPrisma.billOccurrence.create({ data: { billId: "bill-roundtrip", dueDate: "2026-10-01", status: "PAID", amountOverrideCents: 88000, note: "sent", updatedAt: new Date("2026-10-02T00:00:00Z") } });
     const original = await exported();
 
@@ -42,6 +42,7 @@ describe("POST /api/data/restore", () => {
     expect(restored.settings).toMatchObject({ startingBalanceCents: -23000, startingBalanceSource: "MANUAL", projectionStartDate: "2026-10-20", currency: "CAD", forecastDays: 120, weekStartsOn: 1, defaultCalendarView: "week", debtMonthlyPaymentCents: 87500 });
     expect(restored.incomes).toEqual(original.incomes);
     expect(restored.bills).toEqual(original.bills);
+    expect(restored.bills[0].variableAmount).toBe(true); // the flag survives the round trip
     expect(restored.billOccurrences).toEqual(original.billOccurrences);
   });
 
@@ -59,6 +60,7 @@ describe("POST /api/data/restore", () => {
     for (const institution of legacy.institutions) {
       for (const account of institution.accounts) delete (account as { kind?: unknown }).kind;
     }
+    for (const bill of legacy.bills) delete (bill as { variableAmount?: unknown }).variableAmount;
 
     expect(await call(restoreRoute.POST, "POST", "/api/data/restore", { body: legacy })).toMatchObject({ status: 200, body: { ok: true } });
     const restored = await exported();
@@ -66,7 +68,7 @@ describe("POST /api/data/restore", () => {
     expect(restored.incomes).toHaveLength(1);
     expect(restored.incomes[0]).toMatchObject({ id: "income-v012", name: "Paycheck" });
     expect(restored.bills).toHaveLength(1);
-    expect(restored.bills[0]).toMatchObject({ id: "bill-v012", name: "Rent" });
+    expect(restored.bills[0]).toMatchObject({ id: "bill-v012", name: "Rent", variableAmount: false });
     expect(restored.billOccurrences).toHaveLength(1);
     expect(restored.billOccurrences[0]).toMatchObject({ billId: "bill-v012", status: "PAID" });
   });

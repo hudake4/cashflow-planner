@@ -18,7 +18,7 @@ const NOTE = "Found in your bank history.";
 
 function toInput(s: RecurringSuggestionDTO): BillInput | IncomeInput {
   const base = { name: s.name, amountCents: s.amountCents, frequency: s.frequency, anchorDate: s.nextDate, endDate: null, notes: NOTE, active: true };
-  return s.kind === "BILL" ? { ...base, category: null } : base;
+  return s.kind === "BILL" ? { ...base, category: null, variableAmount: s.cardPayment } : base;
 }
 
 /**
@@ -133,7 +133,12 @@ export function RecurringScanButton({ onAdded, className }: { onAdded?: () => vo
                 {current.seenDates.length}× ({current.seenDates.map((d) => fmtDate(d, "MMM d")).join(", ")})
               </dd>
             </dl>
-            {current.amountVaries && (
+            {current.cardPayment ? (
+              <p className="text-xs text-muted-foreground" data-testid="recurring-card-note">
+                Looks like a credit card payment. Only the date is predicted: the amount shown is the latest payment, and you enter each
+                statement as it arrives.
+              </p>
+            ) : current.amountVaries && (
               <p className="text-xs text-muted-foreground">The amount changed a little between occurrences; this uses the latest.</p>
             )}
           </div>

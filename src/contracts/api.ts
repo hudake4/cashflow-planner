@@ -245,6 +245,8 @@ export const billInputSchema = z
     category: optionalText(40, "Category"),
     notes: optionalText(500, "Notes"),
     active: z.boolean().default(true),
+    /** Amount changes every cycle (a credit card statement): `amountCents` is only the first estimate. */
+    variableAmount: z.boolean().default(false),
   })
   .refine((v) => !v.endDate || v.endDate >= v.anchorDate, {
     path: ["endDate"],
@@ -262,6 +264,7 @@ export interface BillDTO {
   category: string | null;
   notes: string | null;
   active: boolean;
+  variableAmount: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -332,6 +335,8 @@ export interface LedgerEvent {
   included: boolean;
   /** True when amountCents comes from a per-occurrence override. */
   amountOverridden: boolean;
+  /** True when a variable-amount bill has no amount for this date yet, so amountCents is the previous one (an estimate). */
+  amountEstimated: boolean;
   /** Global chronological position (0-based) in the projection ledger. */
   sequence: number;
   /** Running balance immediately after this event. */
@@ -625,6 +630,8 @@ export interface RecurringSuggestionDTO {
   seenDates: string[];
   /** True when the amounts differ noticeably between occurrences (the amount shown is the latest). */
   amountVaries: boolean;
+  /** A payment to a credit card: only the date is predicted, and it becomes a variable-amount bill. */
+  cardPayment: boolean;
 }
 
 export interface RecurringScanResponse {
@@ -777,6 +784,8 @@ const billDTOSchema = z.object({
   category: z.string().nullable(),
   notes: z.string().nullable(),
   active: z.boolean(),
+  // Backups made before the flag existed have no value: they restore as ordinary bills.
+  variableAmount: z.boolean().default(false),
   createdAt: timestampSchema,
   updatedAt: timestampSchema,
 });

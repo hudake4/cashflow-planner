@@ -231,6 +231,7 @@ function EventDetailBody({
             {status === "UPCOMING" && <Badge tone="info">Upcoming</Badge>}
             {status === "SCHEDULED" && <Badge tone="info">Scheduled</Badge>}
             {event.amountOverridden && <Badge tone="warning">Amount adjusted</Badge>}
+            {event.amountEstimated && <Badge tone="warning">Estimate</Badge>}
           </dd>
         </div>
         {event.category && (
@@ -299,16 +300,20 @@ function EventDetailBody({
 
           <form onSubmit={saveOverride} noValidate className="space-y-2 pt-2">
             <Field
-              label="Amount for this date only"
-              optional
-              hint="For variable bills. Other dates keep the default amount."
+              label={event.amountEstimated ? "Statement amount" : "Amount for this date only"}
+              optional={!event.amountEstimated}
+              hint={
+                event.amountEstimated
+                  ? "Not entered yet, so the last amount is counted as an estimate. Enter this statement to replace it."
+                  : "For variable bills. Other dates keep the default amount."
+              }
               error={overrideError}
               testId="occurrence-override"
             >
               <MoneyInput
                 value={override}
                 onChange={(e) => setOverride(e.target.value)}
-                placeholder="Default amount"
+                placeholder={event.amountEstimated ? centsToInputValue(event.amountCents) : "Default amount"}
                 prefix={currency === "USD" ? "$" : currency}
                 data-testid="occurrence-override"
               />

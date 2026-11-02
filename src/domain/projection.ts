@@ -21,7 +21,7 @@ import { generateOccurrences } from "./recurrence";
 export interface ProjectionInput {
   settings: Pick<SettingsDTO, "startingBalanceCents" | "projectionStartDate" | "forecastDays" | "weekStartsOn" | "currency">;
   incomes: Pick<IncomeDTO, "id" | "name" | "amountCents" | "frequency" | "anchorDate" | "endDate" | "active">[];
-  bills: Pick<BillDTO, "id" | "name" | "amountCents" | "frequency" | "anchorDate" | "endDate" | "active" | "category">[];
+  bills: Pick<BillDTO, "id" | "name" | "amountCents" | "frequency" | "anchorDate" | "endDate" | "active" | "category" | "variableAmount">[];
   occurrences: Pick<BillOccurrenceDTO, "billId" | "dueDate" | "status" | "amountOverrideCents">[];
   from?: string;
   to?: string;
@@ -111,6 +111,7 @@ function incomeEvents(input: ProjectionInput, from: string, to: string): DraftEv
         status: "SCHEDULED" as const,
         included: true,
         amountOverridden: false,
+        amountEstimated: false,
       })),
     );
 }
@@ -121,6 +122,16 @@ function incomeEvents(input: ProjectionInput, from: string, to: string): DraftEv
  */
 function billEvents(input: ProjectionInput, from: string, to: string): DraftEvent[] {
   const statusByKey = new Map(input.occurrences.map((o) => [`${o.billId}:${o.dueDate}`, o]));
+  // Entered amounts per bill, oldest first: a variable bill with no amount yet borrows the latest earlier one.
+  const enteredByBill = new Map<string, { dueDate: string; amountCents: number }[]>();
+  for (const o of input.occurrences) {
+    if (o.amountOverrideCents === null) continue;
+    const list = enteredByBill.get(o.billId) ?? [];
+    list.push({ dueDate: o.dueDate, amountCents: o.amountOverrideCents });
+    enteredByBill.set(o.billId, list);
+  }
+  for (const list of enteredByBill.values()) list.sort((a, b) => compareStrings(a.dueDate, b.dueDate));
+
   return input.bills
     .filter((bill) => bill.active)
     .flatMap((bill) =>
@@ -128,7 +139,9 @@ function billEvents(input: ProjectionInput, from: string, to: string): DraftEven
         const occ = statusByKey.get(`${bill.id}:${date}`);
         const status = occ?.status ?? "UPCOMING";
         const override = occ?.amountOverrideCents ?? null;
-        const amountCents = override ?? bill.amountCents;
+        const amountEstimated = bill.variableAmount && override === null;
+        const earlier = amountEstimated ? enteredByBill.get(bill.id)?.filter((e) => e.dueDate < date).pop() : undefined;
+        const amountCents = override ?? earlier?.amountCents ?? bill.amountCents;
         const included = status !== "SKIPPED";
         return {
           id: `BILL:${bill.id}:${date}`,
@@ -143,6 +156,7 @@ function billEvents(input: ProjectionInput, from: string, to: string): DraftEven
           status,
           included,
           amountOverridden: override !== null,
+          amountEstimated,
         };
       }),
     );

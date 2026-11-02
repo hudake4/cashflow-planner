@@ -36,7 +36,7 @@ Errors always use this shape (`ApiErrorBody`):
 | Method | Path | Body | Response |
 |---|---|---|---|
 | GET | `/api/bills` | — | `BillDTO[]` (sorted by name) |
-| POST | `/api/bills` | `BillInput` | `201 BillDTO` |
+| POST | `/api/bills` | `BillInput`. `variableAmount` (boolean, default `false`) marks a bill whose amount changes every cycle, such as a credit card statement; see CONVENTIONS section 5. | `201 BillDTO` |
 | GET | `/api/bills/:id` | — | `BillDTO` / 404 |
 | PUT | `/api/bills/:id` | `BillInput` (full replacement; never touches occurrence rows) | `BillDTO` / 404 |
 | DELETE | `/api/bills/:id` | — | `204` / 404 (cascades occurrence rows) |
@@ -116,7 +116,7 @@ Finds repeating payments and deposits in the stored bank transactions and sugges
 
 | Method | Path | Body / query | Response |
 |---|---|---|---|
-| GET | `/api/recurring` | — | `RecurringScanResponse` `{ suggestions, currency, connectionCount, transactionCount, lastSyncedAt }`. Each suggestion is a `RecurringSuggestionDTO`: `key`, `kind` (`INCOME` or `BILL`), `name`, `amountCents` (positive, latest occurrence), `frequency` (`WEEKLY`, `BIWEEKLY` or `MONTHLY`), `nextDate` (YYYY-MM-DD, first expected date on or after today), `occurrences`, `seenDates` and `amountVaries`. Suggestions already tracked as bills or income are left out. Only accounts labelled `BANK` are read, so `transactionCount` leaves out card, loan and other accounts. |
+| GET | `/api/recurring` | — | `RecurringScanResponse` `{ suggestions, currency, connectionCount, transactionCount, lastSyncedAt }`. Each suggestion is a `RecurringSuggestionDTO`: `key`, `kind` (`INCOME` or `BILL`), `name`, `amountCents` (positive, latest occurrence), `frequency` (`WEEKLY`, `BIWEEKLY` or `MONTHLY`), `nextDate` (YYYY-MM-DD, first expected date on or after today), `occurrences`, `seenDates`, `amountVaries` and `cardPayment` (a monthly payment to a credit card: the date is predicted whatever the amounts, and adding it creates a `variableAmount` bill). Suggestions already tracked as bills or income are left out. Only accounts labelled `BANK` are read, so `transactionCount` leaves out card, loan and other accounts. |
 
 Adding a suggestion uses the existing `POST /api/bills` or `POST /api/income`, with the notes "Found in your bank history."
 

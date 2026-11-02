@@ -25,8 +25,8 @@ export async function restoreData(prisma: PrismaClient, data: DataRestoreInput):
       })),
     });
     await tx.bill.createMany({
-      data: data.bills.map(({ id, name, amountCents, frequency, anchorDate, endDate, category, notes, active, createdAt, updatedAt }) => ({
-        id, householdId: HOUSEHOLD_ID, name, amountCents, frequency, anchorDate, endDate, category, notes, active,
+      data: data.bills.map(({ id, name, amountCents, frequency, anchorDate, endDate, category, notes, active, variableAmount, createdAt, updatedAt }) => ({
+        id, householdId: HOUSEHOLD_ID, name, amountCents, frequency, anchorDate, endDate, category, notes, active, variableAmount,
         createdAt: new Date(createdAt), updatedAt: new Date(updatedAt),
       })),
     });

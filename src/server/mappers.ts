@@ -70,6 +70,7 @@ export function toBillDTO(row: Bill): BillDTO {
     category: row.category,
     notes: row.notes,
     active: row.active,
+    variableAmount: row.variableAmount,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

@@ -30,6 +30,7 @@ const EVENT: LedgerEvent = {
   status: "UPCOMING",
   included: true,
   amountOverridden: false,
+  amountEstimated: false,
   sequence: 0,
   balanceAfterCents: 100000,
 };

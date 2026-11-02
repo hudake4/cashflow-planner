@@ -454,3 +454,42 @@ describe("21. randomized invariants", () => {
     }
   });
 });
+
+describe("variable-amount bills (credit card statements)", () => {
+  const card = bill("card", 30000, "MONTHLY", "2025-01-10", { variableAmount: true });
+
+  it("an unentered statement counts the bill's own amount and is flagged as an estimate", () => {
+    const p = run({ bills: [card] });
+    expect(p.events.map((e) => [e.amountCents, e.amountEstimated])).toEqual([
+      [30000, true],
+      [30000, true],
+      [30000, true],
+    ]);
+    expect(p.totals.endingBalanceCents).toBe(100000 - 3 * 30000);
+  });
+
+  it("later dates borrow the latest amount the user entered, and stop being estimates once entered", () => {
+    const p = run({ bills: [card], occurrences: [occ("card", "2025-01-10", "UPCOMING", 45000), occ("card", "2025-02-10", "PAID", 52000)] });
+    expect(p.events.map((e) => [e.date, e.amountCents, e.amountOverridden, e.amountEstimated])).toEqual([
+      ["2025-01-10", 45000, true, false],
+      ["2025-02-10", 52000, true, false],
+      ["2025-03-10", 52000, false, true],
+    ]);
+  });
+
+  it("an amount entered for a later date never changes an earlier one", () => {
+    const p = run({ bills: [card], occurrences: [occ("card", "2025-03-10", "UPCOMING", 70000)] });
+    expect(p.events.map((e) => e.amountCents)).toEqual([30000, 30000, 70000]);
+  });
+
+  it("a skipped statement still hands its amount to the next estimate", () => {
+    const p = run({ bills: [card], occurrences: [occ("card", "2025-01-10", "SKIPPED", 45000)] });
+    expect(p.events[0]).toMatchObject({ included: false, signedAmountCents: 0 });
+    expect(p.events[1]).toMatchObject({ amountCents: 45000, amountEstimated: true });
+  });
+
+  it("an ordinary bill is never an estimate", () => {
+    const p = run({ bills: [bill("rent", 20000, "MONTHLY", "2025-01-10")] });
+    expect(p.events.every((e) => !e.amountEstimated)).toBe(true);
+  });
+});
