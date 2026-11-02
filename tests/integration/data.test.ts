@@ -42,12 +42,16 @@ describe("data management", () => {
 
   it("POST /api/data/reset deletes everything and restores default settings", async () => {
     await post(demo.POST);
+    await testPrisma.savingsGoal.create({ data: { name: "Trip", targetAmountCents: 50_000, targetDate: "2027-06-01" } });
+    await testPrisma.dismissedRecurring.create({ data: { key: "netflix" } });
     const res = await post(reset.POST);
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ok: true });
     expect((await call(incomeList.GET, "GET", "/api/income")).body).toEqual([]);
     expect((await call(billList.GET, "GET", "/api/bills")).body).toEqual([]);
     expect(await testPrisma.billOccurrence.count()).toBe(0);
+    expect(await testPrisma.savingsGoal.count()).toBe(0);
+    expect(await testPrisma.dismissedRecurring.count()).toBe(0);
     const s = (await call(settingsRoute.GET, "GET", "/api/settings")).body;
     expect(s).toMatchObject({ startingBalanceCents: 0, projectionStartDate: todayLocal(), updatedAt: null });
   });
