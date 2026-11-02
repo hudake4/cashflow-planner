@@ -20,7 +20,7 @@ Errors always use this shape (`ApiErrorBody`):
 | Method | Path | Body | Response |
 |---|---|---|---|
 | GET | `/api/settings` | — | `SettingsDTO`. Returns defaults when never saved: balance 0, start = today, USD, 90 days, Sunday, month, desktop notifications on, debt payoff monthly payment `debtMonthlyPaymentCents: 50000` ($500.00), `updatedAt: null`. `startingBalanceCents` and `projectionStartDate` are the values as stored (what the user typed). `accountsBalanceCents`, `accountCount`, `accountsBalanceDate` and `accountsStaleCount` are derived from the accounts labelled `BANK` and are never stored: the total, the count, the oldest `balanceDate` among the accounts refreshed in the last 7 days (the oldest overall when none is that fresh, never later than the server's local today; `null` when there are no accounts) and how many accounts were left out of that date as stale (their balance is still in the total; `0` when none, or when all are equally stale). With `startingBalanceSource: "ACCOUNTS"` and at least one `BANK` account, the projection starts from the total on `accountsBalanceDate`; otherwise from the typed balance on `projectionStartDate`. |
-| PUT | `/api/settings` | `SettingsInput` (full object) | `SettingsDTO`. `desktopNotifications` (boolean) is optional and defaults to `true` when omitted. `debtMonthlyPaymentCents` (integer cents, 0 to 1,000,000,000) is optional; when omitted the stored value is left alone (the Settings form doesn't edit it), so this is never reset by a save of the other settings. |
+| PUT | `/api/settings` | `SettingsInput` (full object) | `SettingsDTO`. `desktopNotifications` (boolean) is optional and defaults to `true` when omitted. `balanceFloorCents` (integer cents, may be 0 or negative) is optional and defaults to `0` when omitted, so a save that leaves it out resets the floor; the Settings form always sends it. `debtMonthlyPaymentCents` (integer cents, 0 to 1,000,000,000) is optional; when omitted the stored value is left alone (the Settings form doesn't edit it), so this is never reset by a save of the other settings. |
 | PATCH | `/api/settings` | `{ debtMonthlyPaymentCents }` | `SettingsDTO`. Changes only the listed setting; the Debt payoff page saves its total monthly payment this way. Creates the settings row from the defaults when none was saved yet. 400 `VALIDATION_ERROR` for a missing, negative, non-integer or oversized value. |
 
 ## Income
@@ -57,6 +57,24 @@ Projection slicing details:
 - `sequence` and `balanceAfterCents` are global (computed from `projectionStartDate`), so they are identical across different slices.
 - `totals.lowestBalanceDate`: the range's opening balance counts as the first day's value, and ties pick the earliest date. `firstNegativeDate` is the first day of the range when the opening balance is already negative.
 
+### What-if scenarios
+Scenario endpoints compute the same `ProjectionResponse` / `DashboardResponse` as the plain ones, after applying temporary changes to the stored income and bills in memory. **Nothing is saved.** Each is both a POST (JSON body) and a GET (query string).
+
+| Method | Path | Body / query | Response |
+|---|---|---|---|
+| POST | `/api/projection/scenario` | JSON `{ scenario \| scenarios, from?, to? }`. `scenario` / `scenarios` is one `ScenarioInput` or an array of them; when both are missing the body itself is read as the scenario. `from` / `to` are YYYY-MM-DD, with the same clamping as `/api/projection` (an empty value is treated as missing). | `ProjectionResponse` for the changed data. |
+| GET | `/api/projection/scenario` | `scenario` (or `scenarios`, required): the scenario JSON, or the same JSON base64-encoded; `from?`, `to?`. | `ProjectionResponse`. 400 `BAD_REQUEST` when `scenario` is missing. |
+| POST | `/api/dashboard/scenario` | JSON `{ scenario \| scenarios, today? }` (`today` is YYYY-MM-DD, default the server's local today). | `DashboardResponse` for the changed data. Its `safeToSpendCents` still accounts for the saved savings goals. |
+| GET | `/api/dashboard/scenario` | `scenario` (or `scenarios`, required) as above, `today?`. | `DashboardResponse`. 400 `BAD_REQUEST` when `scenario` is missing. |
+
+`GET /api/projection` and `GET /api/dashboard` accept the same `scenario` / `scenarios` query parameter (JSON or base64 JSON; the dashboard also takes `today`) and then behave like the matching `/scenario` GET. Without it they are the plain endpoints above.
+
+A `ScenarioInput` is `{ kind, name?, amountCents?, amount?, date?, frequency?, id? }` (`ScenarioInput` in `src/contracts/api.ts`; unknown extra fields are passed through and ignored). `kind` is one of:
+- `ADD_BILL` / `ADD_INCOME`: adds a temporary bill or income named `name` (default "Scenario bill" / "Scenario income", at most 80 characters). The amount is `amountCents`, or `amount` as an alias (positive integer cents, at most 1,000,000,000). The first date is `date`, or the aliases `dueDate`, `anchorDate` or `onDate`. `frequency` is case-insensitive; a bill takes `ONE_TIME`, `WEEKLY`, `BIWEEKLY`, `MONTHLY`, `QUARTERLY` or `YEARLY`, income takes `ONE_TIME`, `WEEKLY`, `BIWEEKLY` or `MONTHLY`. Anything else, or no `frequency`, is treated as `ONE_TIME`. The added item never ends.
+- `REMOVE_BILL` / `REMOVE_INCOME`: removes the stored bill or income whose id is `id`, or the aliases `sourceId`, `billId`, `incomeId`, `targetId` or `removeId` (the first one present is used). Removing a bill also drops its recorded occurrences. An id that matches nothing, or none at all, changes nothing.
+
+An array is applied in order. 400 `VALIDATION_ERROR` for a bad `kind`, amount (zero, negative, fractional, too large), date or name; 400 `BAD_REQUEST` for malformed JSON in a POST body. An `ADD_BILL` or `ADD_INCOME` that has no date or no amount passes validation but is not checked further, and currently fails with 500 `INTERNAL_ERROR`; so does a GET `scenario` that is neither JSON nor base64 JSON.
+
 ## Exports (CSV and PDF)
 Downloads built from the same projection as `/api/projection`, so the numbers always match the calendar. Rules are in [`CONVENTIONS.md`](CONVENTIONS.md) section 18. Both are read only and send `Cache-Control: no-store`.
 
@@ -66,6 +84,19 @@ Downloads built from the same projection as `/api/projection`, so the numbers al
 | GET | `/api/export/monthly-summary` | `month` (required, `YYYY-MM`) | `200 application/pdf` attachment named `cashflow-summary-<month>.pdf`. 400 `VALIDATION_ERROR` on `month` when it is missing or not a real month. 400 `BAD_REQUEST` when the whole month is before `projectionStartDate` or after `maxEndDate`. A month the window only partly covers is exported for the dates it covers, and the PDF says so. |
 
 CSV details: UTF-8 with a byte-order mark (so Excel reads accents correctly), CRLF line endings, fields quoted per RFC 4180. `Amount` is signed like the register (income `+`, bills `-`, a per-occurrence override applied) as an exact decimal such as `-1199.99` with no currency symbol or thousands separator. A skipped bill keeps its amount, but its `Status` is `Skipped` and `Balance after` does not change, so leave `Skipped` rows out before summing `Amount`. `Balance after` is the engine's running balance. `Frequency` uses the app's wording (`One-time`, `Weekly`, `Every 2 weeks`, `Monthly`, `Quarterly`, `Yearly`). Text cells (name, category) whose first character, after any leading whitespace, is `=`, `+`, `-`, `@`, `|`, a tab or a line break get a leading `'` so a spreadsheet cannot run them as a formula.
+
+## Savings goals
+A goal is a target amount to have by a date. It has no saved amount and no archive state (CONVENTIONS section 8, "Safe to spend and savings goals").
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/savings-goals` | — | `SavingsGoalDTO[]` `{ id, name, targetAmountCents, targetDate, createdAt, updatedAt }`, sorted by name (case-insensitive, then exact name, then id). `name` is `string \| null`. |
+| POST | `/api/savings-goals` | `SavingsGoalInput` `{ name?, targetAmountCents, targetDate }` | `201 SavingsGoalDTO`. `name` is trimmed, at most 80 characters, and optional (blank or missing becomes `null`). `targetAmountCents` is a positive integer of cents, at most 1,000,000,000. `targetDate` is YYYY-MM-DD and may be in the past (a past-due goal is ignored by safe to spend). 400 `VALIDATION_ERROR`. |
+| GET | `/api/savings-goals/:id` | — | `SavingsGoalDTO` / 404 |
+| PUT | `/api/savings-goals/:id` | `SavingsGoalInput` (full replacement) | `SavingsGoalDTO` / 404 / 400 `VALIDATION_ERROR` |
+| DELETE | `/api/savings-goals/:id` | — | `204` / 404 |
+
+`/api/goals` and `/api/goals/:id` are an alias: the same handlers, with the same methods, bodies and responses. The app itself uses `/api/savings-goals`.
 
 ## Institutions (read-only bank connections through SimpleFIN Bridge)
 Only the server talks to SimpleFIN (`src/server/simplefin.ts`). The setup token and the Access URL (which embeds credentials) are never returned by any endpoint. The app keeps a local snapshot (accounts, balances, transactions) and contacts SimpleFIN only on connect, on an explicit refresh, and in the server's daily 4:00 am automatic refresh (no endpoint; see CONVENTIONS.md section 9), because SimpleFIN allows about 24 requests a day. Bank amounts are **signed**: money in is positive, money out is negative.
@@ -131,9 +162,26 @@ Search across the app's own data for the command palette. Rules are in [`CONVENT
 ## Data management (local only)
 | Method | Path | Body | Response |
 |---|---|---|---|
-| GET | `/api/data/export` | — | `200 DataExportDTO`, sent as a download: `Content-Type: application/json`, `Content-Disposition: attachment; filename="cashflow-planner-backup-<YYYY-MM-DD>.json"` (the server's local today) and `Cache-Control: no-store`. Body: `{ format: "cashflow-planner-export", formatVersion: 1, appVersion, exportedAt, settings, incomes, bills, billOccurrences, institutions }`. `settings` is the stored `SettingsDTO` (the typed balance and start date, plus the derived `accountsBalanceCents`, `accountCount`, `accountsBalanceDate` and `accountsStaleCount` as of the export), `billOccurrences` holds every recorded status row for every bill, and each institution is `{ id, name, connectedAt, lastSyncedAt, accounts: BankAccountDTO[], transactions: BankTransactionDTO[] }` with every stored transaction, newest first. The Zod schema is `dataExportSchema`. It **never** contains an Access URL, setup token, Authorization header or any other bank-connection field. Read only; changes nothing. |
-| POST | `/api/data/restore` | Backup file JSON body from any app version (`formatVersion: 1`) | `200 { ok: true }`. Accepts only `format: "cashflow-planner-export"`, `formatVersion: 1`, and validates with `dataRestoreSchema`. A backup from before the desktop-notifications setting has no `desktopNotifications`; restoring it turns notifications on (the default). Derived settings fields and institutions may be missing or older-shaped because they are ignored. Malformed JSON and relationship/duplicate errors return `400 BAD_REQUEST`; schema failures return `400 VALIDATION_ERROR`. Orphan occurrences, duplicate income ids, duplicate bill ids, and duplicate `(billId, dueDate)` occurrences are rejected before writing. Atomically replaces income, bills, all recorded occurrences and the stored settings (typed settings fields only; derived account fields and `updatedAt` are ignored), preserving income/bill ids and `createdAt`. Bank connections, accounts, transactions, `TransactionCategory` and `MerchantCategoryRule` rows are kept as they are now. The backup's `institutions` are not imported. |
+| GET | `/api/data/export` | — | `200 DataExportDTO`, sent as a download: `Content-Type: application/json`, `Content-Disposition: attachment; filename="cashflow-planner-backup-<YYYY-MM-DD>.json"` (the server's local today) and `Cache-Control: no-store`. Body: `{ format: "cashflow-planner-export", formatVersion: 1, appVersion, exportedAt, settings, incomes, bills, billOccurrences, institutions }`. `settings` is the stored `SettingsDTO` (the typed balance and start date, plus the derived `accountsBalanceCents`, `accountCount`, `accountsBalanceDate` and `accountsStaleCount` as of the export), `billOccurrences` holds every recorded status row for every bill, and each institution is `{ id, name, connectedAt, lastSyncedAt, accounts: BankAccountDTO[], transactions: BankTransactionDTO[] }` with every stored transaction, newest first. The Zod schema is `dataExportSchema`. It **never** contains an Access URL, setup token, Authorization header or any other bank-connection field. Read only; changes nothing. **Not included:** savings goals, transaction categories, learned merchant rules and dismissed recurring charges (see "Backup scope" below). |
+| POST | `/api/data/restore` | Backup file JSON body from any app version (`formatVersion: 1`) | `200 { ok: true }`. Accepts only `format: "cashflow-planner-export"`, `formatVersion: 1`, and validates with `dataRestoreSchema`. A backup from before the desktop-notifications setting has no `desktopNotifications`; restoring it turns notifications on (the default). Derived settings fields and institutions may be missing or older-shaped because they are ignored. Malformed JSON and relationship/duplicate errors return `400 BAD_REQUEST`; schema failures return `400 VALIDATION_ERROR`. Orphan occurrences, duplicate income ids, duplicate bill ids, and duplicate `(billId, dueDate)` occurrences are rejected before writing. Atomically replaces income, bills, all recorded occurrences and the stored settings (typed settings fields only; derived account fields and `updatedAt` are ignored), preserving income/bill ids and `createdAt`. Bank connections, accounts, transactions, savings goals, `TransactionCategory` and `MerchantCategoryRule` rows and dismissed recurring charges are kept as they are now. The backup's `institutions` are not imported. |
 | POST | `/api/data/demo` | — | **Destructive.** `200 { ok: true }`. **Replaces** all income, bills and occurrences with clearly labeled demo data ("Demo: …" names), and sets the start date to today and the starting balance to $1,250.00. |
 | POST | `/api/data/reset` | — | **Destructive.** `200 { ok: true }`. Deletes all income, bills and occurrences, deletes every bank connection with its stored accounts and transactions (locally only; SimpleFIN has no revoke call), deletes transaction categories and learned merchant rules, savings goals and dismissed recurring charges, and resets settings to defaults. |
+
+### Backup scope
+| Data | In the export | Restore does |
+|---|---|---|
+| Settings (typed fields) | Yes | Replaces them (see below for fields a backup lacks) |
+| Income, bills, bill occurrences | Yes | Replaces them |
+| Bank connections, accounts, transactions | Yes, with no credentials | Leaves the current ones; the backup's copy is ignored |
+| Savings goals | **No** | Leaves the current goals; a restore neither adds nor removes any |
+| Transaction categories, learned merchant rules | **No** | Leaves the current ones |
+| Dismissed recurring charges | **No** | Leaves the current ones |
+
+So a backup does not protect savings goals: after a reset, or on another computer, restoring a backup brings back income, bills, occurrences and settings, but the goals have to be entered again. (Reset deletes goals; restore does not.) To keep goals, copy the database file itself.
+
+Settings a backup does not carry are replaced with defaults rather than kept, because a restore replaces the stored settings as a whole:
+- `desktopNotifications` missing: `true`.
+- `balanceFloorCents` missing (a backup from before the balance floor existed): `0`. This matches `PUT /api/settings`, which also resets an omitted floor to `0`.
+- `debtMonthlyPaymentCents` missing (a backup from before the Debt payoff page): `50000` ($500.00). This differs from `PUT /api/settings`, which leaves an omitted payment alone. That is intended: the Settings form never edits the payment, so a save must not clobber the Debt payoff page's value, while a restore is a deliberate full replacement of the stored settings and old files should come back to the same state as a fresh install.
 
 The UI must confirm demo data, reset, and backup restore with the user first. The export needs no confirmation.

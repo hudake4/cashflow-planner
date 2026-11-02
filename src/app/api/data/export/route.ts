@@ -5,7 +5,7 @@ import { getDataExport } from "@/server/services";
 
 export const dynamic = "force-dynamic";
 
-/** Downloads every stored record as one JSON file. Never includes bank credentials. */
+/** Downloads settings, income, bills, occurrences and bank data as one JSON file. Never includes bank credentials; savings goals, categories and dismissals are not included (docs/API.md, "Backup scope"). */
 export const GET = () =>
   handle(async () => {
     const now = new Date();
