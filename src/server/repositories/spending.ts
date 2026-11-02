@@ -6,7 +6,7 @@
  * (`TransactionCategory`) and one per merchant (`MerchantCategoryRule`, what the analyzer has learned).
  */
 import { SPENDING_CATEGORIES } from "../../contracts/api";
-import type { SpendingCategory, SpendingCategoryInput, SpendingResponse } from "../../contracts/api";
+import type { AccountKind, SpendingCategory, SpendingCategoryInput, SpendingResponse } from "../../contracts/api";
 import { todayLocal } from "../../domain/dates";
 import { buildSpending, merchantKey } from "../../domain/spending";
 import { db, HOUSEHOLD_ID } from "../db";
@@ -28,8 +28,13 @@ export async function getSpending(now: Date = new Date()): Promise<SpendingRespo
   const [connections, rows, settings, overrides, rules] = await Promise.all([
     db.bankConnection.findMany({ where: { householdId: HOUSEHOLD_ID }, select: { lastSyncedAt: true } }),
     db.bankTransaction.findMany({
-      where: { pending: false, date: { gte: historyCutoff(today) }, account: { connection: { householdId: HOUSEHOLD_ID } } },
-      select: { id: true, date: true, description: true, amountCents: true },
+      // Loans and "other" accounts hold no day-to-day spending. Card purchases count where they happen.
+      where: {
+        pending: false,
+        date: { gte: historyCutoff(today) },
+        account: { kind: { in: ["BANK", "CREDIT"] }, connection: { householdId: HOUSEHOLD_ID } },
+      },
+      select: { id: true, date: true, description: true, amountCents: true, account: { select: { kind: true } } },
     }),
     getSettings(),
     db.transactionCategory.findMany({ where: { householdId: HOUSEHOLD_ID }, select: { transactionId: true, category: true } }),
@@ -39,7 +44,7 @@ export async function getSpending(now: Date = new Date()): Promise<SpendingRespo
   const synced = connections.flatMap((c) => (c.lastSyncedAt ? [c.lastSyncedAt.getTime()] : []));
   return {
     ...buildSpending({
-      transactions: rows,
+      transactions: rows.map(({ account, ...t }) => ({ ...t, accountKind: account.kind as AccountKind })),
       today,
       overrides: categoryMap(overrides, (o) => o.transactionId),
       merchantRules: categoryMap(rules, (r) => r.merchantKey),

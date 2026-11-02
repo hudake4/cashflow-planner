@@ -6,6 +6,7 @@ import * as syncRoute from "@/app/api/institutions/[id]/sync/route";
 import * as kindRoute from "@/app/api/institutions/[id]/accounts/[accountId]/route";
 import * as txRoute from "@/app/api/institutions/[id]/transactions/route";
 import type { BankAccountDTO, BankTransactionsResponse, InstitutionDTO, InstitutionSyncDTO } from "@/contracts/api";
+import { HOUSEHOLD_ID } from "@/server/db";
 import { ApiError } from "@/server/http";
 import { connect, syncConnection } from "@/server/repositories/institutions";
 import * as simplefin from "@/server/simplefin";
@@ -115,6 +116,11 @@ describe("connecting", () => {
         balanceCents: 123456,
         availableBalanceCents: 100000,
         balanceDate: "2026-10-24",
+        statementClosingDay: null,
+        paymentDueDay: null,
+        aprBasisPoints: null,
+        minimumPaymentRule: null,
+        minimumPaymentCents: null,
       },
     ]);
 
@@ -237,10 +243,10 @@ describe("syncing", () => {
     expect(await testPrisma.bankTransaction.count({ where: { accountId: acc } })).toBe(4);
   });
 
-  it("prunes stored transactions older than 89 days, whatever the bank returns", async () => {
-    // 2026-07-28 is the oldest day inside the window on 2026-10-24 (89 days, counting today).
+  it("prunes stored transactions older than 400 days, whatever the bank returns", async () => {
+    // 2025-09-20 is the oldest day inside the window on 2026-10-24 (400 days, counting today).
     mocked.fetchAccountSet.mockResolvedValue(
-      accountSet([tx("old", "2026-07-27", "-1.00"), tx("edge", "2026-07-28", "-2.00"), tx("new", "2026-10-20", "-3.00")]),
+      accountSet([tx("old", "2025-09-19", "-1.00"), tx("edge", "2025-09-20", "-2.00"), tx("new", "2026-10-20", "-3.00")]),
     );
     const first = await connect({ setupToken: SETUP_TOKEN }, NOW);
     const acc = `${first.id}:a1`;
@@ -315,6 +321,49 @@ describe("syncing", () => {
     expect(await testPrisma.bankTransaction.count()).toBe(3);
   });
 
+  it("fetches a whole outage once an account that stayed incomplete for more than 7 days recovers", async () => {
+    const DAY = 86_400_000;
+    const day = (n: number) => new Date(NOW.getTime() + n * DAY).toISOString().slice(0, 10);
+    // The bank has one a2 transaction per day so far; SimpleFIN returns what falls inside the requested window.
+    const bank = Array.from({ length: 13 }, (_, n) => tx(`d${n}`, day(n), "-1.00"));
+    let a2Failing = false;
+    mocked.fetchAccountSet.mockImplementation(async (_url, opts) => {
+      const now = opts.end.getTime() - DAY;
+      const inWindow = bank.filter((t) => t.posted * 1000 >= opts.start.getTime() && t.posted * 1000 <= now);
+      return accountSet([], {
+        errlist: a2Failing ? [{ code: "act.err", msg: "Savings is unavailable", account_id: "a2" }] : [],
+        accounts: [{ id: "a2", name: "Savings", conn_id: "c1", currency: "USD", balance: "10.00", transactions: a2Failing ? [] : inWindow }],
+      });
+    });
+
+    const first = await connect({ setupToken: SETUP_TOKEN }, NOW);
+    const a2 = `${first.id}:a2`;
+    a2Failing = true; // 10 daily refreshes with a2 in the errlist
+    for (let n = 1; n <= 10; n++) await syncConnection(first.id, new Date(NOW.getTime() + n * DAY));
+    expect(await testPrisma.bankTransaction.count({ where: { accountId: a2 } })).toBe(1);
+
+    a2Failing = false;
+    await syncConnection(first.id, new Date(NOW.getTime() + 11 * DAY));
+    const ids = (await testPrisma.bankTransaction.findMany({ where: { accountId: a2 }, orderBy: { date: "asc" } })).map((r) => r.id.slice(a2.length + 1));
+    expect(ids).toEqual(bank.slice(0, 12).map((t) => t.id)); // d0..d11: the whole outage, each once
+
+    // The next healthy sync goes back to the usual 7 day overlap and still never duplicates.
+    await syncConnection(first.id, new Date(NOW.getTime() + 12 * DAY));
+    const [, opts] = mocked.fetchAccountSet.mock.calls.at(-1)!;
+    expect(opts.start.toISOString()).toBe(`${day(4)}T00:00:00.000Z`);
+    expect(await testPrisma.bankTransaction.count({ where: { accountId: a2 } })).toBe(13);
+  });
+
+  it("a first sync with an incomplete account fetches the full span again next time", async () => {
+    mocked.fetchAccountSet.mockResolvedValueOnce(
+      accountSet([], { errlist: [{ code: "act.err", msg: "Checking is unavailable", account_id: "a1" }] }),
+    );
+    const first = await connect({ setupToken: SETUP_TOKEN }, NOW);
+    await syncConnection(first.id, new Date(NOW.getTime() + 30 * MIN));
+    const [, opts] = mocked.fetchAccountSet.mock.calls[1];
+    expect(opts.end.getTime() - opts.start.getTime()).toBeGreaterThan(80 * 86_400_000);
+  });
+
   it("404s for an unknown connection", async () => {
     expectApiError(await postSync("nope"), 404, "NOT_FOUND");
   });
@@ -367,6 +416,11 @@ describe("account labels", () => {
       balanceCents: 123456,
       availableBalanceCents: 100000,
       balanceDate: "2026-10-24",
+      statementClosingDay: null,
+      paymentDueDay: null,
+      aprBasisPoints: null,
+      minimumPaymentRule: null,
+      minimumPaymentCents: null,
     });
     expect((await testPrisma.bankAccount.findUniqueOrThrow({ where: { id: acc } })).kind).toBe("OTHER");
     const list = await call<InstitutionDTO[]>(listRoute.GET as never, "GET", "/api/institutions");
@@ -401,6 +455,34 @@ describe("account labels", () => {
     const again = await syncConnection(first.id, new Date(NOW.getTime() + 40 * MIN));
     expect(again.accounts.find((a) => a.id.endsWith(":a9"))?.kind).toBe("BANK");
   });
+
+  it("stores a real minimum payment, clears it with null, and a sync leaves it alone", async () => {
+    const first = await connect({ setupToken: SETUP_TOKEN }, NOW);
+    const acc = `${first.id}:a1`;
+    expect((await patchKind(first.id, acc, { kind: "LOAN" })).body.minimumPaymentCents).toBeNull();
+
+    const set = await patchKind(first.id, acc, { minimumPaymentCents: 41250 });
+    expect(set.status).toBe(200);
+    expect(set.body).toMatchObject({ kind: "LOAN", minimumPaymentCents: 41250 });
+    expect((await testPrisma.bankAccount.findUniqueOrThrow({ where: { id: acc } })).minimumPaymentCents).toBe(41250);
+
+    mocked.fetchAccountSet.mockResolvedValueOnce(normalizeAccountSet({ accounts: [rawAccount("a1", "Checking")] }, "2026-10-24"));
+    const synced = await syncConnection(first.id, new Date(NOW.getTime() + 20 * MIN));
+    expect(synced.accounts.find((a) => a.id === acc)).toMatchObject({ kind: "LOAN", minimumPaymentCents: 41250 });
+
+    const cleared = await patchKind(first.id, acc, { minimumPaymentCents: null });
+    expect(cleared.body.minimumPaymentCents).toBeNull();
+  });
+
+  it.each([{ minimumPaymentCents: 0 }, { minimumPaymentCents: -5 }, { minimumPaymentCents: 12.5 }, { minimumPaymentCents: "35" }, { minimumPaymentCents: 1_000_000_001 }])(
+    "400 VALIDATION_ERROR for minimum payment %j",
+    async (body) => {
+      const first = await connect({ setupToken: SETUP_TOKEN }, NOW);
+      const acc = `${first.id}:a1`;
+      expectApiError(await patchKind(first.id, acc, body), 400, "VALIDATION_ERROR", ["minimumPaymentCents"]);
+      expect((await testPrisma.bankAccount.findUniqueOrThrow({ where: { id: acc } })).minimumPaymentCents).toBeNull();
+    },
+  );
 
   it.each([{ kind: "CHECKING" }, { kind: "bank" }, { kind: 1 }, {}, { kind: null }])("400 VALIDATION_ERROR for %j", async (body) => {
     const first = await connect({ setupToken: SETUP_TOKEN }, NOW);
@@ -476,13 +558,13 @@ describe("transactions", () => {
     expect(res.body.hasMore).toBe(false);
   });
 
-  it("only lists the last 89 days, even for rows already stored", async () => {
+  it("only lists the last 400 days, even for rows already stored", async () => {
     const created = await postConnect();
     const acc = created.body.accounts[0].id;
     await testPrisma.bankTransaction.createMany({
       data: [
-        { id: `${acc}:old`, accountId: acc, date: "2026-07-27", amountCents: -100, description: "Too old", pending: false },
-        { id: `${acc}:edge`, accountId: acc, date: "2026-07-28", amountCents: -200, description: "Oldest shown", pending: false },
+        { id: `${acc}:old`, accountId: acc, date: "2025-09-19", amountCents: -100, description: "Too old", pending: false },
+        { id: `${acc}:edge`, accountId: acc, date: "2025-09-20", amountCents: -200, description: "Oldest shown", pending: false },
       ],
     });
     const res = await getTx(created.body.id, `accountId=${encodeURIComponent(acc)}`);
@@ -571,5 +653,126 @@ describe("secrets", () => {
     expect(serialized).not.toContain(SETUP_TOKEN);
     expect(serialized).not.toMatch(/accessUrl|bridge\.simplefin\.org/i);
     expect(responses.at(-1)?.status).toBe(500);
+  });
+});
+
+describe("encryption at rest", () => {
+  const g = globalThis as { __cashflowOsKeystore?: unknown };
+  // Stand-in for Electron's safeStorage: reversible and opaque, like DPAPI output.
+  const fakeKeystore = {
+    isAvailable: () => true,
+    encrypt: (plain: string) => Buffer.from(`sealed:${plain}`, "utf8").reverse(),
+    decrypt: (sealed: Buffer) => Buffer.from(sealed).reverse().toString("utf8").replace(/^sealed:/, ""),
+  };
+  const storedUrl = async (id: string) => (await testPrisma.bankConnection.findUniqueOrThrow({ where: { id } })).accessUrl;
+  const staleSync = (id: string) =>
+    testPrisma.bankConnection.update({ where: { id }, data: { lastSyncedAt: new Date(Date.now() - 30 * MIN) } });
+
+  afterEach(() => {
+    delete g.__cashflowOsKeystore;
+    delete process.env.CASHFLOW_SECRET_KEY;
+  });
+
+  it("stores the Access URL encrypted when the desktop keystore is registered, and still syncs with the plain URL", async () => {
+    g.__cashflowOsKeystore = fakeKeystore;
+    const res = await postConnect();
+    const stored = await storedUrl(res.body.id);
+    expect(stored.startsWith("enc:v1:os:")).toBe(true);
+    expect(stored).not.toContain(SECRET_PASSWORD);
+    expect(stored).not.toContain("bridge.simplefin.org");
+    expect(mocked.fetchAccountSet.mock.calls[0][0]).toBe(ACCESS_URL);
+
+    await staleSync(res.body.id);
+    expect((await postSync(res.body.id)).status).toBe(200);
+    expect(mocked.fetchAccountSet.mock.calls[1][0]).toBe(ACCESS_URL);
+  });
+
+  it("stores plaintext when there is no keystore and no CASHFLOW_SECRET_KEY (plain dev/prod server)", async () => {
+    const res = await postConnect();
+    expect(await storedUrl(res.body.id)).toBe(ACCESS_URL);
+  });
+
+  it("encrypts with CASHFLOW_SECRET_KEY on the plain server", async () => {
+    process.env.CASHFLOW_SECRET_KEY = Buffer.alloc(32, 7).toString("base64");
+    const res = await postConnect();
+    const stored = await storedUrl(res.body.id);
+    expect(stored.startsWith("enc:v1:key:")).toBe(true);
+    expect(stored).not.toContain(SECRET_PASSWORD);
+    await staleSync(res.body.id);
+    expect((await postSync(res.body.id)).status).toBe(200);
+    expect(mocked.fetchAccountSet.mock.calls[1][0]).toBe(ACCESS_URL);
+  });
+
+  it("keeps reading a legacy plaintext row and upgrades it in place on the next sync", async () => {
+    const legacy = await testPrisma.bankConnection.create({ data: { accessUrl: ACCESS_URL } });
+    g.__cashflowOsKeystore = fakeKeystore;
+    expect((await postSync(legacy.id)).status).toBe(200);
+    expect(mocked.fetchAccountSet.mock.calls[0][0]).toBe(ACCESS_URL);
+    const stored = await storedUrl(legacy.id);
+    expect(stored.startsWith("enc:v1:os:")).toBe(true);
+    expect(stored).not.toContain(SECRET_PASSWORD);
+  });
+
+  it("leaves a legacy plaintext row untouched when nothing can encrypt it", async () => {
+    const legacy = await testPrisma.bankConnection.create({ data: { accessUrl: ACCESS_URL } });
+    expect((await postSync(legacy.id)).status).toBe(200);
+    expect(await storedUrl(legacy.id)).toBe(ACCESS_URL);
+  });
+
+  it("explains, without leaking anything, when an encrypted value cannot be decrypted here", async () => {
+    g.__cashflowOsKeystore = fakeKeystore;
+    const res = await postConnect();
+    delete g.__cashflowOsKeystore; // e.g. the database was restored into a plain server
+    await staleSync(res.body.id);
+    const failed = await postSync(res.body.id);
+    expectApiError(failed, 409, "CONFLICT");
+    expect(JSON.stringify(failed.body)).not.toMatch(/enc:v1|demouser|bridge\.simplefin\.org/i);
+    expect(JSON.stringify(failed.body)).toMatch(/connect again/i);
+    expect(mocked.fetchAccountSet).toHaveBeenCalledTimes(1); // only the connect sync
+  });
+
+  it("no API response contains the Access URL or its stored ciphertext when encryption is on", async () => {
+    g.__cashflowOsKeystore = fakeKeystore;
+    const created = await postConnect();
+    const id = created.body.id;
+    const ciphertext = await storedUrl(id);
+    await staleSync(id);
+    const responses = [
+      created,
+      await call(listRoute.GET as never, "GET", "/api/institutions"),
+      await postSync(id),
+      await getTx(id, `accountId=${encodeURIComponent(created.body.accounts[0].id)}`),
+    ];
+    const serialized = JSON.stringify(responses);
+    expect(serialized).not.toContain(ciphertext);
+    expect(serialized).not.toContain(SECRET_PASSWORD);
+    expect(serialized).not.toMatch(/enc:v1|accessUrl|bridge\.simplefin\.org/i);
+  });
+});
+
+describe("in-flight sync guard", () => {
+  it("is shared by every copy of the module (instrumentation and route bundles each load their own)", async () => {
+    const conn = await testPrisma.bankConnection.create({ data: { householdId: HOUSEHOLD_ID, accessUrl: ACCESS_URL } });
+    const first = await import("@/server/repositories/institutions");
+    let release!: (set: AccountSet) => void;
+    mocked.fetchAccountSet.mockReturnValueOnce(new Promise<AccountSet>((resolve) => (release = resolve)));
+
+    const running = first.syncConnection(conn.id);
+    await vi.waitFor(() => expect(mocked.fetchAccountSet).toHaveBeenCalledTimes(1));
+
+    vi.resetModules();
+    const second = await import("@/server/repositories/institutions");
+    expect(second).not.toBe(first); // a separate module instance, as in the other bundle
+    await expect(second.syncConnection(conn.id)).rejects.toMatchObject({
+      status: 409,
+      code: "CONFLICT",
+      message: "A refresh is already running for this connection.",
+    });
+
+    release(accountSet(FIRST));
+    await expect(running).resolves.toMatchObject({ id: conn.id });
+    // The guard is released: with the 15 minute window passed, the next sync goes through.
+    mocked.fetchAccountSet.mockResolvedValueOnce(accountSet(FIRST));
+    await expect(first.syncConnection(conn.id, new Date(NOW.getTime() + 20 * MIN))).resolves.toMatchObject({ id: conn.id });
   });
 });

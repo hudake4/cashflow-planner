@@ -2,8 +2,9 @@
 
 import { TriangleAlert } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
-import type { CalendarView, LedgerEvent, ProjectionResponse, SettingsDTO, WeekSummary } from "@/contracts/api";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { BillDTO, CalendarView, IncomeDTO, LedgerEvent, ProjectionResponse, ScenarioInput, SettingsDTO, WeekSummary } from "@/contracts/api";
+import { effectiveProjectionStartDate, startDateFromAccounts } from "@/domain/starting-balance";
 import { api } from "@/lib/api-client";
 import { addDays, addMonths, eachDay, endOfMonth, fmtDate, fmtRange, startOfMonth, startOfWeek, todayLocal } from "@/lib/dates";
 import { useApi } from "@/lib/use-api";
@@ -11,13 +12,18 @@ import { PageHeader } from "@/components/app-shell";
 import { EditSourceDialog } from "@/components/forms/edit-source-dialog";
 import type { ScheduleKind } from "@/components/forms/schedule-form-dialog";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ScenarioDialog } from "@/components/scenario/scenario-dialog";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/ui/states";
 import { CalendarToolbar } from "./calendar-toolbar";
 import { EventDetailDialog } from "./event-detail-dialog";
+import { ExportMenu, summaryMonth } from "./export-menu";
 import { HeatmapCalendar, type DayView, type GridWeek } from "./heatmap-calendar";
 import { PeriodDetailDialog, type PeriodDetail } from "./period-detail-dialog";
 import { RegisterList } from "./register-list";
+import { weekStartText } from "./week-label";
 
 export function CalendarPage() {
   const settings = useApi<SettingsDTO>("settings", api.getSettings);
@@ -77,6 +83,10 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [period, setPeriod] = useState<PeriodDetail | null>(null);
   const [editTarget, setEditTarget] = useState<{ kind: ScheduleKind; id: string } | null>(null);
+  const [scenario, setScenario] = useState<ScenarioInput | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [bills, setBills] = useState<BillDTO[]>([]);
+  const [incomes, setIncomes] = useState<IncomeDTO[]>([]);
   const periodTrigger = useRef<HTMLElement | null>(null);
   const editFocusTarget = useRef<HTMLElement | null>(null);
   const lastEventTrigger = useRef<HTMLElement | null>(null);
@@ -101,18 +111,33 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
     return { from, to, month: cursor.slice(0, 7) };
   }, [view, cursor, weekStartsOn]);
 
-  const projectionStart = settings.projectionStartDate;
+  const projectionStart = effectiveProjectionStartDate(settings);
   const maxEnd = addDays(projectionStart, 365);
   const fetchFrom = grid.from < projectionStart ? projectionStart : grid.from;
   const fetchTo = grid.to > maxEnd ? maxEnd : grid.to;
   const canFetch = fetchFrom <= fetchTo;
 
+  // The export covers the period named in the title (the month, not the padded weeks around it),
+  // cut to the projection window so it never holds dates without a balance.
+  const periodFrom = view === "month" ? startOfMonth(cursor) : grid.from;
+  const periodTo = view === "month" ? endOfMonth(cursor) : grid.to;
+  const exportRange = { from: periodFrom < projectionStart ? projectionStart : periodFrom, to: periodTo > maxEnd ? maxEnd : periodTo };
+
   const projectionKey = canFetch ? `projection:${fetchFrom}:${fetchTo}` : null;
   const projection = useApi<ProjectionResponse>(projectionKey, () => api.getProjection({ from: fetchFrom, to: fetchTo }));
-  const data = canFetch ? projection.data : undefined;
+  const scenarioKey = scenario ? JSON.stringify(scenario) : null;
+  const scenarioProjection = useApi<ProjectionResponse>(
+    scenarioKey && canFetch ? `projection:scenario:${scenarioKey}:${fetchFrom}:${fetchTo}` : null,
+    () => api.getScenarioProjection(scenario!, { from: fetchFrom, to: fetchTo }),
+  );
+  const activeProjection = scenario ? scenarioProjection : projection;
+  const activeKey = scenario
+    ? scenarioKey && canFetch ? `projection:scenario:${scenarioKey}:${fetchFrom}:${fetchTo}` : null
+    : projectionKey;
+  const data = canFetch ? activeProjection.data : undefined;
   const currency = data?.currency ?? settings.currency;
   // Only trust data whose range matches what we asked for (avoids flashing stale numbers on navigation).
-  const fresh = data && projection.dataKey === projectionKey ? data : undefined;
+  const fresh = data && activeProjection.dataKey === activeKey ? data : undefined;
 
   const eventsById = useMemo(() => new Map((fresh?.events ?? []).map((e) => [e.id, e])), [fresh]);
   const daysByDate = useMemo(() => new Map((fresh?.days ?? []).map((d) => [d.date, d])), [fresh]);
@@ -140,6 +165,12 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
   }, [grid, daysByDate, eventsById, projectionStart, maxEnd, view, today]);
 
   const selectedEvent = selectedEventId ? (eventsById.get(selectedEventId) ?? null) : null;
+
+  useEffect(() => {
+    if (!dialogOpen) return;
+    void api.listBills().then(setBills).catch(() => setBills([]));
+    void api.listIncome().then(setIncomes).catch(() => setIncomes([]));
+  }, [dialogOpen]);
 
   const title = view === "month" ? fmtDate(`${grid.month}-01`, "MMMM yyyy") : fmtRange(grid.from, grid.to);
 
@@ -201,18 +232,25 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
       : period;
   }, [period, fresh, weeksByStart, daysByDate]);
 
-  const visibleNegative = (fresh?.weeks ?? []).find((w) => w.hasNegative);
+  const floor = settings.balanceFloorCents ?? 0;
+  const visibleNegative = (fresh?.weeks ?? []).find((w) => w.lowestBalanceCents < floor);
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button size="sm" onClick={() => setDialogOpen(true)} data-testid="what-if-button">What-if</Button>
+        {scenario && <Badge data-testid="scenario-active">Scenario active</Badge>}
+        {scenario && <Button size="sm" variant="outline" onClick={() => setScenario(null)} data-testid="scenario-clear">Clear scenario</Button>}
+      </div>
       <CalendarToolbar
         view={view}
         title={title}
-        refreshing={projection.refreshing}
+        refreshing={activeProjection.refreshing}
         onViewChange={setView}
         onStep={(dir) => setCursor((c) => (view === "week" ? addDays(c, 7 * dir) : addMonths(c, dir)))}
         onToday={() => setCursor(today)}
         onJump={setCursor}
+        actions={<ExportMenu range={exportRange} month={summaryMonth(cursor, exportRange)} disabled={exportRange.from > exportRange.to} />}
       />
 
       {visibleNegative && (
@@ -220,14 +258,14 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-rose-700" aria-hidden="true" />
           <span>
             <strong className="font-semibold">Heads up:</strong> your projected balance dips below zero in the week of{" "}
-            {fmtDate(visibleNegative.weekStart, "MMM d")}.
+            {weekStartText(visibleNegative.weekStart)}.
           </span>
         </p>
       )}
 
-      <div aria-busy={canFetch && !fresh && !projection.error} data-testid={`calendar-${view}`}>
-        {canFetch && projection.error && !fresh ? (
-          <ErrorState message={projection.error} onRetry={projection.reload} />
+      <div aria-busy={canFetch && !fresh && !activeProjection.error} data-testid={`calendar-${view}`}>
+        {canFetch && activeProjection.error && !fresh ? (
+          <ErrorState message={activeProjection.error} onRetry={activeProjection.reload} />
         ) : canFetch && !fresh ? (
           <LoadingRegion label="Loading projected calendar">
             <CalendarRangeSkeleton />
@@ -253,6 +291,7 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
                 weeksByStart={weeksByStart}
                 eventsById={eventsById}
                 currency={currency}
+                showRangeNotes={canFetch}
                 onSelectWeek={openWeek}
                 onSelectEvent={selectEvent}
               />
@@ -277,8 +316,9 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
         restoreFocusTarget={() => lastEventTrigger.current}
         event={selectedEvent}
         currency={currency}
+        balanceFromAccounts={startDateFromAccounts(settings)}
         onClose={closeEvent}
-        onChanged={projection.reload}
+        onChanged={activeProjection.reload}
         onEditSource={(e) => {
           editFocusTarget.current = period ? periodTrigger.current : lastEventTrigger.current;
           setSelectedEventId(null);
@@ -286,7 +326,8 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
           setEditTarget({ kind: e.kind === "BILL" ? "bill" : "income", id: e.sourceId });
         }}
       />
-      <EditSourceDialog restoreFocusTarget={() => editFocusTarget.current} target={editTarget} onClose={() => setEditTarget(null)} onSaved={() => void projection.reload()} />
+      <EditSourceDialog restoreFocusTarget={() => editFocusTarget.current} target={editTarget} onClose={() => setEditTarget(null)} onSaved={() => void activeProjection.reload()} />
+      <ScenarioDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onApply={(s) => setScenario(s)} bills={bills} incomes={incomes} />
     </div>
   );
 }

@@ -136,6 +136,28 @@ describe("buildSpending periods", () => {
     expect(out.thisMonth.topMerchants.map((m) => m.name)).toEqual(["Kroger"]);
   });
 
+  it("treats a bank debit that a credit account received as a transfer, whatever its description says", () => {
+    const out = run([
+      { ...tx("2026-10-03", "ACME BILLING 8841", -120000), accountKind: "BANK" },
+      { ...tx("2026-10-04", "AUTOMATIC PAYMENT", 120000), accountKind: "CREDIT" },
+      { ...tx("2026-10-05", "KROGER", -3000), accountKind: "CREDIT" },
+    ]);
+    expect(out.thisMonth).toMatchObject({ totalCents: 3000, transactionCount: 1, transfersCents: 120000 });
+    expect(out.thisMonth.transactions.find((x) => x.description === "ACME BILLING 8841")).toMatchObject({ category: "TRANSFERS", source: "AUTO" });
+  });
+
+  it("counts a debit as spending when no credit account received the money", () => {
+    const out = run([{ ...tx("2026-10-03", "ACME BILLING 8841", -120000), accountKind: "BANK" }, { ...tx("2026-10-04", "AUTOMATIC PAYMENT", 90000), accountKind: "CREDIT" }]);
+    expect(out.thisMonth).toMatchObject({ totalCents: 120000, transfersCents: 0 });
+  });
+
+  it("lets the user's choice beat the card-payment match", () => {
+    const bank = { ...tx("2026-10-03", "ACME BILLING 8841", -120000), accountKind: "BANK" as const };
+    const card = { ...tx("2026-10-03", "AUTOMATIC PAYMENT", 120000), accountKind: "CREDIT" as const };
+    const out = buildSpending({ transactions: [bank, card], today: TODAY, overrides: new Map([[bank.id, "BILLS" as SpendingCategory]]) });
+    expect(out.thisMonth).toMatchObject({ totalCents: 120000, transfersCents: 0 });
+  });
+
   it("returns zeros and a null coverageStart for no transactions", () => {
     const out = run([]);
     expect(out).toEqual({

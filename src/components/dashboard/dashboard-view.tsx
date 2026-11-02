@@ -1,16 +1,18 @@
 "use client";
 
 import { clsx } from "clsx";
+import { useEffect, useState } from "react";
 import { CalendarDays, HandCoins, Info, Receipt, RefreshCw, TriangleAlert, Wallet } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import type { DashboardResponse } from "@/contracts/api";
+import type { BillDTO, DashboardResponse, IncomeDTO, ScenarioInput } from "@/contracts/api";
 import { api } from "@/lib/api-client";
 import { fmtDate, fmtDayShort, fmtRange, fmtShort } from "@/lib/dates";
 import { money } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
 import { PageHeader } from "@/components/app-shell";
 import { RecurringScanButton } from "@/components/recurring/recurring-scan";
+import { StaleAccountsNote } from "@/components/stale-accounts-note";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,11 +21,27 @@ import { AnimatedBalance, Balance, EventAmount } from "@/components/ui/money";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/ui/states";
 import { TrendChart } from "./trend-chart";
+import { ScenarioDialog } from "@/components/scenario/scenario-dialog";
 
 const DISCLAIMER = "Projected balance assumes all scheduled income arrives and all listed bills are paid on time.";
 
 export function DashboardView() {
   const dash = useApi<DashboardResponse>("dashboard", api.getDashboard);
+  const [scenario, setScenario] = useState<ScenarioInput | null>(null);
+  const scenarioKey = scenario ? `dashboard:scenario:${JSON.stringify(scenario)}` : null;
+  const scenarioState = useApi<DashboardResponse>(scenarioKey, () => api.getScenarioDashboard(scenario!));
+  // `useApi` keeps the last response in `data` when the key becomes null, so gate the
+  // preview on the scenario still being active and the data matching the current key.
+  const scenarioDashboard = scenario && scenarioState.dataKey === scenarioKey ? (scenarioState.data ?? null) : null;
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [bills, setBills] = useState<BillDTO[]>([]);
+  const [incomes, setIncomes] = useState<IncomeDTO[]>([]);
+
+  useEffect(() => {
+    if (!dialogOpen) return;
+    void api.listBills().then(setBills).catch(() => setBills([]));
+    void api.listIncome().then(setIncomes).catch(() => setIncomes([]));
+  }, [dialogOpen]);
 
   return (
     <>
@@ -33,6 +51,28 @@ export function DashboardView() {
         actions={
           <div className="flex w-full flex-wrap gap-2 sm:w-auto">
             <RecurringScanButton onAdded={() => void dash.reload()} className="flex-1 sm:flex-none" />
+            <Button
+              size="sm"
+              onClick={() => setDialogOpen(true)}
+              className="min-h-11 flex-1 sm:flex-none"
+              data-testid="what-if-button"
+            >
+              What-if
+            </Button>
+            {scenario && (
+              <Badge tone="info" data-testid="scenario-active">Scenario active</Badge>
+            )}
+            {scenario && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setScenario(null)}
+                className="min-h-11 flex-1 sm:flex-none"
+                data-testid="scenario-clear"
+              >
+                Clear scenario
+              </Button>
+            )}
             <Button
               size="sm"
               loading={dash.refreshing}
@@ -64,13 +104,22 @@ export function DashboardView() {
           className="mb-6"
         />
       )}
+      {scenarioState.error && (
+        <ErrorState
+          message={scenarioState.error}
+          onRetry={() => void scenarioState.reload()}
+          title="Couldn't preview the scenario"
+          className="mb-6"
+        />
+      )}
       {dash.data ? (
         <div aria-busy={dash.refreshing || undefined}>
-          <DashboardContent d={dash.data} />
+          <DashboardContent d={dash.data} scenarioDashboard={scenarioDashboard} />
         </div>
       ) : dash.error ? null : (
         <DashboardSkeleton />
       )}
+      <ScenarioDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onApply={(s) => setScenario(s)} bills={bills} incomes={incomes} />
       <p className="mt-10 flex max-w-[80ch] items-start gap-2 text-xs leading-relaxed text-slate-600" data-testid="disclaimer">
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         {DISCLAIMER} Figures are projections from what you entered, not a live bank balance.
@@ -165,9 +214,10 @@ function RegisterLine({
   );
 }
 
-function DashboardContent({ d }: { d: DashboardResponse }) {
+function DashboardContent({ d, scenarioDashboard }: { d: DashboardResponse; scenarioDashboard?: DashboardResponse | null }) {
   const currency = d.settings.currency;
   const t = d.totals;
+  const fromAccounts = d.settings.startingBalanceSource === "ACCOUNTS" && d.settings.accountsBalanceCents !== null;
 
   if (!d.hasData) {
     return (
@@ -219,6 +269,49 @@ function DashboardContent({ d }: { d: DashboardResponse }) {
           </div>
         </Alert>
       )}
+
+      <Card data-testid="safe-to-spend" className="min-w-0">
+        <CardBody className="p-5 sm:p-6">
+          <h2 className="text-lg font-semibold text-foreground">Safe to spend today</h2>
+          <div
+            className="font-semiwide mt-3 min-w-0 text-4xl leading-tight font-bold tracking-tight tabular-nums sm:text-[2.5rem]"
+            data-testid="safe-to-spend-value"
+          >
+            <Balance cents={d.safeToSpendCents} currency={currency} iconClassName="h-7 w-7 sm:h-8 sm:w-8" />
+          </div>
+          <p className="mt-3 text-sm text-muted-foreground">
+            You can spend this today without your projected balance dropping below{" "}
+            {money(d.settings.balanceFloorCents, currency)}.
+          </p>
+          {(d.goalReserve.goals.length > 0 || d.goalReserve.limitedBy) && (
+            <div className="mt-3 space-y-1 text-sm text-muted-foreground" data-testid="safe-to-spend-goals">
+              {d.goalReserve.goals.length > 0 && (
+                <>
+                  <p data-testid="safe-to-spend-set-aside">
+                    After {money(d.goalReserve.setAsideCents, currency)} set aside this week for savings goals.
+                  </p>
+                  <ul className="space-y-0.5" data-testid="safe-to-spend-goal-list">
+                    {d.goalReserve.goals.map((g) => (
+                      <li key={g.id} className="flex justify-between gap-4">
+                        <span className="min-w-0 truncate">
+                          {g.name || "Savings goal"} by {fmtShort(g.targetDate)}
+                        </span>
+                        <span className="shrink-0 tabular-nums">{money(g.weeklySetAsideCents, currency)}/week</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              {d.goalReserve.limitedBy && (
+                <p data-testid="safe-to-spend-goal-limit">
+                  Held to {money(d.goalReserve.limitedBy.headroomCents, currency)} so &ldquo;{d.goalReserve.limitedBy.name || "Savings goal"}&rdquo;
+                  stays on track.
+                </p>
+              )}
+            </div>
+          )}
+        </CardBody>
+      </Card>
 
       <div className="grid items-start gap-x-12 gap-y-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,25rem)]">
         {/* Hero: the one number the app exists to answer. */}
@@ -282,8 +375,14 @@ function DashboardContent({ d }: { d: DashboardResponse }) {
             label="Starting balance"
             sub={
               <>
-                Entered by you, as of {fmtShort(d.settings.projectionStartDate)}.{" "}
-                <Link href="/settings" className="font-semibold text-brand-700 underline">Update</Link>
+                {`${fromAccounts ? "Total of your bank accounts" : "Entered by you"}, as of ${fmtShort(d.settings.projectionStartDate)}.`}{" "}
+                {/* The bank total can't be edited in Settings; it changes when the accounts refresh. */}
+                <Link href={fromAccounts ? "/institutions" : "/settings"} className="font-semibold text-brand-700 underline">
+                  {fromAccounts ? "Refresh" : "Update"}
+                </Link>
+                {fromAccounts && d.settings.accountsStaleCount > 0 && (
+                  <StaleAccountsNote count={d.settings.accountsStaleCount} className="mt-1 block text-foreground" />
+                )}
               </>
             }
           >
@@ -302,11 +401,36 @@ function DashboardContent({ d }: { d: DashboardResponse }) {
         </Card>
       </div>
 
+      {d.lowPointBills && (
+        <Card data-testid="low-point-bills">
+          <CardHeader title="What’s causing your lowest point" description={`Projected low of ${money(d.lowPointBills.lowestBalanceCents, currency)} on ${fmtDayShort(d.lowPointBills.lowestBalanceDate)}. Moving one bill to ${fmtDayShort(d.lowPointBills!.nextPayday)} changes it as shown below.`} />
+          <CardBody className="pt-3">
+            <ul className="divide-y divide-border">
+              {d.lowPointBills.bills.map((bill) => {
+                const gain = bill.movedLowestBalanceCents - d.lowPointBills!.lowestBalanceCents;
+                return (
+                  <li key={bill.eventId} className="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-foreground">{bill.name}</p>
+                      <p className="text-sm text-muted-foreground">Due {fmtDayShort(bill.date)} · {money(bill.amountCents, currency)}</p>
+                    </div>
+                    <p className="text-sm text-foreground sm:text-right">
+                      Move to payday {fmtDayShort(d.lowPointBills!.nextPayday)}: lowest point becomes {money(bill.movedLowestBalanceCents, currency)} ({`+${money(gain, currency)}`})
+                    </p>
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="mt-2 text-sm text-muted-foreground">You can only move a due date if your biller allows it.</p>
+          </CardBody>
+        </Card>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,25rem)]">
         <Card>
           <CardHeader title="Projected balance" description={`End-of-day balance, ${fmtRange(d.window.startDate, d.window.endDate)}`} />
           <CardBody>
-            <TrendChart dashboard={d} />
+            <TrendChart dashboard={d} scenarioDashboard={scenarioDashboard} />
           </CardBody>
         </Card>
 

@@ -11,13 +11,19 @@ import { listBills } from "./bills";
 import { listIncome } from "./income";
 import { getSettings } from "./settings";
 
-export async function scanRecurring(now: Date = new Date()): Promise<RecurringScanResponse> {
+export async function scanRecurring(accountId?: string, now: Date = new Date()): Promise<RecurringScanResponse> {
   const today = todayLocal(now);
+  const accountFilter = accountId
+    ? { id: accountId, connection: { householdId: HOUSEHOLD_ID } }
+    : { kind: "BANK", connection: { householdId: HOUSEHOLD_ID } };
   const [connections, rows, bills, incomes, settings] = await Promise.all([
     db.bankConnection.findMany({ where: { householdId: HOUSEHOLD_ID }, select: { lastSyncedAt: true } }),
     db.bankTransaction.findMany({
-      where: { pending: false, date: { gte: historyCutoff(today) }, account: { connection: { householdId: HOUSEHOLD_ID } } },
-      select: { date: true, description: true, amountCents: true },
+      // Bank accounts only, like the starting balance: a bill or income suggestion has to move money
+      // through one. Card purchases are paid for by the card payment, and the payment received on the
+      // card would look like a monthly income. A single account can be scanned by passing its id.
+      where: { pending: false, date: { gte: historyCutoff(today) }, account: accountFilter },
+      select: { date: true, description: true, amountCents: true, accountId: true },
     }),
     listBills(),
     listIncome(),
@@ -26,7 +32,7 @@ export async function scanRecurring(now: Date = new Date()): Promise<RecurringSc
 
   const synced = connections.flatMap((c) => (c.lastSyncedAt ? [c.lastSyncedAt.getTime()] : []));
   return {
-    suggestions: detectRecurring({ transactions: rows, incomes, bills, today }),
+    suggestions: detectRecurring({ transactions: rows, incomes, bills, today, accountId }),
     currency: settings.currency,
     connectionCount: connections.length,
     transactionCount: rows.length,

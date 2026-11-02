@@ -8,6 +8,7 @@
  */
 import { SPENDING_CATEGORIES } from "../contracts/api";
 import type {
+  AccountKind,
   SpendingAnalysisDTO,
   SpendingCategory,
   SpendingCategorySource,
@@ -16,6 +17,7 @@ import type {
   SpendingPeriodDTO,
   SpendingTransactionDTO,
 } from "../contracts/api";
+import { matchCardPayments } from "./card-payments";
 import { daysInMonth, formatIsoDate, parseIsoDate } from "./dates";
 import { displayName, nameTokens } from "./recurring";
 
@@ -25,6 +27,8 @@ export interface SpendingTransaction {
   description: string;
   /** Signed like the bank: money in positive, money out negative. */
   amountCents: number;
+  /** The user's label of the account it belongs to. Without it a transaction is never matched to a card payment. */
+  accountKind?: AccountKind;
 }
 
 export interface SpendingInput {
@@ -203,17 +207,22 @@ export function merchantKey(description: string): string {
   return nameTokens(description).slice(0, KEY_TOKENS).join(" ");
 }
 
-/** The category and where it came from: the user's pick for this transaction, then the learned merchant rule, then keywords. */
+/**
+ * The category and where it came from: the user's pick for this transaction, then the learned merchant
+ * rule, then a bank debit that a credit account received (a card payment), then keywords.
+ */
 function resolveCategory(
   t: SpendingTransaction,
   key: string,
   overrides: ReadonlyMap<string, SpendingCategory> | undefined,
   merchantRules: ReadonlyMap<string, SpendingCategory> | undefined,
+  cardPayments: ReadonlySet<string>,
 ): { category: SpendingCategory; source: SpendingCategorySource } {
   const manual = overrides?.get(t.id);
   if (manual) return { category: manual, source: "MANUAL" };
   const learned = key ? merchantRules?.get(key) : undefined;
   if (learned) return { category: learned, source: "MERCHANT" };
+  if (cardPayments.has(t.id)) return { category: "TRANSFERS", source: "AUTO" };
   return { category: categorize(t.description), source: "AUTO" };
 }
 
@@ -301,12 +310,15 @@ export function buildSpending({ transactions, today, overrides, merchantRules }:
   const lastTo = formatIsoDate(lastYear, lastMonth, lastLength);
   const lastSameDay = formatIsoDate(lastYear, lastMonth, Math.min(day, lastLength));
 
+  const cardPayments = matchCardPayments(
+    transactions.flatMap((t) => (t.accountKind ? [{ id: t.id, date: t.date, amountCents: t.amountCents, accountKind: t.accountKind }] : [])),
+  );
   const spends: Spend[] = transactions
     .filter((t) => t.amountCents < 0)
     .sort((a, b) => compareDate(a.date, b.date))
     .map((t): Spend => {
       const key = merchantKey(t.description);
-      return { id: t.id, date: t.date, description: t.description, key, cents: -t.amountCents, ...resolveCategory(t, key, overrides, merchantRules) };
+      return { id: t.id, date: t.date, description: t.description, key, cents: -t.amountCents, ...resolveCategory(t, key, overrides, merchantRules, cardPayments) };
     });
 
   const lastMonthPeriod = buildPeriod(spends, lastFrom, lastTo);

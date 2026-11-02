@@ -61,6 +61,12 @@ export function todayLocal(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
+/** Browser-local calendar date (YYYY-MM-DD) of an ISO timestamp. */
+export function localDateOf(iso: string): string {
+  const date = new Date(iso);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
 /** Formats a YYYY-MM-DD date with a date-fns pattern, without timezone drift. */
 export function fmtDate(date: string, pattern: string): string {
   const [y, m, d] = date.split("-").map(Number);

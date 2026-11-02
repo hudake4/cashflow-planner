@@ -72,7 +72,7 @@ function DayCell({ day, currency, maxPositiveCents, onSelect }: { day: DayView; 
         data-testid={`day-button-${day.date}`}
         style={projected ? { backgroundColor: heatBackground(heatTint(closing, maxPositiveCents)) } : undefined}
         className={clsx(
-          "flex h-full min-h-14 w-full min-w-0 flex-col justify-between gap-0.5 rounded-control border px-0.5 py-1 text-left transition-colors @min-[20.5rem]:px-1",
+          "flex h-full min-h-14 w-full min-w-0 flex-col justify-between gap-0.5 rounded-control border px-0.5 py-1 text-left transition-colors",
           "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-600",
           projected
             ? "cursor-pointer border-slate-200 text-slate-900 hover:border-slate-400"
@@ -84,7 +84,8 @@ function DayCell({ day, currency, maxPositiveCents, onSelect }: { day: DayView; 
         <span className="flex items-center justify-between gap-0.5">
           <span
             className={clsx(
-              "inline-flex h-5 min-w-5 items-center justify-center rounded-chip px-0.5 text-xs font-bold tabular-nums",
+              // In the tight cells the number chip gives up 4px so a negative cell's alert icon stays inside the padding.
+              "inline-flex h-5 min-w-5 items-center justify-center rounded-chip px-0.5 text-xs font-bold tabular-nums @max-[21rem]:min-w-4 @max-[21rem]:px-px",
               day.isToday && "highlight text-slate-900",
             )}
           >
@@ -96,10 +97,10 @@ function DayCell({ day, currency, maxPositiveCents, onSelect }: { day: DayView; 
           <>
             <span
               aria-hidden="true"
-              className={clsx("block text-[10px] leading-3 font-semibold @min-[20.5rem]:text-[11px] whitespace-nowrap tabular-nums", negative ? "text-rose-800" : "text-slate-800")}
+              className={clsx("block text-[10px] leading-3 font-semibold @min-[21rem]:text-[11px] whitespace-nowrap tabular-nums", negative ? "text-rose-800" : "text-slate-800")}
             >
-              <span className="@min-[20.5rem]:hidden">{compactBalance(closing, currency, true)}</span>
-              <span className="hidden @min-[20.5rem]:inline">{compactBalance(closing, currency)}</span>
+              <span className="@min-[21rem]:hidden">{compactBalance(closing, currency, true)}</span>
+              <span className="hidden @min-[21rem]:inline">{compactBalance(closing, currency)}</span>
             </span>
             <span className="sr-only" data-testid={`day-balance-${day.date}`}>
               {money(closing, currency)}
@@ -176,21 +177,39 @@ export function HeatmapCalendar({
     for (const w of weeks) for (const d of w.days) if (d.state === "projected" && d.summary && d.summary.closingBalanceCents > max) max = d.summary.closingBalanceCents;
     return max;
   }, [weeks]);
+  // Below `lg` the hatched weeks that end before the projection start only push the register down the
+  // screen, so they are hidden (the nodes stay in the DOM). Keep them when nothing else would be left.
+  const collapsibleWeeks = useMemo(() => {
+    const before = weeks.filter((w) => w.days.every((d) => d.state === "before-start"));
+    return before.length === weeks.length ? new Set<string>() : new Set(before.map((w) => w.weekStart));
+  }, [weeks]);
   const headerDays = Array.from({ length: 7 }, (_, i) => WEEKDAY_NAMES[(weekStartsOn + i) % 7].slice(0, 3));
 
   return (
-    <section aria-label="Balance calendar" className="@container rounded-sheet border border-slate-300 bg-sheet p-2 sm:p-3" data-testid="calendar-heatmap">
-      <div className="grid grid-cols-7 gap-1" aria-hidden="true">
+    <section aria-label="Balance calendar" className="@container rounded-sheet border border-slate-300 bg-sheet p-1 sm:p-3" data-testid="calendar-heatmap">
+      <div className="grid grid-cols-7 gap-0.5 sm:gap-1" aria-hidden="true">
         {headerDays.map((d) => (
           <div key={d} className="pb-1 text-center text-xs font-semibold text-slate-600">
             {d}
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-1">
-        {weeks.flatMap((w) =>
-          w.days.map((d) => <DayCell key={d.date} day={d} currency={currency} maxPositiveCents={maxPositiveCents} onSelect={onSelectDay} />),
-        )}
+      <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
+        {weeks.map((w) => {
+          const collapsed = collapsibleWeeks.has(w.weekStart);
+          return (
+            <div
+              key={w.weekStart}
+              data-testid={`heatmap-week-${w.weekStart}`}
+              data-week-collapsed-on-phone={collapsed || undefined}
+              className={collapsed ? "hidden lg:contents" : "contents"}
+            >
+              {w.days.map((d) => (
+                <DayCell key={d.date} day={d} currency={currency} maxPositiveCents={maxPositiveCents} onSelect={onSelectDay} />
+              ))}
+            </div>
+          );
+        })}
       </div>
       <HeatmapLegend />
     </section>

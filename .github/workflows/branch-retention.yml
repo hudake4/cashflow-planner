@@ -1,0 +1,66 @@
+name: Branch retention
+
+# Deletes branches whose last commit is older than 48 hours. Skipped: the
+# default branch, protected branches, and branches with an open pull request.
+# Scheduled runs delete; a manual run defaults to a dry run that only lists.
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: List what would be deleted without deleting it
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: branch-retention
+  cancel-in-progress: false
+
+env:
+  RETENTION_HOURS: "48"
+
+jobs:
+  prune:
+    name: Delete stale branches
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+    steps:
+      - name: Delete branches older than the retention window
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cutoff=$(date -u -d "${RETENTION_HOURS} hours ago" +%s)
+          open_heads=$(gh pr list --repo "$REPO" --state open --limit 1000 --json headRefName --jq '.[].headRefName')
+
+          gh api --paginate "repos/$REPO/branches?per_page=100" --jq '.[] | [.name, .protected, .commit.sha] | @tsv' |
+          while IFS=$'\t' read -r name protected sha; do
+            if [ "$name" = "$DEFAULT_BRANCH" ] || [ "$protected" = "true" ]; then
+              continue
+            fi
+            if grep -qxF -- "$name" <<<"$open_heads"; then
+              echo "keep    $name (open pull request)"
+              continue
+            fi
+            committed=$(gh api "repos/$REPO/commits/$sha" --jq '.commit.committer.date')
+            if [ "$(date -u -d "$committed" +%s)" -ge "$cutoff" ]; then
+              echo "keep    $name (last commit $committed)"
+              continue
+            fi
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "would delete $name (last commit $committed)"
+            else
+              gh api -X DELETE "repos/$REPO/git/refs/heads/$name"
+              echo "deleted $name (last commit $committed)"
+            fi
+          done

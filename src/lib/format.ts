@@ -1,4 +1,3 @@
-import type { BillFrequency, IncomeFrequency } from "@/contracts/api";
 import { formatCents } from "@/domain/money";
 
 export function money(cents: number, currency = "USD"): string {
@@ -25,14 +24,7 @@ export function spokenKindMoney(kind: "INCOME" | "BILL", amountCents: number, cu
   return kind === "INCOME" ? `plus ${abs}` : `minus ${abs}`;
 }
 
-export const FREQUENCY_LABELS: Record<IncomeFrequency | BillFrequency, string> = {
-  ONE_TIME: "One-time",
-  WEEKLY: "Weekly",
-  BIWEEKLY: "Every 2 weeks",
-  MONTHLY: "Monthly",
-  QUARTERLY: "Quarterly",
-  YEARLY: "Yearly",
-};
+export { FREQUENCY_LABELS } from "@/domain/frequency-labels";
 
 export const CURRENCIES: { code: string; label: string }[] = [
   { code: "USD", label: "USD — US dollar" },

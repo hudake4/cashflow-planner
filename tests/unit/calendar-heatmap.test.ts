@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compactBalance, heatBackground, heatTint } from "@/lib/calendar-heatmap";
+import { CURRENCIES } from "@/lib/format";
 
 describe("compactBalance", () => {
   it("shows whole dollars with separators below $10,000", () => {
@@ -19,23 +20,84 @@ describe("compactBalance", () => {
 
   it("puts a true minus sign before negative balances", () => {
     expect(compactBalance(-27000)).toBe("−$270");
-    expect(compactBalance(-1_250_000)).toBe("−$12.5k");
+    expect(compactBalance(-99_900)).toBe("−$999");
+  });
+
+  it("abbreviates negative balances from $1,000 so the minus sign still fits", () => {
+    expect(compactBalance(-100_000)).toBe("−$1k");
+    expect(compactBalance(-123_400)).toBe("−$1.2k");
+    expect(compactBalance(-999_000)).toBe("−$10k");
+  });
+
+  it("keeps whole thousands for negative balances of $10,000 or more", () => {
+    expect(compactBalance(-1_234_500)).toBe("−$12k");
+    expect(compactBalance(-1_250_000)).toBe("−$13k");
+    expect(compactBalance(-12_345_600)).toBe("−$123k");
+    expect(compactBalance(-123_456_789)).toBe("−$1.2M");
+    expect(compactBalance(-1_234_567_890)).toBe("−$12M");
+  });
+
+  it("keeps the decimal for large positive balances", () => {
+    expect(compactBalance(1_250_000)).toBe("$12.5k");
+    expect(compactBalance(25_000_000)).toBe("$250k");
   });
 
   it("does not show a minus for a negative balance that rounds to zero", () => {
     expect(compactBalance(-20)).toBe("$0");
+    expect(compactBalance(-20, "USD", true)).toBe("0");
   });
 
-  it("tight mode abbreviates from $1,000 so it fits a phone cell", () => {
-    expect(compactBalance(99_900, "USD", true)).toBe("$999");
-    expect(compactBalance(133_000, "USD", true)).toBe("$1.3k");
-    expect(compactBalance(100_000, "USD", true)).toBe("$1k");
-    expect(compactBalance(-133_000, "USD", true)).toBe("−$1.3k");
+  it("tight mode drops the currency symbol and abbreviates from $1,000 so it fits a phone cell", () => {
+    expect(compactBalance(99_900, "USD", true)).toBe("999");
+    expect(compactBalance(133_000, "USD", true)).toBe("1.3k");
+    expect(compactBalance(100_000, "USD", true)).toBe("1k");
+    expect(compactBalance(-99_900, "USD", true)).toBe("−999");
+    expect(compactBalance(-133_000, "USD", true)).toBe("−1.3k");
+    expect(compactBalance(-1_234_500, "USD", true)).toBe("−12k");
+    expect(compactBalance(-12_345_600, "USD", true)).toBe("−123k");
+    expect(compactBalance(-123_456_789, "USD", true)).toBe("−1.2M");
+    expect(compactBalance(1_250_000, "USD", true)).toBe("12.5k");
+    expect(compactBalance(25_000_000, "USD", true)).toBe("250k");
+  });
+
+  it("never yields more than seven characters, so it fits a phone cell with room for padding", () => {
+    const samples = [0, 5, 99_900, 133_000, 999_949, 1_000_000, 1_250_000, 12_345_600, 99_960_000, 123_456_789, 1_234_567_890, 99_999_999_900];
+    for (const cents of samples) {
+      for (const signed of [cents, -cents]) {
+        expect(compactBalance(signed).length).toBeLessThanOrEqual(7);
+        expect(compactBalance(signed, "USD", true).length).toBeLessThanOrEqual(6);
+      }
+    }
   });
 
   it("uses the currency symbol", () => {
     expect(compactBalance(133000, "EUR")).toBe("€1,330");
     expect(compactBalance(1_250_000, "GBP")).toBe("£12.5k");
+  });
+
+  it("uses the narrow symbol, so dollar currencies show a plain $ instead of CA$, A$ or MX$", () => {
+    expect(compactBalance(133000, "CAD")).toBe("$1,330");
+    expect(compactBalance(-123_400, "AUD")).toBe("−$1.2k");
+    expect(compactBalance(1_250_000, "NZD")).toBe("$12.5k");
+    expect(compactBalance(-123_456_789, "MXN")).toBe("−$1.2M");
+    expect(compactBalance(133000, "ZAR")).toBe("R1,330");
+  });
+
+  it("drops a currency symbol that is longer than one character, which would overflow a cell", () => {
+    for (const currency of ["CHF", "SEK", "NOK", "DKK", "BRL"]) {
+      expect(compactBalance(133000, currency)).toBe("1,330");
+      expect(compactBalance(-123_400, currency)).toBe("−1.2k");
+      expect(compactBalance(-123_456_789, currency)).toBe("−1.2M");
+    }
+  });
+
+  it("never adds more than one symbol character for any currency the app offers", () => {
+    for (const { code } of CURRENCIES) {
+      for (const cents of [-99_960_000, -123_456_789, -1_234_500, -99_900, 99_900, 99_949, 12_500_000, 99_999_999_900]) {
+        const symbolWidth = [...compactBalance(cents, code)].length - [...compactBalance(cents, code, true)].length;
+        expect(symbolWidth, `${code} ${cents}: ${compactBalance(cents, code)}`).toBeLessThanOrEqual(1);
+      }
+    }
   });
 });
 

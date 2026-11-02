@@ -13,9 +13,14 @@ import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, Tabl
 type Point = { date: string; balanceCents: number };
 
 /** Projected end-of-day balance over the forecast window. Values are the API's `trend` as-is. */
-export function TrendChart({ dashboard }: { dashboard: DashboardResponse }) {
+export function TrendChart({ dashboard, scenarioDashboard }: { dashboard: DashboardResponse; scenarioDashboard?: DashboardResponse | null }) {
   const { trend, totals, settings } = dashboard;
   const currency = settings.currency;
+  const scenarioTrend = scenarioDashboard?.trend ?? null;
+  const merged = trend.map((p, i) => ({
+    ...p,
+    scenarioBalanceCents: scenarioTrend?.[i]?.balanceCents,
+  }));
   const [showTable, setShowTable] = useState(false);
 
   if (trend.length === 0) return null;
@@ -36,7 +41,7 @@ export function TrendChart({ dashboard }: { dashboard: DashboardResponse }) {
     <figure className="space-y-3" data-testid="trend-chart">
       <div className="h-64 w-full" aria-hidden="true">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={trend} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+          <AreaChart data={merged} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
             <defs>
               <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="var(--color-brand-600)" stopOpacity={0.16} />
@@ -94,11 +99,24 @@ export function TrendChart({ dashboard }: { dashboard: DashboardResponse }) {
               activeDot={{ r: 4, strokeWidth: 2, stroke: "var(--color-sheet)" }}
               isAnimationActive={false}
             />
+            {scenarioDashboard && (
+              <Area
+                type="stepAfter"
+                dataKey="scenarioBalanceCents"
+                stroke="var(--color-amber-600, #d97706)"
+                strokeWidth={2}
+                strokeDasharray="6 4"
+                fill="none"
+                isAnimationActive={false}
+                connectNulls
+              />
+            )}
           </AreaChart>
         </ResponsiveContainer>
       </div>
       <figcaption className="text-sm text-slate-700" data-testid="trend-summary">
         {summary}
+        {scenarioDashboard && <span className="ml-2 rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">Scenario active</span>}
       </figcaption>
       <Expandable expanded={showTable} onToggle={() => setShowTable((open) => !open)} transitionDuration={0.18}>
         {({ isExpanded }) => (

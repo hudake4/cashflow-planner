@@ -16,9 +16,11 @@ export async function resetTables() {
   await testPrisma.bankConnection.deleteMany(); // accounts and transactions cascade
   await testPrisma.transactionCategory.deleteMany();
   await testPrisma.merchantCategoryRule.deleteMany();
+  await testPrisma.dismissedRecurring.deleteMany();
   await testPrisma.billOccurrence.deleteMany();
   await testPrisma.bill.deleteMany();
   await testPrisma.incomeSource.deleteMany();
+  await testPrisma.savingsGoal.deleteMany();
   await testPrisma.settings.deleteMany();
 }
 

@@ -3,7 +3,7 @@
 import { ArrowDown, ArrowUp, ChartPie, Equal, Landmark, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import type { SpendingResponse, SpendingTransactionDTO } from "@/contracts/api";
+import { HISTORY_DAYS, type SpendingResponse, type SpendingTransactionDTO } from "@/contracts/api";
 import { api } from "@/lib/api-client";
 import { fmtShort } from "@/lib/dates";
 import { money } from "@/lib/format";
@@ -143,7 +143,7 @@ function SpendingContent({ s, onSaved }: { s: SpendingResponse; onSaved: (next: 
         )}
         <p data-testid="spending-coverage">
           {s.coverageStart ? `Based on transactions from ${fmtShort(s.coverageStart)} to today` : "Based on your stored transactions"} (the app
-          keeps the last 89 days)
+          keeps the last {HISTORY_DAYS} days)
           {s.lastSyncedAt && ` · last updated ${fmtShort(s.lastSyncedAt.slice(0, 10))}`}
         </p>
         <Link href="/institutions" className={textLink}>

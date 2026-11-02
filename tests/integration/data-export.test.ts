@@ -117,6 +117,7 @@ describe("GET /api/data/export", () => {
         forecastDays: 90,
         weekStartsOn: 1,
         defaultCalendarView: "week",
+        desktopNotifications: false,
       },
     });
     const income = (
@@ -163,6 +164,28 @@ describe("GET /api/data/export", () => {
         ],
       },
     ]);
+  });
+
+  it("exports the typed start date, not the one derived from the bank accounts", async () => {
+    await call(settingsRoute.PUT, "PUT", "/api/settings", {
+      body: {
+        startingBalanceCents: -4000,
+        startingBalanceSource: "ACCOUNTS",
+        projectionStartDate: "2026-10-01",
+        currency: "USD",
+        forecastDays: 90,
+        weekStartsOn: 0,
+        defaultCalendarView: "month",
+      },
+    });
+    const institution = await connect({ setupToken: SETUP_TOKEN }, NOW);
+    const oldest = institution.accounts.map((a) => a.balanceDate).sort()[0];
+    expect(oldest).not.toBe("2026-10-01");
+
+    const { body } = await getExport();
+    expect(dataExportSchema.parse(body)).toEqual(body);
+    expect(body.settings).toMatchObject({ projectionStartDate: "2026-10-01", accountsBalanceDate: oldest });
+    expect(body.settings.startingBalanceCents).toBe(-4000);
   });
 
   it("never contains the access URL, its credentials or the setup token", async () => {

@@ -22,6 +22,7 @@ import { nextSort, sortScheduleItems, type SortKey, type SortState } from "@/lib
 import { useApi } from "@/lib/use-api";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/app-shell";
+import { BillPaymentMatches } from "@/components/bills/bill-payment-matches";
 import { RecurringScanButton } from "@/components/recurring/recurring-scan";
 import { ScheduleFormDialog, type ScheduleKind } from "@/components/forms/schedule-form-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -184,6 +185,8 @@ export function ScheduleListPage({ kind }: { kind: ScheduleKind }) {
           </Button>
         </Alert>
       )}
+
+      {kind === "bill" && <BillPaymentMatches />}
 
       {list.error && list.data && <ErrorState message={list.error} onRetry={list.reload} className="mb-5" />}
 

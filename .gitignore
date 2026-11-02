@@ -33,3 +33,6 @@ next-env.d.ts
 # misc
 .DS_Store
 *.log
+
+# local screenshots and QA captures
+.shots/

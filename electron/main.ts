@@ -6,8 +6,9 @@
  *    The one exception: links to SimpleFIN Bridge (to create a setup token) open in the user's browser.
  */
 import path from "node:path";
-import { app, BrowserWindow, dialog, Menu, session, shell } from "electron";
+import { app, BrowserWindow, dialog, Menu, safeStorage, session, shell } from "electron";
 import { DatabaseBackupError } from "./backup";
+import { startAlertNotifications } from "./notifications";
 import { startServer, type RunningServer } from "./server";
 
 const APP_NAME = "CashFlow Planner";
@@ -15,6 +16,8 @@ const APP_NAME = "CashFlow Planner";
 // Packaged: %APPDATA%\CashFlow Planner. Unpackaged (npm run desktop:start) gets its own folder
 // so trying the desktop build from source never touches the installed app's data.
 app.setName(APP_NAME);
+// Windows shows notifications under this id; it matches the installer's appId (electron-builder.yml).
+if (process.platform === "win32") app.setAppUserModelId("com.cashflowplanner.desktop");
 app.setPath("userData", path.join(app.getPath("appData"), app.isPackaged ? APP_NAME : `${APP_NAME} (dev)`));
 
 const paths = app.isPackaged
@@ -76,6 +79,16 @@ async function launch(): Promise<void> {
   Menu.setApplicationMenu(null);
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
 
+  // The server runs in this process (see server.ts), so it reaches the OS keystore through a
+  // global (the same pattern as the PrismaClient singleton). Nothing is exposed to the window.
+  // It encrypts the stored SimpleFIN Access URL (src/server/secret-box.ts): Windows DPAPI,
+  // tied to this Windows account. Registered before the server starts.
+  (globalThis as { __cashflowOsKeystore?: unknown }).__cashflowOsKeystore = {
+    isAvailable: () => safeStorage.isEncryptionAvailable(),
+    encrypt: (plain: string) => safeStorage.encryptString(plain),
+    decrypt: (sealed: Buffer) => safeStorage.decryptString(sealed),
+  };
+
   server = await startServer({
     ...paths,
     dbFile: path.join(app.getPath("userData"), "cashflow.db"),
@@ -109,4 +122,11 @@ async function launch(): Promise<void> {
   });
 
   await mainWindow.loadURL(server.url);
+
+  const stopAlerts = startAlertNotifications(server.url, () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  });
+  app.once("before-quit", stopAlerts);
 }

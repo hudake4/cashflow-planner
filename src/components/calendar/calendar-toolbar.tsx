@@ -2,7 +2,7 @@
 
 import { clsx } from "clsx";
 import { CalendarSearch, ChevronLeft, ChevronRight, LoaderCircle } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { CalendarView } from "@/contracts/api";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -26,6 +26,7 @@ export function CalendarToolbar({
   onStep,
   onToday,
   onJump,
+  actions,
 }: {
   view: CalendarView;
   title: string;
@@ -34,18 +35,26 @@ export function CalendarToolbar({
   onStep: (dir: -1 | 1) => void;
   onToday: () => void;
   onJump: (date: string) => void;
+  /** Extra controls after the view toggle (the export menu). */
+  actions?: ReactNode;
 }) {
   const [jump, setJump] = useState("");
   const [jumpOpen, setJumpOpen] = useState(false);
+
+  // Moving the calendar makes a typed jump date stale, so clear the field to keep it in line with the title.
+  const moveCalendar = (move: () => void) => {
+    setJump("");
+    move();
+  };
 
   return (
     <Card className="p-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <div className="flex min-w-0 basis-full items-center gap-1 xl:basis-0 xl:flex-1">
-          <Button size="icon" variant="ghost" className="size-11" onClick={() => onStep(-1)} aria-label={view === "month" ? "Previous month" : "Previous week"} data-testid="calendar-prev">
+          <Button size="icon" variant="ghost" className="size-11" onClick={() => moveCalendar(() => onStep(-1))} aria-label={view === "month" ? "Previous month" : "Previous week"} data-testid="calendar-prev">
             <ChevronLeft className="h-5 w-5" aria-hidden="true" />
           </Button>
-          <Button size="icon" variant="ghost" className="size-11" onClick={() => onStep(1)} aria-label={view === "month" ? "Next month" : "Next week"} data-testid="calendar-next">
+          <Button size="icon" variant="ghost" className="size-11" onClick={() => moveCalendar(() => onStep(1))} aria-label={view === "month" ? "Next month" : "Next week"} data-testid="calendar-next">
             <ChevronRight className="h-5 w-5" aria-hidden="true" />
           </Button>
           <h2 className="font-semiwide min-w-0 flex-1 truncate pl-1 text-lg sm:text-xl font-bold text-foreground" aria-live="polite" data-testid="calendar-title">
@@ -59,7 +68,7 @@ export function CalendarToolbar({
         </div>
 
         <div className="flex items-center gap-2">
-          <Button size="sm" className="min-h-11" onClick={onToday} data-testid="calendar-today">
+          <Button size="sm" className="min-h-11" onClick={() => moveCalendar(onToday)} data-testid="calendar-today">
             Today
           </Button>
           <ToggleGroup
@@ -80,6 +89,7 @@ export function CalendarToolbar({
               Week
             </ToggleGroupItem>
           </ToggleGroup>
+          {actions}
           <Button
             size="icon"
             variant="ghost"

@@ -3,7 +3,7 @@
 import { ArrowDown, ArrowLeft, ArrowUp } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import type { BankTransactionDTO, InstitutionDTO } from "@/contracts/api";
+import { HISTORY_DAYS, type BankTransactionDTO, type InstitutionDTO } from "@/contracts/api";
 import { api, errorMessage } from "@/lib/api-client";
 import { fmtShort } from "@/lib/dates";
 import { money, signedMoney } from "@/lib/format";
@@ -55,8 +55,8 @@ export function TransactionHistory({ institutionId, initialAccountId }: { instit
         title={institution?.name ?? "Institution"}
         description={
           account
-            ? `The last 89 days, saved on this computer from your last sync. Balance ${money(account.balanceCents, account.currency)} as of ${fmtShort(account.balanceDate)}.`
-            : "The last 89 days, saved on this computer from your last sync."
+            ? `The last ${HISTORY_DAYS} days, saved on this computer from your last sync. Balance ${money(account.balanceCents, account.currency)} as of ${fmtShort(account.balanceDate)}.`
+            : `The last ${HISTORY_DAYS} days, saved on this computer from your last sync.`
         }
         actions={
           accounts.length > 1 ? (
