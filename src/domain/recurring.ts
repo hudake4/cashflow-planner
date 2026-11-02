@@ -78,6 +78,22 @@ const NOISE = new Set([
   "dda", "pur", "ap",
 ]);
 
+/**
+ * Payments to a credit card, read from the raw bank wording ("CHASE CREDIT CRD AUTOPAY", "AMEX EPAYMENT").
+ * Their amount is the statement, so it changes every month while the date stays put.
+ */
+const CARD_PAYMENT_PATTERNS = [
+  /\bcredit (card|crd)\b/,
+  /\bcard ?(member|services?)\b/,
+  /\b(card|crd) (auto ?pay|e-?pay\w*|pmt|payment)\b/,
+  /\b(amex|american express|discover|capital one|citi ?card|synchrony|barclays|apple card)\b.*\b(auto ?pay|e-?pay\w*|pmt|payment)\b/,
+];
+
+export function isCardPayment(description: string): boolean {
+  const text = description.toLowerCase();
+  return CARD_PAYMENT_PATTERNS.some((p) => p.test(text));
+}
+
 // ---------------------------------------------------------------------------
 // Names
 // ---------------------------------------------------------------------------
@@ -121,12 +137,19 @@ function amountSpread(amounts: number[]): number {
   return Math.max(...amounts.map((a) => Math.abs(a - m))) / m;
 }
 
-function matchCadence(dates: string[], amounts: number[], today: string): { frequency: RecurringFrequency; spread: number } | null {
+/** `anyAmount`: only the date repeats (a card payment), so a monthly pattern ignores how much was paid. */
+function matchCadence(
+  dates: string[],
+  amounts: number[],
+  today: string,
+  anyAmount: boolean,
+): { frequency: RecurringFrequency; spread: number } | null {
   const spread = amountSpread(amounts);
   const idle = diffDays(dates[dates.length - 1], today);
   for (const frequency of CADENCE_ORDER) {
     const c = CADENCES[frequency];
-    if (dates.length < c.minCount || idle > c.maxIdleDays || spread > c.amountTolerance(dates.length)) continue;
+    if (anyAmount && frequency !== "MONTHLY") continue;
+    if (dates.length < c.minCount || idle > c.maxIdleDays || (!anyAmount && spread > c.amountTolerance(dates.length))) continue;
     const gapsFit = dates.slice(1).every((d, i) => {
       const gap = diffDays(dates[i], d);
       return gap >= c.minGap && gap <= c.maxGap;
@@ -206,6 +229,8 @@ interface Group {
   key: string;
   tokens: string[];
   description: string;
+  /** A payment to a credit card: money out, worded like one. */
+  cardPayment: boolean;
   /** Total magnitude per date (several charges on one day are one sighting). */
   byDate: Map<string, number>;
 }
@@ -221,9 +246,10 @@ export function detectRecurring({ transactions, incomes, bills, today }: DetectI
     const kind: LedgerEventKind = t.amountCents > 0 ? "INCOME" : "BILL";
     const key = `${kind}:${tokens.slice(0, KEY_TOKENS).join(" ")}`;
     // Later transactions overwrite tokens/description so the newest wording wins.
-    const group = groups.get(key) ?? { kind, key, tokens, description: t.description, byDate: new Map() };
+    const group = groups.get(key) ?? { kind, key, tokens, description: t.description, cardPayment: false, byDate: new Map() };
     group.tokens = tokens;
     group.description = t.description;
+    group.cardPayment ||= kind === "BILL" && isCardPayment(t.description);
     group.byDate.set(t.date, (group.byDate.get(t.date) ?? 0) + Math.abs(t.amountCents));
     groups.set(key, group);
   }
@@ -232,7 +258,7 @@ export function detectRecurring({ transactions, incomes, bills, today }: DetectI
   for (const group of groups.values()) {
     const dates = [...group.byDate.keys()].sort();
     const amounts = dates.map((d) => group.byDate.get(d) as number);
-    const match = matchCadence(dates, amounts, today);
+    const match = matchCadence(dates, amounts, today, group.cardPayment);
     if (!match) continue;
 
     const amountCents = amounts[amounts.length - 1];
@@ -250,6 +276,7 @@ export function detectRecurring({ transactions, incomes, bills, today }: DetectI
       occurrences: dates.length,
       seenDates: dates,
       amountVaries: match.spread > VARIES_THRESHOLD,
+      cardPayment: group.cardPayment,
     });
   }
 

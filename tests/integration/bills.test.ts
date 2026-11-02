@@ -38,6 +38,18 @@ describe("/api/bills CRUD", () => {
     expectApiError(await call(item.GET, "GET", "", at(res.body.id)), 404, "NOT_FOUND");
   });
 
+  it("variableAmount defaults to false, is stored when set, and is replaced by a PUT", async () => {
+    const plain = await create(valid);
+    expect(plain.body.variableAmount).toBe(false);
+
+    const card = await create({ ...valid, name: "Chase card", variableAmount: true });
+    expect(card.body.variableAmount).toBe(true);
+    expect((await call(item.GET, "GET", "", at(card.body.id))).body.variableAmount).toBe(true);
+
+    const put = await call(item.PUT, "PUT", `/api/bills/${card.body.id}`, { body: { ...valid, name: "Chase card" }, ...at(card.body.id) });
+    expect(put.body.variableAmount).toBe(false);
+  });
+
   it("404 for unknown ids", async () => {
     expectApiError(await call(item.GET, "GET", "", at("missing")), 404, "NOT_FOUND");
     expectApiError(await call(item.PUT, "PUT", "", { body: valid, ...at("missing") }), 404, "NOT_FOUND");
@@ -59,6 +71,7 @@ describe("/api/bills CRUD", () => {
     ["endDate", { endDate: "2025-01-30" }],
     ["category", { category: "x".repeat(41) }],
     ["active", { active: "yes" }],
+    ["variableAmount", { variableAmount: "yes" }],
   ])("400 VALIDATION_ERROR for bad %s: %j", async (field, patch) => {
     expectApiError(await create({ ...valid, ...patch }), 400, "VALIDATION_ERROR", [field]);
     expect(await testPrisma.bill.count()).toBe(0);

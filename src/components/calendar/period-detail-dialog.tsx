@@ -90,6 +90,7 @@ export function PeriodDetailDialog({
                         {e.status === "PAID" && <Badge tone="positive">Paid</Badge>}
                         {skipped && <Badge tone="neutral">Skipped, not counted</Badge>}
                         {e.amountOverridden && <Badge tone="info">Adjusted</Badge>}
+                        {e.amountEstimated && !skipped && <Badge tone="warning">Estimate</Badge>}
                       </span>
                     </span>
                     <span className="flex flex-col items-end gap-0.5">

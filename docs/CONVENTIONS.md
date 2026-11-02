@@ -54,6 +54,7 @@ A `BillOccurrence` row, keyed by `(billId, dueDate)`, records the user's status 
 | `SKIPPED` | **Not counted.** It appears in the ledger with `included: false` and `signedAmountCents: 0` for transparency. Future occurrences are unaffected. |
 
 - `amountOverrideCents` (variable bills) replaces the default amount for that one occurrence only.
+- **Variable-amount bills** (`variableAmount`, for a credit card paid by autopay): the date repeats on its normal schedule but the amount is whatever the statement says, entered per occurrence as an `amountOverrideCents`. An occurrence with no entered amount is **counted as an estimate** (`LedgerEvent.amountEstimated`, shown as "Estimate"): the amount is the latest one entered for an *earlier* date of that bill (a skipped occurrence's amount counts too), or the bill's own `amountCents` if none was ever entered. It is counted in full, so an unentered statement never makes the balance look better than it will be. Entering the statement clears the estimate for that date only; the next date is an estimate again until the user enters it. The projection never changes an earlier date because a later one was entered.
 - Status is tracking data, separate from the bill definition. Editing a bill (amount, date, frequency) **never rewrites or deletes** occurrence rows. If the schedule moves, old rows simply stop matching a generated date and are kept as history. Deleting a bill cascades and deletes its occurrence rows.
 - The API rejects a status update for a date that isn't a scheduled occurrence of that bill (`400 BAD_REQUEST`).
 
@@ -152,6 +153,7 @@ Finds repeating payments and deposits in the stored bank history (section 9, Sim
 | `MONTHLY` | 26–35 days | 2 | 10% (2 sightings), 40% (3+) | 45 days |
 
 - Quarterly and yearly payments are **not detectable**: they don't repeat inside 89 days.
+- **Credit card payments** (`cardPayment`): money out whose raw bank wording reads like a card payment ("CREDIT CRD AUTOPAY", "CARD PMT", "AMEX EPAYMENT", `isCardPayment`) is predicted by its **date alone**. A monthly pattern needs the usual 2 sightings 26-35 days apart but **no amount match**, because the amount is the statement. Weekly and biweekly cadences are never stretched this way. Adding the suggestion creates a `variableAmount` bill (section 5) whose amount is the latest payment.
 - **Amount:** the latest occurrence. `amountVaries` is true when amounts differ by more than 2% of the median.
 - **Next date:** the first expected date on or after today. Weekly and biweekly step 7 or 14 days from the last sighting. Monthly uses the usual day of month; a clamped month-end does not override a 31st (section 4).
 - **Already tracked (hidden):** an existing bill or income of the same kind that is not one-time and not ended (paused counts) when any of these hold:

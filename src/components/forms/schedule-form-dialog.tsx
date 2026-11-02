@@ -35,6 +35,7 @@ interface FormState {
   category: string;
   notes: string;
   active: boolean;
+  variableAmount: boolean;
 }
 
 function initialState(kind: ScheduleKind, item?: BillDTO | IncomeDTO | null): FormState {
@@ -48,6 +49,7 @@ function initialState(kind: ScheduleKind, item?: BillDTO | IncomeDTO | null): Fo
       category: "category" in item ? (item.category ?? "") : "",
       notes: item.notes ?? "",
       active: item.active,
+      variableAmount: "variableAmount" in item && item.variableAmount,
     };
   }
   return {
@@ -59,6 +61,7 @@ function initialState(kind: ScheduleKind, item?: BillDTO | IncomeDTO | null): Fo
     category: "",
     notes: "",
     active: true,
+    variableAmount: false,
   };
 }
 
@@ -170,7 +173,7 @@ export function ScheduleForm({
       endDate: oneTime ? null : form.endDate || null,
       notes: form.notes || null,
       active: form.active,
-      ...(kind === "bill" ? { category: form.category || null } : {}),
+      ...(kind === "bill" ? { category: form.category || null, variableAmount: form.variableAmount } : {}),
     };
 
     const parsed = kind === "bill" ? billInputSchema.safeParse(payload) : incomeInputSchema.safeParse(payload);
@@ -221,7 +224,7 @@ export function ScheduleForm({
   }
 
   const unknownErrors = Object.entries(errors)
-    .filter(([k]) => !["name", "amountCents", "frequency", "anchorDate", "endDate", "category", "notes", "active"].includes(k))
+    .filter(([k]) => !["name", "amountCents", "frequency", "anchorDate", "endDate", "category", "notes", "active", "variableAmount"].includes(k))
     .flatMap(([, v]) => v ?? []);
 
   return (
@@ -249,7 +252,8 @@ export function ScheduleForm({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field
-          label={kind === "bill" ? "Amount per occurrence" : "Amount per payday"}
+          label={kind === "bill" ? (form.variableAmount ? "Estimated amount" : "Amount per occurrence") : "Amount per payday"}
+          hint={form.variableAmount ? "Used until you enter each statement. After that, the latest amount you entered." : undefined}
           error={errors.amountCents}
           testId={`${testPrefix}-amount`}
         >
@@ -342,6 +346,16 @@ export function ScheduleForm({
           data-testid={`${testPrefix}-notes`}
         />
       </Field>
+
+      {kind === "bill" && (
+        <Switch
+          checked={form.variableAmount}
+          onChange={(v) => set("variableAmount", v)}
+          label="Amount changes every time"
+          description="For a credit card payment: the date repeats, and you enter each statement amount. Until then the last amount is shown as an estimate."
+          testId="bill-variable-amount"
+        />
+      )}
 
       <Switch
         checked={form.active}

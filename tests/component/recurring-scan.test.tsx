@@ -35,6 +35,7 @@ const BILL: RecurringSuggestionDTO = {
   occurrences: 2,
   seenDates: ["2026-09-05", "2026-10-05"],
   amountVaries: false,
+  cardPayment: false,
 };
 
 const INCOME: RecurringSuggestionDTO = {
@@ -47,6 +48,7 @@ const INCOME: RecurringSuggestionDTO = {
   occurrences: 3,
   seenDates: ["2026-10-02", "2026-10-16", "2026-10-30"],
   amountVaries: false,
+  cardPayment: false,
 };
 
 const RENT: RecurringSuggestionDTO = { ...BILL, key: "BILL:rent", name: "Rent", amountCents: 120000, nextDate: "2026-11-01" };
@@ -115,11 +117,24 @@ describe("RecurringScanButton", () => {
       notes: "Found in your bank history.",
       active: true,
       category: null,
+      variableAmount: false,
     });
     expect(createIncome).not.toHaveBeenCalled();
     expect(onAdded).toHaveBeenCalledTimes(1);
     expect(dialog).toHaveTextContent("2 of 2");
     expect(within(dialog).getByTestId("recurring-add")).toHaveTextContent("Add as income");
+  });
+
+  it("adds a credit card payment as a variable-amount bill and says only the date is predicted", async () => {
+    scanRecurring.mockResolvedValue(scanResponse([{ ...BILL, name: "Chase Credit Crd", cardPayment: true, amountVaries: true }]));
+    const { user } = renderButton();
+    const dialog = await openDialog(user);
+
+    expect(within(dialog).getByTestId("recurring-card-note")).toHaveTextContent("Only the date is predicted");
+    await user.click(within(dialog).getByTestId("recurring-add"));
+
+    await waitFor(() => expect(createBill).toHaveBeenCalledTimes(1));
+    expect(createBill).toHaveBeenCalledWith(expect.objectContaining({ name: "Chase Credit Crd", variableAmount: true }));
   });
 
   it("adds income without a category field", async () => {

@@ -44,19 +44,20 @@ model IncomeSource {
 }
 
 model Bill {
-  id          String           @id @default(cuid())
-  householdId String           @default("local")
-  name        String
-  amountCents Int
-  frequency   String // ONE_TIME | WEEKLY | BIWEEKLY | MONTHLY | QUARTERLY | YEARLY
-  anchorDate  String // first/next due date, YYYY-MM-DD
-  endDate     String? // inclusive, YYYY-MM-DD
-  category    String?
-  notes       String?
-  active      Boolean          @default(true)
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  occurrences BillOccurrence[]
+  id             String           @id @default(cuid())
+  householdId    String           @default("local")
+  name           String
+  amountCents    Int
+  frequency      String // ONE_TIME | WEEKLY | BIWEEKLY | MONTHLY | QUARTERLY | YEARLY
+  anchorDate     String // first/next due date, YYYY-MM-DD
+  endDate        String? // inclusive, YYYY-MM-DD
+  category       String?
+  notes          String?
+  active         Boolean          @default(true)
+  variableAmount Boolean          @default(false) // amount changes every cycle (credit card statement): the user enters it per occurrence
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  occurrences    BillOccurrence[]
 
   @@index([householdId])
 }

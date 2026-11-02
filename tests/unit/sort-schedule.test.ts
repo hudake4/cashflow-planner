@@ -10,6 +10,7 @@ const bill = (over: Partial<BillDTO> & Pick<BillDTO, "id" | "name">): BillDTO =>
   category: null,
   notes: null,
   active: true,
+  variableAmount: false,
   createdAt: "2026-10-01T00:00:00.000Z",
   updatedAt: "2026-10-01T00:00:00.000Z",
   ...over,

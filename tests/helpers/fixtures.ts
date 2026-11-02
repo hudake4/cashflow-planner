@@ -42,6 +42,7 @@ export function bill(
     endDate: null,
     active: true,
     category: null,
+    variableAmount: false,
     ...over,
   };
 }

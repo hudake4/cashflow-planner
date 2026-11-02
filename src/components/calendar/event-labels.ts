@@ -19,6 +19,7 @@ export function eventAriaLabel(event: LedgerEvent, currency: string): string {
   const status = eventStatusText(event);
   if (status) parts.push(status === "Skipped" ? "Skipped, not counted" : status);
   if (event.amountOverridden) parts.push("amount changed for this date");
+  if (event.amountEstimated) parts.push("estimated amount, statement not entered yet");
   parts.push(`${event.balanceAfterCents < 0 ? "negative balance" : "balance"} after ${money(event.balanceAfterCents, currency)}`);
   return parts.join(", ");
 }

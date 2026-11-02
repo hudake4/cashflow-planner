@@ -41,6 +41,7 @@ const event = (over: Partial<LedgerEvent> & Pick<LedgerEvent, "id" | "date" | "k
   status: over.kind === "INCOME" ? "SCHEDULED" : "UPCOMING",
   included: true,
   amountOverridden: false,
+  amountEstimated: false,
   sequence: 0,
   ...over,
 });

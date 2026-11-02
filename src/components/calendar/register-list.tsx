@@ -89,7 +89,7 @@ function RegisterRow({ event, currency, onSelect }: { event: LedgerEvent; curren
         <span className="row-span-2 pt-0.5 text-xs font-medium whitespace-nowrap text-slate-600 tabular-nums @lg:row-span-1 @lg:pt-0">{fmtDate(event.date, "EEE d")}</span>
         <span className="row-span-2 min-w-0 @lg:row-span-1">
           <span className={clsx("block font-medium break-words text-slate-900", skipped && "text-slate-500 line-through")}>{event.name}</span>
-          {(event.status === "PAID" || skipped || event.amountOverridden) && (
+          {(event.status === "PAID" || skipped || event.amountOverridden || event.amountEstimated) && (
             <span className="mt-0.5 flex flex-wrap items-center gap-1">
               {event.status === "PAID" && (
                 <Badge tone="positive" className="gap-0.5">
@@ -98,6 +98,7 @@ function RegisterRow({ event, currency, onSelect }: { event: LedgerEvent; curren
               )}
               {skipped && <Badge tone="neutral">Skipped, not counted</Badge>}
               {event.amountOverridden && <Badge tone="info">Adjusted</Badge>}
+              {event.amountEstimated && !skipped && <Badge tone="warning">Estimate</Badge>}
             </span>
           )}
         </span>

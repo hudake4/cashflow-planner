@@ -40,6 +40,7 @@ describe("detectRecurring cadences", () => {
         occurrences: 2,
         seenDates: ["2026-09-03", "2026-10-03"],
         amountVaries: false,
+        cardPayment: false,
       },
     ]);
   });
@@ -165,3 +166,32 @@ describe("detectRecurring ordering", () => {
   });
 });
 
+
+describe("detectRecurring credit card payments", () => {
+  const pay = (date: string, cents: number, description = "CHASE CREDIT CRD AUTOPAY 12345") => tx(date, description, -cents);
+
+  it("predicts the date of a card payment whose amount changes every month", () => {
+    const [s] = run([pay("2026-09-18", 41230), pay("2026-10-18", 87615)]);
+    expect(s).toMatchObject({ kind: "BILL", frequency: "MONTHLY", nextDate: "2026-11-18", amountCents: 87615, cardPayment: true, amountVaries: true });
+  });
+
+  it("recognizes other issuers' wording", () => {
+    for (const description of ["AMEX EPAYMENT ACH PMT", "DISCOVER E-PAYMENT", "CAPITAL ONE CARD PMT", "CITI CARD ONLINE PAYMENT"]) {
+      const out = run([pay("2026-09-05", 10000, description), pay("2026-10-05", 90000, description)]);
+      expect(out[0], description).toMatchObject({ cardPayment: true, frequency: "MONTHLY", nextDate: "2026-11-05" });
+    }
+  });
+
+  it("still rejects an ordinary payment whose amount jumps between two sightings", () => {
+    expect(run([pay("2026-09-18", 41230, "CITY WATER"), pay("2026-10-18", 87615, "CITY WATER")])).toEqual([]);
+  });
+
+  it("never treats money coming in as a card payment", () => {
+    const [s] = run([tx("2026-09-18", "CHASE CREDIT CRD REFUND", 1000), tx("2026-10-18", "CHASE CREDIT CRD REFUND", 1000)]);
+    expect(s).toMatchObject({ kind: "INCOME", cardPayment: false });
+  });
+
+  it("does not stretch a weekly or biweekly pattern: only monthly card payments are predicted", () => {
+    expect(run([pay("2026-10-02", 1000), pay("2026-10-09", 9000), pay("2026-10-16", 4000)])).toEqual([]);
+  });
+});
