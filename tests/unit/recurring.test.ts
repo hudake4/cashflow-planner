@@ -1,4 +1,5 @@
 ﻿import { describe, expect, it } from "vitest";
+import { addDays } from "@/domain/dates";
 import { detectRecurring, nameTokens, type DetectInput, type ExistingSchedule, type ScanTransaction } from "@/domain/recurring";
 
 const TODAY = "2026-10-24";
@@ -75,6 +76,57 @@ describe("detectRecurring cadences", () => {
   it("lets a variable monthly bill vary once it has been seen three times", () => {
     const [s] = run([tx("2026-08-12", "City Electric", -8000), tx("2026-09-12", "City Electric", -10500), tx("2026-10-12", "City Electric", -9100)]);
     expect(s).toMatchObject({ amountCents: 9100, amountVaries: true });
+  });
+});
+
+describe("detectRecurring with a long history (recent unbroken run)", () => {
+  const series = (description: string, last: string, step: number, amounts: number[]) =>
+    amounts.map((a, i) => tx(addDays(last, -step * (amounts.length - 1 - i)), description, a));
+  const monthly = (description: string, amounts: number[]) =>
+    amounts.map((a, i) => {
+      const index = 2026 * 12 + 9 - (amounts.length - 1 - i); // counts back from 2026-10
+      return tx(`${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, "0")}-03`, description, a);
+    });
+
+  it("finds a monthly charge with one missed month and reports only the recent run", () => {
+    const all = monthly("SPOTIFY USA", Array(12).fill(-1199));
+    const withGap = all.filter((t) => t.date !== "2026-03-03"); // 11 sightings
+    expect(withGap).toHaveLength(11);
+    const out = run(withGap);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ frequency: "MONTHLY", amountCents: 1199, nextDate: "2026-11-03", occurrences: 7 });
+    expect(out[0].seenDates[0]).toBe("2026-04-03");
+  });
+
+  it("finds biweekly pay with one skipped pay period", () => {
+    const pay = series("ACME CORP DIRECT DEP PAYROLL", "2026-10-23", 14, Array(14).fill(215000));
+    const skipped = pay.filter((_, i) => i !== 5);
+    const out = run(skipped);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ kind: "INCOME", frequency: "BIWEEKLY", nextDate: "2026-11-06", occurrences: 8 });
+  });
+
+  it("is not thrown off by an amount outlier early in the history", () => {
+    const out = run(monthly("Gym", [-15000, -4000, -4000, -4000, -4000, -4000, -4000, -4000, -4000, -4000, -4000, -4000]));
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ amountCents: 4000, amountVaries: false, occurrences: 11 });
+  });
+
+  it("still finds a pattern when only the recent sightings are steady", () => {
+    const out = run(monthly("Streaming Plus", [-500, -1800, -2500, -1299, -1299, -1299]));
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ amountCents: 1299, occurrences: 3 });
+  });
+
+  it("leaves a seasonal bill that swings past the 40% tolerance undetected (documented decision)", () => {
+    const amounts = [60, 55, 58, 70, 90, 120, 150, 180, 175, 160, 110, 70].map((d) => -d * 100);
+    expect(run(monthly("City Electric", amounts))).toEqual([]);
+  });
+
+  it("does not detect a payment whose recent run is too short", () => {
+    // Steady for months, then a charge 17 days after the last one: only that sighting is left in the run.
+    const old = monthly("Old Habit", Array(6).fill(-2000));
+    expect(run([...old, tx("2026-10-20", "Old Habit", -2000)])).toEqual([]);
   });
 });
 

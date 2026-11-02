@@ -2,7 +2,8 @@
  * Recurring-payment detection (CONVENTIONS section 12). Pure: no Prisma, no clock (today is
  * passed in), no I/O.
  *
- * Input is the stored bank history (HISTORY_DAYS, over a year once it has built up). Only weekly
+ * Input is the stored bank history (HISTORY_DAYS, over a year once it has built up). A cadence is
+ * judged on the most recent unbroken run of sightings, not the whole history. Only weekly
  * (3+ times), every 2 weeks (3+ times) and monthly (2+ times) cadences are recognised; quarterly and
  * yearly payments are not detected.
  *
@@ -56,7 +57,7 @@ interface Cadence {
   minCount: number;
   /** If the last occurrence is older than this the payment has probably stopped. */
   maxIdleDays: number;
-  /** Largest allowed deviation of any amount from the median, as a fraction of the median. */
+  /** Largest allowed deviation of any amount in the recent run from the run's median, as a fraction of that median. */
   amountTolerance: (count: number) => number;
 }
 
@@ -125,17 +126,36 @@ function amountSpread(amounts: number[]): number {
   return Math.max(...amounts.map((a) => Math.abs(a - m))) / m;
 }
 
-function matchCadence(dates: string[], amounts: number[], today: string): { frequency: RecurringFrequency; spread: number } | null {
-  const spread = amountSpread(amounts);
+interface CadenceMatch {
+  frequency: RecurringFrequency;
+  spread: number;
+  /** The recent unbroken run the cadence was judged on (oldest first). Earlier history is ignored. */
+  dates: string[];
+  amounts: number[];
+}
+
+/**
+ * Judges the most recent unbroken run: walk back from the latest sighting while each gap fits the
+ * cadence. An older break (a missed month, a skipped pay period) or an old amount outlier then
+ * cannot hide a pattern that is still going. Amounts are compared within the run only.
+ */
+function matchCadence(dates: string[], amounts: number[], today: string): CadenceMatch | null {
   const idle = diffDays(dates[dates.length - 1], today);
   for (const frequency of CADENCE_ORDER) {
     const c = CADENCES[frequency];
-    if (dates.length < c.minCount || idle > c.maxIdleDays || spread > c.amountTolerance(dates.length)) continue;
-    const gapsFit = dates.slice(1).every((d, i) => {
-      const gap = diffDays(dates[i], d);
-      return gap >= c.minGap && gap <= c.maxGap;
-    });
-    if (gapsFit) return { frequency, spread };
+    if (idle > c.maxIdleDays) continue;
+    let start = dates.length - 1;
+    while (start > 0) {
+      const gap = diffDays(dates[start - 1], dates[start]);
+      if (gap < c.minGap || gap > c.maxGap) break;
+      start--;
+    }
+    // An old amount outlier ends the run too: drop the oldest sightings until the amounts fit.
+    for (; dates.length - start >= c.minCount; start++) {
+      const runAmounts = amounts.slice(start);
+      const spread = amountSpread(runAmounts);
+      if (spread <= c.amountTolerance(runAmounts.length)) return { frequency, spread, dates: dates.slice(start), amounts: runAmounts };
+    }
   }
   return null;
 }
@@ -242,11 +262,11 @@ export function detectRecurring({ transactions, incomes, bills, today, accountId
 
   const suggestions: RecurringSuggestionDTO[] = [];
   for (const group of groups.values()) {
-    const dates = [...group.byDate.keys()].sort();
-    const amounts = dates.map((d) => group.byDate.get(d) as number);
-    const match = matchCadence(dates, amounts, today);
+    const allDates = [...group.byDate.keys()].sort();
+    const match = matchCadence(allDates, allDates.map((d) => group.byDate.get(d) as number), today);
     if (!match) continue;
 
+    const { dates, amounts } = match;
     const amountCents = amounts[amounts.length - 1];
     const next = nextDate(match.frequency, dates, today);
     const existing = group.kind === "INCOME" ? incomes : bills;

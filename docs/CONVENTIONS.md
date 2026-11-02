@@ -175,14 +175,16 @@ Finds repeating payments and deposits in the stored bank history (section 9, Sim
 - **Grouping:** by direction (money in = income, money out = bill) and a normalised merchant name. Reference numbers and bank boilerplate (`POS`, `DEBIT`, `ACH`, …) are dropped; the first 3 words form the key. Several charges on the same day are one sighting, with amounts summed.
 - **Cadences:**
 
-| Frequency | Gap between sightings | Min. sightings | Amount tolerance (vs. median) | Stopped if last sighting is older than |
+| Frequency | Gap between sightings | Min. sightings (in the recent run) | Amount tolerance (vs. the run's median) | Stopped if last sighting is older than |
 |---|---|---|---|---|
 | `WEEKLY` | 6–8 days | 3 | 15% | 14 days |
 | `BIWEEKLY` | 13–15 days | 3 | 15% | 28 days |
 | `MONTHLY` | 26–35 days | 2 | 10% (2 sightings), 40% (3+) | 45 days |
 
+- **Recent unbroken run:** a cadence is judged on the most recent run of sightings only. Starting at the latest sighting, walk back while each gap fits the cadence's gap range; the first gap that does not fit ends the run. Amount tolerance is measured against the run's own sightings and median (the tolerance for 2 vs. 3+ monthly sightings uses the run's length); if the run's amounts do not fit, the oldest sightings are dropped one at a time until they do, so an old amount outlier also ends the run. What is left must still have the minimum sightings above. Older history is ignored, so one missed month, one skipped pay period or an old amount outlier does not hide a pattern that is still going. The suggestion's `occurrences`, `seenDates` and next date come from the run.
+- **Seasonal / variable bills (decision):** there is no utility concept in the scan, and the 40% tolerance is **not** widened. A bill whose recent run swings more than 40% from its median (e.g. an electric bill from $55 to $180) is **not detected**; the user adds it by hand and uses the variable-bill estimate (section 15). Widening tolerance globally would let ordinary shopping merchants through.
 - Quarterly and yearly payments are **not detectable**: the history window could hold them, but the scan has no cadence for them yet.
-- **Amount:** the latest occurrence. `amountVaries` is true when amounts differ by more than 2% of the median.
+- **Amount:** the latest occurrence. `amountVaries` is true when amounts in the recent run differ by more than 2% of the run's median.
 - **Next date:** the first expected date on or after today. Weekly and biweekly step 7 or 14 days from the last sighting. Monthly uses the usual day of month; a clamped month-end does not override a 31st (section 4).
 - **Already tracked (left out of the suggestions):** an existing bill or income of the same kind that is not one-time and not ended (paused counts) when any of these hold:
   1. one name's words (ignoring bank boilerplate) are all in the other name;
