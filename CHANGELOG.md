@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.29.0](https://github.com/hudake4/cashflow-planner/compare/v0.28.1...v0.29.0) (2026-11-02)
+
+
+### Features
+
+* predict credit card payment dates and let the statement amount be entered each month ([#126](https://github.com/hudake4/cashflow-planner/issues/126)) ([9e1a4df](https://github.com/hudake4/cashflow-planner/commit/9e1a4df52de9c321f786f91417dbdee773efae29))
+
+
+### Bug Fixes
+
+* **dashboard:** show What-If value in projected balance tooltip ([#127](https://github.com/hudake4/cashflow-planner/issues/127)) ([2f38329](https://github.com/hudake4/cashflow-planner/commit/2f38329fada7ceadf1475e137645ad7da787da44))
+
 ## [0.28.1](https://github.com/hudake4/cashflow-planner/compare/v0.28.0...v0.28.1) (2026-11-02)
 
 
