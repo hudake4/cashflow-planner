@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+﻿import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as resetRoute from "@/app/api/data/reset/route";
 import * as listRoute from "@/app/api/institutions/route";
 import * as itemRoute from "@/app/api/institutions/[id]/route";
@@ -6,6 +6,7 @@ import * as syncRoute from "@/app/api/institutions/[id]/sync/route";
 import * as kindRoute from "@/app/api/institutions/[id]/accounts/[accountId]/route";
 import * as txRoute from "@/app/api/institutions/[id]/transactions/route";
 import type { BankAccountDTO, BankTransactionsResponse, InstitutionDTO, InstitutionSyncDTO } from "@/contracts/api";
+import { HOUSEHOLD_ID } from "@/server/db";
 import { ApiError } from "@/server/http";
 import { connect, syncConnection } from "@/server/repositories/institutions";
 import * as simplefin from "@/server/simplefin";
@@ -703,5 +704,32 @@ describe("encryption at rest", () => {
     expect(serialized).not.toContain(ciphertext);
     expect(serialized).not.toContain(SECRET_PASSWORD);
     expect(serialized).not.toMatch(/enc:v1|accessUrl|bridge\.simplefin\.org/i);
+  });
+});
+
+describe("in-flight sync guard", () => {
+  it("is shared by every copy of the module (instrumentation and route bundles each load their own)", async () => {
+    const conn = await testPrisma.bankConnection.create({ data: { householdId: HOUSEHOLD_ID, accessUrl: ACCESS_URL } });
+    const first = await import("@/server/repositories/institutions");
+    let release!: (set: AccountSet) => void;
+    mocked.fetchAccountSet.mockReturnValueOnce(new Promise<AccountSet>((resolve) => (release = resolve)));
+
+    const running = first.syncConnection(conn.id);
+    await vi.waitFor(() => expect(mocked.fetchAccountSet).toHaveBeenCalledTimes(1));
+
+    vi.resetModules();
+    const second = await import("@/server/repositories/institutions");
+    expect(second).not.toBe(first); // a separate module instance, as in the other bundle
+    await expect(second.syncConnection(conn.id)).rejects.toMatchObject({
+      status: 409,
+      code: "CONFLICT",
+      message: "A refresh is already running for this connection.",
+    });
+
+    release(accountSet(FIRST));
+    await expect(running).resolves.toMatchObject({ id: conn.id });
+    // The guard is released: with the 15 minute window passed, the next sync goes through.
+    mocked.fetchAccountSet.mockResolvedValueOnce(accountSet(FIRST));
+    await expect(first.syncConnection(conn.id, new Date(NOW.getTime() + 20 * MIN))).resolves.toMatchObject({ id: conn.id });
   });
 });

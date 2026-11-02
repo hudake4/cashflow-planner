@@ -91,8 +91,11 @@ export async function listConnections(client: DbClient = db): Promise<Institutio
   return rows.map(toInstitutionDTO);
 }
 
-// Connections being synced right now (this process), so a double click can't fire two requests.
-const syncing = new Set<string>();
+// Connections being synced right now, so a double click or an overlapping auto-sync can't fire two
+// requests. Kept on globalThis (like `db`) because the instrumentation bundle that runs auto-sync and
+// the route-handler bundle each load their own copy of this module; a module-scope Set would not be shared.
+const globalForSync = globalThis as unknown as { __cashflowSyncing?: Set<string> };
+const syncing: Set<string> = (globalForSync.__cashflowSyncing ??= new Set<string>());
 
 /**
  * Fetches the planned window from SimpleFIN and, in one transaction, upserts the accounts
