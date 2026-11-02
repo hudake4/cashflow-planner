@@ -1,4 +1,4 @@
-﻿import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as resetRoute from "@/app/api/data/reset/route";
 import * as listRoute from "@/app/api/institutions/route";
 import * as itemRoute from "@/app/api/institutions/[id]/route";
