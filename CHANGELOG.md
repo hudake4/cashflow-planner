@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.28.1](https://github.com/hudake4/cashflow-planner/compare/v0.28.0...v0.28.1) (2026-11-02)
+
+
+### Bug Fixes
+
+* **dev:** stop edge bundle importing node:crypto via instrumentation ([1595c23](https://github.com/hudake4/cashflow-planner/commit/1595c2333d4528d4691d9bde715d47866d2253d7)), closes [#113](https://github.com/hudake4/cashflow-planner/issues/113)
+* full outage window after incomplete accounts; reset deletes goals and dismissals ([#123](https://github.com/hudake4/cashflow-planner/issues/123)) ([6011907](https://github.com/hudake4/cashflow-planner/commit/60119078444ce787829fa5c4a26436b7584d4bcc))
+* **recurring:** evaluate recent unbroken run of sightings ([#122](https://github.com/hudake4/cashflow-planner/issues/122)) ([47ea33d](https://github.com/hudake4/cashflow-planner/commit/47ea33d07fce2c50924e0f84856783975cd0d31e))
+* **sync:** share in-flight guard across bundles via globalThis ([#121](https://github.com/hudake4/cashflow-planner/issues/121)) ([2e1a70a](https://github.com/hudake4/cashflow-planner/commit/2e1a70a8e3110c42e466d0c9ef60ca9106fbb0fd))
+
 ## [0.28.0](https://github.com/hudake4/cashflow-planner/compare/v0.27.0...v0.28.0) (2026-11-01)
 
 
