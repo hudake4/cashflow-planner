@@ -91,6 +91,7 @@ model BankConnection {
   householdId  String        @default("local")
   accessUrl    String
   lastSyncedAt DateTime? // last successful sync; drives the 15-minute minimum between syncs
+  lastCompleteSyncAt DateTime? // last successful sync with no account in SimpleFIN's errlist; the next window starts from it
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   accounts     BankAccount[]

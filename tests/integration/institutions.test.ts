@@ -321,6 +321,49 @@ describe("syncing", () => {
     expect(await testPrisma.bankTransaction.count()).toBe(3);
   });
 
+  it("fetches a whole outage once an account that stayed incomplete for more than 7 days recovers", async () => {
+    const DAY = 86_400_000;
+    const day = (n: number) => new Date(NOW.getTime() + n * DAY).toISOString().slice(0, 10);
+    // The bank has one a2 transaction per day so far; SimpleFIN returns what falls inside the requested window.
+    const bank = Array.from({ length: 13 }, (_, n) => tx(`d${n}`, day(n), "-1.00"));
+    let a2Failing = false;
+    mocked.fetchAccountSet.mockImplementation(async (_url, opts) => {
+      const now = opts.end.getTime() - DAY;
+      const inWindow = bank.filter((t) => t.posted * 1000 >= opts.start.getTime() && t.posted * 1000 <= now);
+      return accountSet([], {
+        errlist: a2Failing ? [{ code: "act.err", msg: "Savings is unavailable", account_id: "a2" }] : [],
+        accounts: [{ id: "a2", name: "Savings", conn_id: "c1", currency: "USD", balance: "10.00", transactions: a2Failing ? [] : inWindow }],
+      });
+    });
+
+    const first = await connect({ setupToken: SETUP_TOKEN }, NOW);
+    const a2 = `${first.id}:a2`;
+    a2Failing = true; // 10 daily refreshes with a2 in the errlist
+    for (let n = 1; n <= 10; n++) await syncConnection(first.id, new Date(NOW.getTime() + n * DAY));
+    expect(await testPrisma.bankTransaction.count({ where: { accountId: a2 } })).toBe(1);
+
+    a2Failing = false;
+    await syncConnection(first.id, new Date(NOW.getTime() + 11 * DAY));
+    const ids = (await testPrisma.bankTransaction.findMany({ where: { accountId: a2 }, orderBy: { date: "asc" } })).map((r) => r.id.slice(a2.length + 1));
+    expect(ids).toEqual(bank.slice(0, 12).map((t) => t.id)); // d0..d11: the whole outage, each once
+
+    // The next healthy sync goes back to the usual 7 day overlap and still never duplicates.
+    await syncConnection(first.id, new Date(NOW.getTime() + 12 * DAY));
+    const [, opts] = mocked.fetchAccountSet.mock.calls.at(-1)!;
+    expect(opts.start.toISOString()).toBe(`${day(4)}T00:00:00.000Z`);
+    expect(await testPrisma.bankTransaction.count({ where: { accountId: a2 } })).toBe(13);
+  });
+
+  it("a first sync with an incomplete account fetches the full span again next time", async () => {
+    mocked.fetchAccountSet.mockResolvedValueOnce(
+      accountSet([], { errlist: [{ code: "act.err", msg: "Checking is unavailable", account_id: "a1" }] }),
+    );
+    const first = await connect({ setupToken: SETUP_TOKEN }, NOW);
+    await syncConnection(first.id, new Date(NOW.getTime() + 30 * MIN));
+    const [, opts] = mocked.fetchAccountSet.mock.calls[1];
+    expect(opts.end.getTime() - opts.start.getTime()).toBeGreaterThan(80 * 86_400_000);
+  });
+
   it("404s for an unknown connection", async () => {
     expectApiError(await postSync("nope"), 404, "NOT_FOUND");
   });

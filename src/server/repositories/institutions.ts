@@ -102,7 +102,8 @@ const syncing: Set<string> = (globalForSync.__cashflowSyncing ??= new Set<string
  * and replaces their transactions: every pending row, plus non-pending rows dated inside
  * the window. Rows older than HISTORY_DAYS are then pruned. Accounts that SimpleFIN flagged with an error keep their
  * stored transactions (an empty list from a failing bank must not wipe history).
- * `lastSyncedAt` moves only after a successful fetch, so a failed sync can be retried.
+ * `lastSyncedAt` moves only after a successful fetch, so a failed sync can be retried;
+ * `lastCompleteSyncAt` moves only when no account was flagged.
  */
 /**
  * Decrypts the stored Access URL. A legacy plaintext value is upgraded in place (best effort)
@@ -132,7 +133,9 @@ async function readAccessUrl(row: BankConnection): Promise<string> {
 }
 
 async function runSync(row: BankConnection, now: Date): Promise<string[]> {
-  const window = planSyncWindow(row.lastSyncedAt, now);
+  // From the last sync where every account was complete, so an account that stayed in the errlist
+  // for more than the 7 day overlap still gets its whole outage once it recovers.
+  const window = planSyncWindow(row.lastCompleteSyncAt, now);
   const set = await simplefin.fetchAccountSet(await readAccessUrl(row), {
     start: window.start,
     end: window.end,
@@ -185,7 +188,8 @@ async function runSync(row: BankConnection, now: Date): Promise<string[]> {
     await tx.bankTransaction.deleteMany({
       where: { account: { connectionId: row.id }, date: { lt: historyCutoff(todayLocal(now)) } },
     });
-    await tx.bankConnection.update({ where: { id: row.id }, data: { lastSyncedAt: now } });
+    const complete = set.accounts.every((a) => !a.incomplete);
+    await tx.bankConnection.update({ where: { id: row.id }, data: { lastSyncedAt: now, ...(complete && { lastCompleteSyncAt: now }) } });
   });
   return set.warnings;
 }
