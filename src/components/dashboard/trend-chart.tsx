@@ -5,12 +5,46 @@ import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Too
 import { ChevronDown, ChevronUp } from "lucide-react";
 import type { DashboardResponse } from "@/contracts/api";
 import { fmtDate, fmtShort } from "@/lib/dates";
-import { money } from "@/lib/format";
+import { money, signedMoney } from "@/lib/format";
 import { Balance } from "@/components/ui/money";
 import { Expandable, ExpandableContent, ExpandableTrigger } from "@/components/ui/expandable";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-type Point = { date: string; balanceCents: number };
+type Point = { date: string; balanceCents: number; scenarioBalanceCents?: number };
+
+/** Hover card: the original balance, plus the What-If balance and its difference when a scenario is active. */
+export function TrendTooltip({ point: p, currency }: { point: Point; currency: string }) {
+  const scenario = p.scenarioBalanceCents;
+  return (
+    <div className="rounded-control border border-slate-200 bg-sheet px-3 py-2 text-xs shadow-[0_8px_24px_-10px_rgb(23_42_51/0.35)]" data-testid="trend-tooltip">
+      <p className="text-slate-500">{fmtDate(p.date, "EEE, MMM d, yyyy")}</p>
+      {scenario === undefined ? (
+        <p className="font-semibold text-slate-900">
+          <Balance cents={p.balanceCents} currency={currency} />
+        </p>
+      ) : (
+        <dl className="mt-1 space-y-0.5">
+          <div className="flex items-baseline justify-between gap-4">
+            <dt className="text-slate-500">Original forecast</dt>
+            <dd className="font-semibold text-slate-900">
+              <Balance cents={p.balanceCents} currency={currency} />
+            </dd>
+          </div>
+          <div className="flex items-baseline justify-between gap-4">
+            <dt className="text-amber-700 dark:text-amber-400">What-If forecast</dt>
+            <dd className="font-semibold text-slate-900">
+              <Balance cents={scenario} currency={currency} />
+            </dd>
+          </div>
+          <div className="flex items-baseline justify-between gap-4 border-t border-slate-200 pt-0.5">
+            <dt className="text-slate-500">Difference</dt>
+            <dd className="font-medium tabular-nums text-slate-700">{signedMoney(scenario - p.balanceCents, currency)}</dd>
+          </div>
+        </dl>
+      )}
+    </div>
+  );
+}
 
 /** Projected end-of-day balance over the forecast window. Values are the API's `trend` as-is. */
 export function TrendChart({ dashboard, scenarioDashboard }: { dashboard: DashboardResponse; scenarioDashboard?: DashboardResponse | null }) {
@@ -79,15 +113,7 @@ export function TrendChart({ dashboard, scenarioDashboard }: { dashboard: Dashbo
               cursor={{ stroke: "var(--color-slate-400)", strokeWidth: 1 }}
               content={({ active, payload }) => {
                 const p = active && payload?.[0]?.payload as Point | undefined;
-                if (!p) return null;
-                return (
-                  <div className="rounded-control border border-slate-200 bg-sheet px-3 py-2 text-xs shadow-[0_8px_24px_-10px_rgb(23_42_51/0.35)]">
-                    <p className="text-slate-500">{fmtDate(p.date, "EEE, MMM d, yyyy")}</p>
-                    <p className="font-semibold text-slate-900">
-                      <Balance cents={p.balanceCents} currency={currency} />
-                    </p>
-                  </div>
-                );
+                return p ? <TrendTooltip point={p} currency={currency} /> : null;
               }}
             />
             <Area
@@ -107,6 +133,7 @@ export function TrendChart({ dashboard, scenarioDashboard }: { dashboard: Dashbo
                 strokeWidth={2}
                 strokeDasharray="6 4"
                 fill="none"
+                activeDot={{ r: 4, strokeWidth: 2, stroke: "var(--color-sheet)", fill: "var(--color-amber-600, #d97706)" }}
                 isAnimationActive={false}
                 connectNulls
               />
@@ -137,15 +164,21 @@ export function TrendChart({ dashboard, scenarioDashboard }: { dashboard: Dashbo
                     <TableRow>
                       <TableHead scope="col">Date</TableHead>
                       <TableHead scope="col" className="text-right">End-of-day balance</TableHead>
+                      {scenarioDashboard && <TableHead scope="col" className="text-right">What-If balance</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {trend.map((p) => (
+                    {merged.map((p) => (
                       <TableRow key={p.date}>
                         <TableCell>{fmtDate(p.date, "EEE, MMM d")}</TableCell>
                         <TableCell className="text-right">
                           <Balance cents={p.balanceCents} currency={currency} />
                         </TableCell>
+                        {scenarioDashboard && (
+                          <TableCell className="text-right">
+                            {p.scenarioBalanceCents === undefined ? "—" : <Balance cents={p.scenarioBalanceCents} currency={currency} />}
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
                   </TableBody>
