@@ -95,6 +95,8 @@ export async function resetAllData(prisma: PrismaClient): Promise<void> {
     await tx.bankConnection.deleteMany({ where: { householdId: HOUSEHOLD_ID } });
     await tx.transactionCategory.deleteMany({ where: { householdId: HOUSEHOLD_ID } });
     await tx.merchantCategoryRule.deleteMany({ where: { householdId: HOUSEHOLD_ID } });
+    await tx.savingsGoal.deleteMany({ where: { householdId: HOUSEHOLD_ID } });
+    await tx.dismissedRecurring.deleteMany({ where: { householdId: HOUSEHOLD_ID } });
     await tx.settings.deleteMany({ where: { householdId: HOUSEHOLD_ID } });
   });
 }
