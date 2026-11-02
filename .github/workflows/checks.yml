@@ -46,6 +46,34 @@ jobs:
       - name: Test
         run: npm test
 
+  # `next build` compiles instrumentation.ts for the Node runtime only, but `next dev` (and so
+  # the e2e server) also compiles it for the edge runtime. A Node-only import that leaks into
+  # that bundle breaks every dev route, and nothing above would notice.
+  dev-smoke:
+    name: Dev server smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Starts `next dev` on a throwaway database and fails unless / and /api/settings return 200.
+      - name: Smoke test next dev
+        run: npm run test:smoke
+
   audit:
     name: Dependency audit
     runs-on: ubuntu-latest
