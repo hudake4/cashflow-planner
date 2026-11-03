@@ -3,7 +3,7 @@
 import { TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { BillDTO, CalendarView, IncomeDTO, LedgerEvent, ProjectionResponse, ScenarioInput, SettingsDTO, WeekSummary } from "@/contracts/api";
+import type { BalanceHistoryResponse, BillDTO, CalendarView, IncomeDTO, LedgerEvent, ProjectionResponse, ScenarioInput, SettingsDTO, WeekSummary } from "@/contracts/api";
 import { effectiveProjectionStartDate, startDateFromAccounts } from "@/domain/starting-balance";
 import { api } from "@/lib/api-client";
 import { addDays, addMonths, eachDay, endOfMonth, fmtDate, fmtRange, startOfMonth, startOfWeek, todayLocal } from "@/lib/dates";
@@ -139,6 +139,19 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
   // Only trust data whose range matches what we asked for (avoids flashing stale numbers on navigation).
   const fresh = data && activeProjection.dataKey === activeKey ? data : undefined;
 
+  // Days before the projection start show what the bank accounts held, rebuilt from the stored
+  // transactions. Only with the "sum of my bank accounts" source (CONVENTIONS section 21); a typed
+  // balance has no history. It never depends on a scenario, so it is fetched once for the grid.
+  const historyEnd = addDays(projectionStart, -1);
+  const historyTo = grid.to > historyEnd ? historyEnd : grid.to;
+  const wantsHistory = startDateFromAccounts(settings) && grid.from <= historyTo;
+  const historyKey = wantsHistory ? `balance-history:${grid.from}:${historyTo}` : null;
+  const history = useApi<BalanceHistoryResponse>(historyKey, () => api.getBalanceHistory({ from: grid.from, to: historyTo }));
+  const historyByDate = useMemo(
+    () => new Map((history.data && history.dataKey === historyKey ? history.data.days : []).map((d) => [d.date, d.closingBalanceCents])),
+    [history.data, history.dataKey, historyKey],
+  );
+
   const eventsById = useMemo(() => new Map((fresh?.events ?? []).map((e) => [e.id, e])), [fresh]);
   const daysByDate = useMemo(() => new Map((fresh?.days ?? []).map((d) => [d.date, d])), [fresh]);
   const weeksByStart = useMemo(() => new Map((fresh?.weeks ?? []).map((w) => [w.weekStart, w])), [fresh]);
@@ -149,11 +162,14 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
     for (let i = 0; i < all.length; i += 7) {
       const days = all.slice(i, i + 7).map<DayView>((date) => {
         const summary = daysByDate.get(date);
-        const state = date < projectionStart ? "before-start" : date > maxEnd ? "beyond-range" : "projected";
+        const historyBalanceCents = historyByDate.get(date);
+        const state =
+          date < projectionStart ? (historyBalanceCents === undefined ? "before-start" : "history") : date > maxEnd ? "beyond-range" : "projected";
         return {
           date,
           state,
           summary,
+          historyBalanceCents,
           events: summary ? summary.eventIds.map((id) => eventsById.get(id)).filter((e): e is LedgerEvent => !!e) : [],
           inMonth: view === "week" || date.slice(0, 7) === grid.month,
           isToday: date === today,
@@ -162,7 +178,7 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
       rows.push({ weekStart: all[i], days });
     }
     return rows;
-  }, [grid, daysByDate, eventsById, projectionStart, maxEnd, view, today]);
+  }, [grid, daysByDate, historyByDate, eventsById, projectionStart, maxEnd, view, today]);
 
   const selectedEvent = selectedEventId ? (eventsById.get(selectedEventId) ?? null) : null;
 
@@ -275,7 +291,7 @@ function CalendarBody({ settings }: { settings: SettingsDTO }) {
             {!canFetch && (
               <p className="rounded-sheet bg-card p-4 text-sm text-muted-foreground">
                 {grid.to < projectionStart
-                  ? "These dates are before your projection start date, so there's no projected balance yet."
+                  ? `These dates are before your projection start date, so there's no projected balance.${historyByDate.size ? " The balances shown are from your bank history." : ""}`
                   : "These dates are beyond the 12-month forecast limit."}{" "}
                 <Link href="/settings" className="font-medium text-brand-700 underline">
                   Change projection settings

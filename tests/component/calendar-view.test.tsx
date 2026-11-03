@@ -6,16 +6,17 @@ import { CalendarPage } from "@/components/calendar/calendar-view";
 import { ToastProvider } from "@/components/ui/toast";
 import { addDays, eachDay, fmtDate, startOfWeek } from "@/lib/dates";
 
-const { getSettings, getProjection, downloadRegisterCsv, downloadMonthlySummary } = vi.hoisted(() => ({
+const { getSettings, getProjection, getBalanceHistory, downloadRegisterCsv, downloadMonthlySummary } = vi.hoisted(() => ({
   getSettings: vi.fn(),
   getProjection: vi.fn(),
+  getBalanceHistory: vi.fn(),
   downloadRegisterCsv: vi.fn(),
   downloadMonthlySummary: vi.fn(),
 }));
 
 vi.mock("@/lib/api-client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api-client")>();
-  return { ...actual, api: { ...actual.api, getSettings, getProjection, downloadRegisterCsv, downloadMonthlySummary } };
+  return { ...actual, api: { ...actual.api, getSettings, getProjection, getBalanceHistory, downloadRegisterCsv, downloadMonthlySummary } };
 });
 
 // A fixed "today" (a Wednesday, mid-month) so the events below always fall inside the visible month.
@@ -159,6 +160,59 @@ afterAll(() => {
 beforeEach(() => {
   getSettings.mockReset().mockResolvedValue(settings());
   getProjection.mockReset().mockImplementation(({ from, to }: { from: string; to: string }) => Promise.resolve(projectionFor(from, to)));
+  getBalanceHistory.mockReset().mockResolvedValue({ currency: "USD", days: [], range: null, coverageStart: null });
+});
+
+describe("calendar balance history", () => {
+  const bankDate = addDays(TODAY, -3);
+  const accountsSettings = () =>
+    settings({ startingBalanceSource: "ACCOUNTS", accountsBalanceCents: 90_000, accountCount: 1, accountsBalanceDate: bankDate });
+  /** What the server would return: a balance for every requested day from `coverageStart` on. */
+  const historyFor = (coverageStart: string) => ({ from, to }: { from: string; to: string }) => {
+    const days = eachDay(from < coverageStart ? coverageStart : from, to).map((date) => ({ date, closingBalanceCents: 70_000 + Number(date.slice(-2)) * 100 }));
+    return Promise.resolve({ currency: "USD", days, range: days.length ? { from: days[0].date, to: days[days.length - 1].date } : null, coverageStart });
+  };
+
+  it("shows the bank balance of the days before the projection start, without making them selectable", async () => {
+    getSettings.mockResolvedValue(accountsSettings());
+    getBalanceHistory.mockImplementation(historyFor("2026-10-01"));
+    renderCalendar();
+
+    const past = await screen.findByTestId(`day-cell-${addDays(bankDate, -1)}`);
+    await waitFor(() => expect(past).toHaveAttribute("data-state", "history"));
+    expect(within(past).getByTestId(`day-balance-${addDays(bankDate, -1)}`)).toHaveTextContent("$717.00");
+    expect(within(past).getByRole("button")).toBeDisabled();
+    expect(within(past).getByRole("button")).toHaveAccessibleName(/balance \$717\.00 in your bank accounts at the end of the day/);
+    expect(screen.getByTestId(`day-cell-${bankDate}`)).toHaveAttribute("data-state", "projected");
+    expect(screen.getByTestId("calendar-history-legend")).toBeInTheDocument();
+    expect(getBalanceHistory).toHaveBeenCalledWith({ from: expect.any(String), to: addDays(bankDate, -1) });
+  });
+
+  it("leaves days before the bank history reaches hatched", async () => {
+    getSettings.mockResolvedValue(accountsSettings());
+    getBalanceHistory.mockImplementation(historyFor("2026-10-10"));
+    renderCalendar();
+
+    await waitFor(() => expect(screen.getByTestId("day-cell-2026-10-12")).toHaveAttribute("data-state", "history"));
+    expect(screen.getByTestId("day-cell-2026-10-09")).toHaveAttribute("data-state", "before-start");
+  });
+
+  it("does not ask for history when the starting balance is typed", async () => {
+    renderCalendar();
+    await screen.findByTestId(`day-cell-${TODAY}`);
+    expect(getBalanceHistory).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("calendar-history-legend")).toBeNull();
+  });
+
+  it("keeps the projection when the history cannot be loaded", async () => {
+    getSettings.mockResolvedValue(accountsSettings());
+    getBalanceHistory.mockRejectedValue(new Error("boom"));
+    renderCalendar();
+
+    await screen.findByTestId(`day-cell-${bankDate}`);
+    expect(screen.getByTestId(`day-cell-${bankDate}`)).toHaveAttribute("data-state", "projected");
+    expect(screen.getByTestId(`day-cell-${addDays(bankDate, -1)}`)).toHaveAttribute("data-state", "before-start");
+  });
 });
 
 describe("calendar heatmap and register", () => {

@@ -33,7 +33,7 @@ Use [`DESIGN.md`](../DESIGN.md) for the base theme, tokens, typography, spacing,
 
 - Keep amounts in integer cents and use the existing money formatting path. Show signs and labels alongside color; skipped events use muted text, strikethrough, and explicit `Skipped` copy.
 - Never imply that projections are live bank balances. Distinguish entered projections from read-only SimpleFIN snapshots. State errors plainly with a recovery path.
-- Data views and async controls need loading, empty, error, partial/out-of-window, and success states where applicable. Calendar views must explain `Before projection start`, `Beyond 12-month forecast limit`, and partial weeks when those states occur.
+- Data views and async controls need loading, empty, error, partial/out-of-window, and success states where applicable. Calendar views must explain `Before projection start`, `Beyond 12-month forecast limit`, and partial weeks when those states occur. A past day whose balance comes from the bank history is dashed, not selectable, and explained in the legend; it must never look like a projected day.
 - Keep one primary action per view, including empty states. Name actions for their result and use sentence case and active voice.
 
 ### Accessibility deltas
