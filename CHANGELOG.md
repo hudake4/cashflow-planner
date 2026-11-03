@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.30.0](https://github.com/hudake4/cashflow-planner/compare/v0.29.0...v0.30.0) (2026-11-03)
+
+
+### Features
+
+* **calendar:** show past balances from bank history when the balance source is the accounts ([#129](https://github.com/hudake4/cashflow-planner/issues/129)) ([bad7f75](https://github.com/hudake4/cashflow-planner/commit/bad7f753e2d4315cad32351ad9ae296044fcd6dc))
+
 ## [0.29.0](https://github.com/hudake4/cashflow-planner/compare/v0.28.1...v0.29.0) (2026-11-02)
 
 
