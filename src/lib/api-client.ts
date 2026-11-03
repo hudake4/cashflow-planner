@@ -9,6 +9,7 @@ import type {
   BankAccountDTO,
   BillDTO,
   BillInput,
+  BalanceHistoryResponse,
   BillMatchesResponse,
   BankTransactionsResponse,
   BillEstimateDTO,
@@ -171,6 +172,8 @@ export const api = {
     const q = qs.toString();
     return request<ProjectionResponse>(`/projection${q ? `?${q}` : ""}`);
   },
+  /** Past end-of-day balances before the projection start, rebuilt from the bank transactions. Empty unless the balance comes from the accounts. */
+  getBalanceHistory: (range: { from: string; to: string }) => request<BalanceHistoryResponse>(`/balance-history?from=${range.from}&to=${range.to}`),
   getScenarioProjection: (scenario: ScenarioInput | ScenarioInput[], range?: { from?: string; to?: string }) =>
     request<ProjectionResponse>("/projection/scenario", json("POST", { scenario, from: range?.from, to: range?.to })),
   getDashboard: () => request<DashboardResponse>("/dashboard"),

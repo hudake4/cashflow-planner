@@ -400,6 +400,23 @@ export interface ProjectionResponse {
   totals: ProjectionTotals;
 }
 
+/** What the bank accounts held at the end of a day before the projection starts (CONVENTIONS section 21). */
+export interface BalanceHistoryDay {
+  date: string;
+  closingBalanceCents: number;
+}
+
+/** `GET /api/balance-history`: past end-of-day balances, rebuilt from the stored bank transactions. */
+export interface BalanceHistoryResponse {
+  currency: string;
+  /** One entry per date in `range`; empty when nothing before the projection start can be shown. */
+  days: BalanceHistoryDay[];
+  /** The slice returned: the request clamped to [coverageStart, the day before the projection start]. Null when `days` is empty. */
+  range: { from: string; to: string } | null;
+  /** The oldest date the stored bank history is complete from; null when the balance doesn't come from the accounts. */
+  coverageStart: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------

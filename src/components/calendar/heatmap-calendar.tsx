@@ -8,12 +8,15 @@ import { WEEKDAY_NAMES, fmtDate, fmtDayLong } from "@/lib/dates";
 import { compactBalance, heatBackground, heatTint } from "@/lib/calendar-heatmap";
 import { money, spokenKindMoney } from "@/lib/format";
 
-export type DayState = "projected" | "before-start" | "beyond-range";
+/** `history` is a day before the projection start whose balance was rebuilt from the bank accounts (CONVENTIONS section 21). */
+export type DayState = "projected" | "history" | "before-start" | "beyond-range";
 
 export interface DayView {
   date: string;
   state: DayState;
   summary?: DaySummary;
+  /** The accounts' end-of-day balance; set when `state` is `history`. */
+  historyBalanceCents?: number;
   events: LedgerEvent[];
   inMonth: boolean;
   isToday: boolean;
@@ -28,6 +31,9 @@ const MAX_DOTS = 3;
 
 function dayAriaLabel(day: DayView, currency: string): string {
   const head = `${fmtDayLong(day.date)}${day.isToday ? " (today)" : ""}`;
+  if (day.state === "history" && day.historyBalanceCents !== undefined) {
+    return `${head}: ${day.historyBalanceCents < 0 ? "negative balance" : "balance"} ${money(day.historyBalanceCents, currency)} in your bank accounts at the end of the day`;
+  }
   if (day.state === "before-start") return `${head}: before projection start`;
   if (day.state === "beyond-range") return `${head}: beyond the 12-month forecast limit`;
   const events = day.events.length
@@ -58,8 +64,10 @@ function KindDot({ kind }: { kind: "INCOME" | "BILL" }) {
 
 function DayCell({ day, currency, maxPositiveCents, onSelect }: { day: DayView; currency: string; maxPositiveCents: number; onSelect: (day: DayView) => void }) {
   const projected = day.state === "projected" && day.summary !== undefined;
-  const closing = day.summary?.closingBalanceCents ?? 0;
-  const negative = projected && closing < 0;
+  const recorded = day.state === "history" && day.historyBalanceCents !== undefined;
+  const hasBalance = projected || recorded;
+  const closing = (recorded ? day.historyBalanceCents : day.summary?.closingBalanceCents) ?? 0;
+  const negative = hasBalance && closing < 0;
   const dots = projected ? eventDots(day.events) : [];
 
   return (
@@ -70,15 +78,16 @@ function DayCell({ day, currency, maxPositiveCents, onSelect }: { day: DayView; 
         onClick={() => onSelect(day)}
         aria-label={dayAriaLabel(day, currency)}
         data-testid={`day-button-${day.date}`}
-        style={projected ? { backgroundColor: heatBackground(heatTint(closing, maxPositiveCents)) } : undefined}
+        style={hasBalance ? { backgroundColor: heatBackground(heatTint(closing, maxPositiveCents)) } : undefined}
         className={clsx(
           "flex h-full min-h-14 w-full min-w-0 flex-col justify-between gap-0.5 rounded-control border px-0.5 py-1 text-left transition-colors",
           "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-600",
-          projected
-            ? "cursor-pointer border-slate-200 text-slate-900 hover:border-slate-400"
-            : "cursor-default border-transparent bg-[repeating-linear-gradient(135deg,transparent_0_5px,var(--color-slate-100)_5px_6px)] text-slate-500",
+          projected && "cursor-pointer border-slate-200 text-slate-900 hover:border-slate-400",
+          recorded && "cursor-default border-dashed border-slate-300 text-slate-900",
+          !hasBalance &&
+            "cursor-default border-transparent bg-[repeating-linear-gradient(135deg,transparent_0_5px,var(--color-slate-100)_5px_6px)] text-slate-500",
           day.isToday && "border-transparent ring-2 ring-brand-600 ring-inset",
-          projected && !day.inMonth && "opacity-60",
+          hasBalance && !day.inMonth && "opacity-60",
         )}
       >
         <span className="flex items-center justify-between gap-0.5">
@@ -93,7 +102,7 @@ function DayCell({ day, currency, maxPositiveCents, onSelect }: { day: DayView; 
           </span>
           {negative && <TriangleAlert className="size-3 shrink-0 text-rose-700" aria-hidden="true" />}
         </span>
-        {projected ? (
+        {hasBalance ? (
           <>
             <span
               aria-hidden="true"
@@ -129,7 +138,7 @@ function Swatch({ tone, alpha, children }: { tone: "positive" | "negative"; alph
   );
 }
 
-function HeatmapLegend() {
+function HeatmapLegend({ hasHistory }: { hasHistory: boolean }) {
   return (
     <ul className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-600" aria-label="Legend">
       <li className="flex items-center gap-1.5">
@@ -153,6 +162,12 @@ function HeatmapLegend() {
         <KindDot kind="BILL" /> Bill
       </li>
       <li className="basis-full">Each day shows its projected end-of-day balance.</li>
+      {hasHistory && (
+        <li className="flex basis-full items-center gap-1.5" data-testid="calendar-history-legend">
+          <span className="size-4 shrink-0 rounded-chip border border-dashed border-slate-300" aria-hidden="true" />
+          Dashed days are past: the balance your bank accounts held, rebuilt from your transactions.
+        </li>
+      )}
     </ul>
   );
 }
@@ -174,9 +189,15 @@ export function HeatmapCalendar({
 }) {
   const maxPositiveCents = useMemo(() => {
     let max = 0;
-    for (const w of weeks) for (const d of w.days) if (d.state === "projected" && d.summary && d.summary.closingBalanceCents > max) max = d.summary.closingBalanceCents;
+    for (const w of weeks) {
+      for (const d of w.days) {
+        const cents = d.state === "projected" ? d.summary?.closingBalanceCents : d.state === "history" ? d.historyBalanceCents : undefined;
+        if (cents !== undefined && cents > max) max = cents;
+      }
+    }
     return max;
   }, [weeks]);
+  const hasHistory = weeks.some((w) => w.days.some((d) => d.state === "history"));
   // Below `lg` the hatched weeks that end before the projection start only push the register down the
   // screen, so they are hidden (the nodes stay in the DOM). Keep them when nothing else would be left.
   const collapsibleWeeks = useMemo(() => {
@@ -211,7 +232,7 @@ export function HeatmapCalendar({
           );
         })}
       </div>
-      <HeatmapLegend />
+      <HeatmapLegend hasHistory={hasHistory} />
     </section>
   );
 }

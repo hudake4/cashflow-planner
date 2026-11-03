@@ -21,7 +21,8 @@ import {
   type connectInstitutionSchema,
 } from "../../contracts/api";
 import { guessAccountKind } from "../../domain/account-kind";
-import { todayLocal } from "../../domain/dates";
+import type { HistoryAccount } from "../../domain/balance-history";
+import { maxDate, todayLocal } from "../../domain/dates";
 import { db, HOUSEHOLD_ID, type DbClient } from "../db";
 import { ApiError, notFound } from "../http";
 import { isEncrypted, open, seal, SecretUnavailableError } from "../secret-box";
@@ -323,6 +324,25 @@ export async function listAllTransactionsByConnection(client: DbClient = db): Pr
     byConnection.set(row.account.connectionId, list);
   }
   return byConnection;
+}
+
+/**
+ * The BANK accounts with their settled transactions, as the balance history needs them (CONVENTIONS
+ * section 21). SimpleFIN is never asked for more than ~90 days at the first sync, so an account's
+ * transactions are complete from that first window on; the history window caps it from the other side.
+ */
+export async function listHistoryAccounts(client: DbClient = db, today: string = todayLocal()): Promise<HistoryAccount[]> {
+  const rows = await client.bankAccount.findMany({
+    where: { kind: "BANK", connection: { householdId: HOUSEHOLD_ID } },
+    include: { connection: { select: { createdAt: true } }, transactions: { where: { pending: false }, select: { date: true, amountCents: true } } },
+  });
+  const cutoff = historyCutoff(today);
+  return rows.map((a) => ({
+    balanceCents: a.balanceCents,
+    balanceDate: a.balanceDate,
+    coverageStart: maxDate(planSyncWindow(null, a.connection.createdAt).startDate, cutoff),
+    transactions: a.transactions,
+  }));
 }
 
 /**

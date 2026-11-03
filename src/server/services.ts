@@ -4,6 +4,7 @@
  */
 import {
   type AlertsResponse,
+  type BalanceHistoryResponse,
   DATA_EXPORT_FORMAT,
   DATA_EXPORT_FORMAT_VERSION,
   dataExportSchema,
@@ -13,19 +14,20 @@ import {
   type ScenarioInput,
 } from "../contracts/api";
 import { buildAlerts } from "../domain/alerts";
+import { buildBalanceHistory } from "../domain/balance-history";
 import { buildDashboard } from "../domain/dashboard";
-import { todayLocal } from "../domain/dates";
+import { addDays, minDate, todayLocal } from "../domain/dates";
 import { findMissingPaychecks } from "../domain/missing-paycheck";
 import { buildMonthlySummary, monthBounds, monthLabel, type MonthlySummary } from "../domain/monthly-summary";
 import { computeProjection, type ProjectionInput } from "../domain/projection";
 import { registerToCsv } from "../domain/register-csv";
 import { applyScenario } from "../domain/scenario";
-import { effectiveProjectionStartDate, effectiveStartingBalanceCents } from "../domain/starting-balance";
+import { effectiveProjectionStartDate, effectiveStartingBalanceCents, startDateFromAccounts } from "../domain/starting-balance";
 import { db } from "./db";
 import { badRequest } from "./http";
 import { listAllOccurrences, listBills } from "./repositories/bills";
 import { listIncome } from "./repositories/income";
-import { listAllTransactionsByConnection, listBankAccountTransactions, listConnections } from "./repositories/institutions";
+import { listAllTransactionsByConnection, listBankAccountTransactions, listConnections, listHistoryAccounts } from "./repositories/institutions";
 import { listSavingsGoals } from "./repositories/savings-goals";
 import { getSettings } from "./repositories/settings";
 
@@ -52,6 +54,26 @@ async function loadInputs() {
 
 export async function getProjection(from?: string, to?: string): Promise<ProjectionResponse> {
   return computeProjection({ ...(await loadInputs()), from, to });
+}
+
+/**
+ * Past end-of-day balances for the days before the projection starts (CONVENTIONS section 21). Only
+ * when the starting balance is the sum of the bank accounts: a typed balance has no history to rebuild.
+ */
+export async function getBalanceHistory(from?: string, to?: string, today: string = todayLocal()): Promise<BalanceHistoryResponse> {
+  const settings = await getSettings();
+  const empty = { currency: settings.currency, days: [], range: null, coverageStart: null };
+  if (!startDateFromAccounts(settings)) return empty;
+  const lastDay = addDays(effectiveProjectionStartDate(settings), -1);
+  const accounts = await listHistoryAccounts(undefined, today);
+  const history = buildBalanceHistory(accounts, from ?? "0000-01-01", minDate(to ?? lastDay, lastDay));
+  const { days } = history;
+  return {
+    currency: settings.currency,
+    days,
+    range: days.length ? { from: days[0].date, to: days[days.length - 1].date } : null,
+    coverageStart: history.coverageStart,
+  };
 }
 
 /** The register for `from`..`to` (clamped like `getProjection`) as CSV, plus the dates it covers. */
