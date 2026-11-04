@@ -29,6 +29,8 @@ export interface SpendingTransaction {
   amountCents: number;
   /** The user's label of the account it belongs to. Without it a transaction is never matched to a card payment. */
   accountKind?: AccountKind;
+  /** The account it belongs to. Only the review uses it, to tell a move between two bank accounts from income. */
+  accountId?: string;
 }
 
 export interface SpendingInput {
@@ -199,6 +201,14 @@ export function categorize(description: string): SpendingCategory {
   return rule?.category ?? "OTHER";
 }
 
+const REFUND_KEYWORDS = ["refund*", "reversal", "chargeback", "merchandise return", "purchase return", "return credit"].map(compile);
+
+/** Money in that gives back an earlier purchase rather than earning anything (the review does not count it as income). */
+export function looksLikeRefund(description: string): boolean {
+  const tokens = words(description);
+  return REFUND_KEYWORDS.some((k) => matches(tokens, k));
+}
+
 /**
  * Identifies a merchant: the first three words of its cleaned-up name, so "KROGER #1234" and
  * "Kroger 5678" are one merchant. Empty when the description has no usable name.
@@ -230,7 +240,7 @@ function resolveCategory(
 // Periods
 // ---------------------------------------------------------------------------
 
-interface Spend {
+export interface Spend {
   id: string;
   date: string;
   description: string;
@@ -243,7 +253,8 @@ interface Spend {
 
 const compareDate = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
-function buildPeriod(spends: Spend[], from: string, to: string): SpendingPeriodDTO {
+/** One period of already-categorized spending, `from` to `to` inclusive. */
+export function buildPeriod(spends: Spend[], from: string, to: string): SpendingPeriodDTO {
   let totalCents = 0;
   let transactionCount = 0;
   let transfersCents = 0;
@@ -299,35 +310,49 @@ function buildPeriod(spends: Spend[], from: string, to: string): SpendingPeriodD
   };
 }
 
-export function buildSpending({ transactions, today, overrides, merchantRules }: SpendingInput): SpendingAnalysisDTO {
-  const { year, month, day } = parseIsoDate(today);
-  const lastYear = month === 1 ? year - 1 : year;
-  const lastMonth = month === 1 ? 12 : month - 1;
-  const lastLength = daysInMonth(lastYear, lastMonth);
-
-  const thisFrom = formatIsoDate(year, month, 1);
-  const lastFrom = formatIsoDate(lastYear, lastMonth, 1);
-  const lastTo = formatIsoDate(lastYear, lastMonth, lastLength);
-  const lastSameDay = formatIsoDate(lastYear, lastMonth, Math.min(day, lastLength));
-
+/** Every money-out transaction with its category, oldest first. */
+export function resolveSpends({ transactions, overrides, merchantRules }: Pick<SpendingInput, "transactions" | "overrides" | "merchantRules">): Spend[] {
   const cardPayments = matchCardPayments(
     transactions.flatMap((t) => (t.accountKind ? [{ id: t.id, date: t.date, amountCents: t.amountCents, accountKind: t.accountKind }] : [])),
   );
-  const spends: Spend[] = transactions
+  return transactions
     .filter((t) => t.amountCents < 0)
     .sort((a, b) => compareDate(a.date, b.date))
     .map((t): Spend => {
       const key = merchantKey(t.description);
       return { id: t.id, date: t.date, description: t.description, key, cents: -t.amountCents, ...resolveCategory(t, key, overrides, merchantRules, cardPayments) };
     });
+}
+
+/** The earliest date in the history; null when there is none. */
+export function coverageStartOf(transactions: readonly { date: string }[]): string | null {
+  return transactions.reduce<string | null>((min, t) => (min === null || t.date < min ? t.date : min), null);
+}
+
+/** This month and last month as calendar ranges, plus last month's range up to today's day number. */
+export function monthRanges(today: string) {
+  const { year, month, day } = parseIsoDate(today);
+  const lastYear = month === 1 ? year - 1 : year;
+  const lastMonth = month === 1 ? 12 : month - 1;
+  const lastLength = daysInMonth(lastYear, lastMonth);
+  return {
+    thisFrom: formatIsoDate(year, month, 1),
+    lastFrom: formatIsoDate(lastYear, lastMonth, 1),
+    lastTo: formatIsoDate(lastYear, lastMonth, lastLength),
+    lastSameDay: formatIsoDate(lastYear, lastMonth, Math.min(day, lastLength)),
+  };
+}
+
+export function buildSpending({ transactions, today, overrides, merchantRules }: SpendingInput): SpendingAnalysisDTO {
+  const { thisFrom, lastFrom, lastTo, lastSameDay } = monthRanges(today);
+  const spends = resolveSpends({ transactions, overrides, merchantRules });
 
   const lastMonthPeriod = buildPeriod(spends, lastFrom, lastTo);
-  const coverageStart = transactions.reduce<string | null>((min, t) => (min === null || t.date < min ? t.date : min), null);
 
   return {
     thisMonth: buildPeriod(spends, thisFrom, today),
     lastMonth: lastMonthPeriod,
     lastMonthToDateCents: buildPeriod(spends, lastFrom, lastSameDay).totalCents,
-    coverageStart,
+    coverageStart: coverageStartOf(transactions),
   };
 }

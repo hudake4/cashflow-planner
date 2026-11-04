@@ -7,6 +7,7 @@ const PAGES = [
   { path: "/", heading: "Dashboard", nav: "nav-dashboard" },
   { path: "/calendar", heading: "Calendar", nav: "nav-calendar" },
   { path: "/spending", heading: "Spend Analyzer", nav: "nav-spending" },
+  { path: "/review", heading: "Recap", nav: "nav-review" },
   { path: "/bills", heading: "Bills", nav: "nav-bills" },
   { path: "/income", heading: "Income", nav: "nav-income" },
   { path: "/institutions", heading: "Institutions", nav: "nav-institutions" },

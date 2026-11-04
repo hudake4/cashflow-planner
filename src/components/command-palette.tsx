@@ -27,6 +27,7 @@ const NAV_COMMANDS: Command[] = [
   { id: "nav-dashboard", label: "Dashboard", href: "/", group: "Pages", keywords: ["home", "overview"] },
   { id: "nav-calendar", label: "Calendar", href: "/calendar", group: "Pages", keywords: ["schedule", "weeks"] },
   { id: "nav-spending", label: "Spend Analyzer", href: "/spending", group: "Pages", keywords: ["spending", "categories"] },
+  { id: "nav-review", label: "Recap", href: "/review", group: "Pages", keywords: ["review", "week", "month", "summary"] },
   { id: "nav-bills", label: "Bills", href: "/bills", group: "Pages", keywords: ["expenses"] },
   { id: "nav-income", label: "Income", href: "/income", group: "Pages", keywords: ["paychecks"] },
   { id: "nav-institutions", label: "Institutions", href: "/institutions", group: "Pages", keywords: ["banks", "accounts"] },
