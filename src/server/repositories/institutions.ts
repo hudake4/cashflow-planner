@@ -2,9 +2,10 @@
  * Bank connections through SimpleFIN Bridge. Scoped by household ("local").
  *
  * The app keeps a local snapshot (accounts, balances, transactions) and only talks to
- * SimpleFIN when the user connects, presses Refresh, or at the daily 4am refresh
- * (../auto-sync), because SimpleFIN allows 24 requests/day and refreshes bank data
- * roughly once a day. `accessUrl` holds credentials: it is stored encrypted when a
+ * SimpleFIN when the user connects, presses Refresh, or at the automatic refresh every
+ * 2 hours (../auto-sync), because SimpleFIN allows 24 requests/day and refreshes bank data
+ * roughly once a day. Every request is logged (BankSyncRequest) and refused past 24 in
+ * 24 hours, whoever asks. `accessUrl` holds credentials: it is stored encrypted when a
  * sealer exists (see ../secret-box), decrypted only here (to hand to ../simplefin) and
  * is never part of a DTO.
  */
@@ -23,6 +24,7 @@ import {
 import { guessAccountKind } from "../../domain/account-kind";
 import type { HistoryAccount } from "../../domain/balance-history";
 import { maxDate, todayLocal } from "../../domain/dates";
+import { summarizeSyncQuota, syncWindowStart } from "../../domain/sync-quota";
 import { db, HOUSEHOLD_ID, type DbClient } from "../db";
 import { ApiError, notFound } from "../http";
 import { isEncrypted, open, seal, SecretUnavailableError } from "../secret-box";
@@ -35,7 +37,14 @@ const DEFAULT_NAME = "SimpleFIN connection";
 const MIN_SYNC_INTERVAL_MS = MIN_SYNC_INTERVAL_MINUTES * 60_000;
 const ID_CHUNK = 500;
 
-type ConnectionWithAccounts = BankConnection & { accounts: BankAccount[] };
+type ConnectionWithAccounts = BankConnection & { accounts: BankAccount[]; syncRequests: { requestedAt: Date }[] };
+
+/** Loads a connection's accounts and the requests of the last day, which is what the DTO's refresh quota counts. */
+const withAccountsAndRequests = (now: Date) =>
+  ({
+    accounts: true,
+    syncRequests: { where: { requestedAt: { gt: syncWindowStart(now) } }, select: { requestedAt: true } },
+  }) as const;
 
 const toAccountDTO = (a: BankAccount): BankAccountDTO => ({
   id: a.id,
@@ -63,7 +72,7 @@ const toTransactionDTO = (t: BankTransaction): BankTransactionDTO => ({
 });
 
 /** Never includes the access URL. */
-function toInstitutionDTO(row: ConnectionWithAccounts): InstitutionDTO {
+function toInstitutionDTO(row: ConnectionWithAccounts, now: Date): InstitutionDTO {
   const accounts = [...row.accounts].sort(
     (a, b) => a.institutionName.localeCompare(b.institutionName) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id),
   );
@@ -73,23 +82,27 @@ function toInstitutionDTO(row: ConnectionWithAccounts): InstitutionDTO {
     name: names.length ? names.join(", ") : DEFAULT_NAME,
     connectedAt: row.createdAt.toISOString(),
     lastSyncedAt: row.lastSyncedAt ? row.lastSyncedAt.toISOString() : null,
+    refreshQuota: summarizeSyncQuota(
+      row.syncRequests.map((r) => r.requestedAt),
+      now,
+    ),
     accounts: accounts.map(toAccountDTO),
   };
 }
 
-async function getConnection(id: string): Promise<ConnectionWithAccounts> {
-  const row = await db.bankConnection.findFirst({ where: { id, householdId: HOUSEHOLD_ID }, include: { accounts: true } });
+async function getConnection(id: string, now: Date): Promise<ConnectionWithAccounts> {
+  const row = await db.bankConnection.findFirst({ where: { id, householdId: HOUSEHOLD_ID }, include: withAccountsAndRequests(now) });
   if (!row) throw notFound("Connection");
   return row;
 }
 
-export async function listConnections(client: DbClient = db): Promise<InstitutionDTO[]> {
+export async function listConnections(client: DbClient = db, now: Date = new Date()): Promise<InstitutionDTO[]> {
   const rows = await client.bankConnection.findMany({
     where: { householdId: HOUSEHOLD_ID },
-    include: { accounts: true },
+    include: withAccountsAndRequests(now),
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
   });
-  return rows.map(toInstitutionDTO);
+  return rows.map((row) => toInstitutionDTO(row, now));
 }
 
 // Connections being synced right now, so a double click or an overlapping auto-sync can't fire two
@@ -133,11 +146,37 @@ async function readAccessUrl(row: BankConnection): Promise<string> {
   return accessUrl;
 }
 
+/**
+ * Counts one request against the connection's SimpleFIN quota, before it is sent: a request that
+ * fails or times out may still have reached SimpleFIN, so it counts too. 409 once the quota for
+ * the last 24 hours is used up, which keeps every caller (Refresh, connect, auto-sync) under SimpleFIN's limit.
+ */
+async function reserveRequest(connectionId: string, now: Date): Promise<void> {
+  const since = syncWindowStart(now);
+  const rows = await db.bankSyncRequest.findMany({ where: { connectionId, requestedAt: { gt: since } }, select: { requestedAt: true } });
+  const quota = summarizeSyncQuota(
+    rows.map((r) => r.requestedAt),
+    now,
+  );
+  if (quota.used >= quota.limit) {
+    const wait = Math.max(1, Math.ceil((new Date(quota.resetsAt ?? now).getTime() - now.getTime()) / 60_000));
+    throw new ApiError(
+      409,
+      "CONFLICT",
+      `SimpleFIN allows ${quota.limit} requests a day and this connection has used all of them. Try again in ${wait} minute(s).`,
+    );
+  }
+  await db.bankSyncRequest.create({ data: { connectionId, requestedAt: now } });
+  await db.bankSyncRequest.deleteMany({ where: { connectionId, requestedAt: { lte: since } } });
+}
+
 async function runSync(row: BankConnection, now: Date): Promise<string[]> {
   // From the last sync where every account was complete, so an account that stayed in the errlist
   // for more than the 7 day overlap still gets its whole outage once it recovers.
   const window = planSyncWindow(row.lastCompleteSyncAt, now);
-  const set = await simplefin.fetchAccountSet(await readAccessUrl(row), {
+  const accessUrl = await readAccessUrl(row);
+  await reserveRequest(row.id, now);
+  const set = await simplefin.fetchAccountSet(accessUrl, {
     start: window.start,
     end: window.end,
     pending: true,
@@ -195,9 +234,12 @@ async function runSync(row: BankConnection, now: Date): Promise<string[]> {
   return set.warnings;
 }
 
-/** Refreshes one connection. Needs at least 15 minutes since the last successful sync (409 otherwise). */
+/**
+ * Refreshes one connection. Needs at least 15 minutes since the last successful sync and a
+ * request left in the connection's SimpleFIN quota (409 otherwise).
+ */
 export async function syncConnection(id: string, now: Date = new Date()): Promise<InstitutionSyncDTO> {
-  const row = await getConnection(id);
+  const row = await getConnection(id, now);
   if (row.lastSyncedAt) {
     const wait = MIN_SYNC_INTERVAL_MS - (now.getTime() - row.lastSyncedAt.getTime());
     if (wait > 0) {
@@ -213,7 +255,7 @@ export async function syncConnection(id: string, now: Date = new Date()): Promis
   syncing.add(id);
   try {
     const warnings = await runSync(row, now);
-    return { ...toInstitutionDTO(await getConnection(id)), warnings };
+    return { ...toInstitutionDTO(await getConnection(id, now), now), warnings };
   } finally {
     syncing.delete(id);
   }
@@ -239,7 +281,7 @@ export async function connect(input: ConnectData, now: Date = new Date()): Promi
   } finally {
     syncing.delete(created.id);
   }
-  return { ...toInstitutionDTO(await getConnection(created.id)), warnings };
+  return { ...toInstitutionDTO(await getConnection(created.id, now), now), warnings };
 }
 
 /**
@@ -247,7 +289,7 @@ export async function connect(input: ConnectData, now: Date = new Date()): Promi
  * SimpleFIN has no revoke API: the user disables the token in their SimpleFIN account.
  */
 export async function removeConnection(id: string): Promise<void> {
-  await getConnection(id);
+  await getConnection(id, new Date());
   await db.bankConnection.delete({ where: { id } });
 }
 

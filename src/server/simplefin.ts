@@ -4,7 +4,8 @@
  * Authorization header, into an error message. Failures become `ApiError`s.
  *
  * Rate limits matter: SimpleFIN allows 24 requests/day per token and disables abusive
- * ones, so callers fetch only on explicit user action (see the institutions repository).
+ * ones, so callers fetch only on user action or the 2 hour auto-sync, and the institutions
+ * repository counts every request and refuses the 25th in 24 hours.
  */
 import { ApiError } from "./http";
 import {

@@ -258,6 +258,12 @@ function lastSyncedText(institution: InstitutionDTO): string {
   return `Last synced ${formatDistanceToNow(new Date(institution.lastSyncedAt), { addSuffix: true })}`;
 }
 
+function quotaText({ used, limit, resetsAt }: InstitutionDTO["refreshQuota"]): string {
+  const base = `${used} of ${limit} refreshes used in the last 24 hours`;
+  if (used < limit || !resetsAt) return base;
+  return `${base}. The next one is available ${formatDistanceToNow(new Date(resetsAt), { addSuffix: true })}.`;
+}
+
 function InstitutionCard({
   institution,
   onRemove,
@@ -269,6 +275,7 @@ function InstitutionCard({
 }) {
   const toast = useToast();
   const [syncing, setSyncing] = useState(false);
+  const quotaFull = institution.refreshQuota.used >= institution.refreshQuota.limit;
 
   async function refresh() {
     setSyncing(true);
@@ -295,12 +302,19 @@ function InstitutionCard({
           >
             {lastSyncedText(institution)} &middot; Connected {fmtShort(institution.connectedAt.slice(0, 10))}
           </p>
+          <p
+            className={quotaFull ? "text-xs font-medium text-destructive" : "text-xs text-muted-foreground"}
+            data-testid={`institution-quota-${institution.id}`}
+          >
+            {quotaText(institution.refreshQuota)}
+          </p>
         </div>
         <div className="flex items-center gap-1">
           <Button
             size="sm"
             onClick={() => void refresh()}
             loading={syncing}
+            disabled={quotaFull}
             aria-label={`Refresh ${institution.name}`}
             data-testid={`sync-institution-${institution.id}`}
           >

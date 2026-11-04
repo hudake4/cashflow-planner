@@ -1,12 +1,12 @@
 /**
- * Daily automatic refresh of the bank connections (see domain/auto-sync.ts for the schedule).
+ * Automatic refresh of the bank connections every 2 hours (see domain/auto-sync.ts for the schedule).
  *
  * Started once per server process from instrumentation.ts, so it runs wherever the app
  * does: `npm run dev`, `npm start` and the desktop app. It checks the clock every minute but
  * only reads the database once per slot, and it tries each slot once: a failed refresh is
- * not retried until the next slot (or the next launch), so SimpleFIN's 24 requests/day
- * limit can never be approached by a retry loop. The 15 minute rule in syncConnection
- * still applies.
+ * not retried until the next slot (or the next launch), so a retry loop can't approach
+ * SimpleFIN's 24 requests/day limit. At most 12 slots a day leave half the quota for manual
+ * refreshes, and syncConnection also enforces the 15 minute rule and the request quota.
  */
 import { isAutoSyncDue, latestAutoSyncSlot } from "../domain/auto-sync";
 import { db, HOUSEHOLD_ID } from "./db";
@@ -61,7 +61,7 @@ export async function runAutoSync(now: Date, state: AutoSyncState): Promise<numb
 
 const globalForAutoSync = globalThis as unknown as { __cashflowAutoSync?: true };
 
-/** Starts the daily refresh timer. Safe to call twice; the timers never keep the process alive. */
+/** Starts the refresh timer. Safe to call twice; the timers never keep the process alive. */
 export function startAutoSync(): void {
   if (globalForAutoSync.__cashflowAutoSync) return;
   globalForAutoSync.__cashflowAutoSync = true;
