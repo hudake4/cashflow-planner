@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.31.0](https://github.com/hudake4/cashflow-planner/compare/v0.30.0...v0.31.0) (2026-11-04)
+
+
+### Features
+
+* **institutions:** cap SimpleFIN requests at 24 per 24 hours, refresh every 2 hours and show the count ([#131](https://github.com/hudake4/cashflow-planner/issues/131)) ([ccf1a84](https://github.com/hudake4/cashflow-planner/commit/ccf1a84f5e719f1f007407bbd5947c3aef2e46a4))
+* **review:** add a Recap page comparing this week and month with the previous ones ([#133](https://github.com/hudake4/cashflow-planner/issues/133)) ([40580fa](https://github.com/hudake4/cashflow-planner/commit/40580fa548514a2f0811ee69922f1b1fba7ab15d))
+
 ## [0.30.0](https://github.com/hudake4/cashflow-planner/compare/v0.29.0...v0.30.0) (2026-11-03)
 
 
