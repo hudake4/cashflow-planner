@@ -12,7 +12,7 @@ vi.mock("@/server/simplefin", () => ({
 const mocked = vi.mocked(simplefin);
 
 const ACCESS_URL = "https://demouser:pw@bridge.simplefin.org/simplefin";
-// Local-time constructor: the schedule is the user's local 4am, whatever the machine's zone.
+// Local-time constructor: the schedule is the user's local clock (every 2 hours from midnight), whatever the machine's zone.
 const at = (month: number, day: number, hour: number, minute = 0) => new Date(2026, month - 1, day, hour, minute);
 
 const addConnection = (lastSyncedAt: Date | null) =>
@@ -35,7 +35,7 @@ afterEach(() => {
 });
 
 describe("runAutoSync", () => {
-  it("refreshes a connection last synced before today's 4am", async () => {
+  it("refreshes a connection last synced before the current 2 hour slot", async () => {
     const conn = await addConnection(at(10, 30, 10, 0));
     expect(await runAutoSync(new Date(), newAutoSyncState())).toBe(1);
     expect(mocked.fetchAccountSet).toHaveBeenCalledTimes(1);
@@ -48,21 +48,36 @@ describe("runAutoSync", () => {
     expect(await runAutoSync(new Date(), newAutoSyncState())).toBe(1);
   });
 
-  it("leaves a connection alone when it already synced since 4am", async () => {
+  it("leaves a connection alone when it already synced since the slot", async () => {
     const conn = await addConnection(at(10, 31, 4, 10));
     expect(await runAutoSync(new Date(), newAutoSyncState())).toBe(0);
     expect(mocked.fetchAccountSet).not.toHaveBeenCalled();
     expect(await lastSynced(conn.id)).toEqual(at(10, 31, 4, 10));
   });
 
-  it("waits for 4am: before it, the previous day's sync is still current", async () => {
-    vi.setSystemTime(at(10, 31, 3, 30));
-    await addConnection(at(10, 30, 10, 0));
+  it("waits for the next slot: between two, the last refresh is still current", async () => {
+    vi.setSystemTime(at(10, 31, 5, 59));
+    await addConnection(at(10, 31, 4, 30));
     expect(await runAutoSync(new Date(), newAutoSyncState())).toBe(0);
     expect(mocked.fetchAccountSet).not.toHaveBeenCalled();
   });
 
-  it("catches up when the app was closed at 4am and starts later in the day", async () => {
+  it("refreshes again at the next even hour", async () => {
+    await addConnection(at(10, 31, 4, 30));
+    const state = newAutoSyncState();
+    vi.setSystemTime(at(10, 31, 6, 0));
+    expect(await runAutoSync(new Date(), state)).toBe(1);
+    expect(mocked.fetchAccountSet).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not repeat a manual refresh made just before a slot", async () => {
+    vi.setSystemTime(at(10, 31, 6, 5));
+    await addConnection(at(10, 31, 5, 50));
+    expect(await runAutoSync(new Date(), newAutoSyncState())).toBe(0);
+    expect(mocked.fetchAccountSet).not.toHaveBeenCalled();
+  });
+
+  it("catches up when the app was closed at the slot and starts later in the day", async () => {
     vi.setSystemTime(at(10, 31, 18, 45));
     await addConnection(at(10, 30, 10, 0));
     expect(await runAutoSync(new Date(), newAutoSyncState())).toBe(1);
@@ -75,10 +90,26 @@ describe("runAutoSync", () => {
     expect(await runAutoSync(new Date(), state)).toBe(0);
     expect(mocked.fetchAccountSet).toHaveBeenCalledTimes(1);
 
-    // The next day's 4am is a new slot.
-    vi.setSystemTime(at(11, 1, 4, 5));
+    // The next 2 hour slot is a new one.
+    vi.setSystemTime(at(10, 31, 6, 5));
     expect(await runAutoSync(new Date(), state)).toBe(1);
     expect(mocked.fetchAccountSet).toHaveBeenCalledTimes(2);
+  });
+
+  it("counts every automatic refresh against the connection's quota", async () => {
+    const conn = await addConnection(at(10, 30, 10, 0));
+    await runAutoSync(new Date(), newAutoSyncState());
+    expect(await testPrisma.bankSyncRequest.count({ where: { connectionId: conn.id } })).toBe(1);
+  });
+
+  it("stops at SimpleFIN's 24 requests a day, logging instead of fetching", async () => {
+    const conn = await addConnection(at(10, 30, 10, 0));
+    await testPrisma.bankSyncRequest.createMany({
+      data: Array.from({ length: 24 }, (_, i) => ({ connectionId: conn.id, requestedAt: at(10, 30, 20, i) })),
+    });
+    expect(await runAutoSync(new Date(), newAutoSyncState())).toBe(0);
+    expect(mocked.fetchAccountSet).not.toHaveBeenCalled();
+    expect(errorLog).toHaveBeenCalledTimes(1);
   });
 
   it("does not retry a failed refresh within the same slot, and does not throw", async () => {
@@ -95,8 +126,8 @@ describe("runAutoSync", () => {
     expect(mocked.fetchAccountSet).toHaveBeenCalledTimes(1);
 
     // The next slot tries again.
-    mocked.fetchAccountSet.mockResolvedValue(normalizeAccountSet({ errlist: [], connections: [], accounts: [] }, "2026-11-01"));
-    vi.setSystemTime(at(11, 1, 4, 0));
+    mocked.fetchAccountSet.mockResolvedValue(normalizeAccountSet({ errlist: [], connections: [], accounts: [] }, "2026-10-31"));
+    vi.setSystemTime(at(10, 31, 6, 0));
     expect(await runAutoSync(new Date(), state)).toBe(1);
   });
 

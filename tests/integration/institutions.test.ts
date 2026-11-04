@@ -380,6 +380,82 @@ describe("syncing", () => {
   });
 });
 
+describe("SimpleFIN request quota", () => {
+  const HOUR = 60 * MIN;
+  const requestCount = (connectionId?: string) => testPrisma.bankSyncRequest.count({ where: connectionId ? { connectionId } : {} });
+  const addRequests = (connectionId: string, count: number, requestedAt: Date) =>
+    testPrisma.bankSyncRequest.createMany({ data: Array.from({ length: count }, () => ({ connectionId, requestedAt })) });
+
+  it("counts every request, the first sync on connect included, and shows it on the connection", async () => {
+    const first = await connect({ setupToken: SETUP_TOKEN }, NOW);
+    expect(first.refreshQuota).toEqual({ used: 1, limit: 24, resetsAt: new Date(NOW.getTime() + 24 * HOUR).toISOString() });
+
+    const later = new Date(NOW.getTime() + 20 * MIN);
+    const synced = await syncConnection(first.id, later);
+    expect(synced.refreshQuota.used).toBe(2);
+
+    const listed = await call<InstitutionDTO[]>(listRoute.GET as never, "GET", "/api/institutions");
+    expect(listed.body[0].refreshQuota).toEqual({ used: 2, limit: 24, resetsAt: new Date(NOW.getTime() + 24 * HOUR).toISOString() });
+  });
+
+  it("counts a request that failed", async () => {
+    const first = await connect({ setupToken: SETUP_TOKEN }, NOW);
+    mocked.fetchAccountSet.mockRejectedValueOnce(new ApiError(502, "UPSTREAM_ERROR", "SimpleFIN is unavailable."));
+    await expect(syncConnection(first.id, new Date(NOW.getTime() + 20 * MIN))).rejects.toMatchObject({ status: 502 });
+    expect(await requestCount(first.id)).toBe(2);
+  });
+
+  it("refuses the 25th request in 24 hours with 409 CONFLICT, without contacting SimpleFIN", async () => {
+    const first = await connect({ setupToken: SETUP_TOKEN }, NOW);
+    await addRequests(first.id, 22, NOW);
+    const at24 = await syncConnection(first.id, new Date(NOW.getTime() + 20 * MIN)); // the 24th
+    expect(at24.refreshQuota.used).toBe(24);
+    expect(mocked.fetchAccountSet).toHaveBeenCalledTimes(2);
+
+    const refused = await syncConnection(first.id, new Date(NOW.getTime() + 40 * MIN)).catch((e: unknown) => e);
+    expect(refused).toMatchObject({ status: 409, code: "CONFLICT" });
+    expect((refused as ApiError).message).toMatch(/24 requests a day.*used all of them.*\d+ minute/);
+    expect(mocked.fetchAccountSet).toHaveBeenCalledTimes(2);
+    expect(await requestCount(first.id)).toBe(24); // a refused request is not counted
+  });
+
+  it("answers POST /:id/sync with 409 when the quota is used up", async () => {
+    const created = await postConnect();
+    await addRequests(created.body.id, 23, NOW);
+    await testPrisma.bankConnection.update({ where: { id: created.body.id }, data: { lastSyncedAt: new Date(NOW.getTime() - 20 * MIN) } });
+    expectApiError(await postSync(created.body.id), 409, "CONFLICT");
+    expect(mocked.fetchAccountSet).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows a request again once the oldest one is 24 hours old", async () => {
+    const first = await connect({ setupToken: SETUP_TOKEN }, NOW);
+    await addRequests(first.id, 23, NOW);
+
+    const almost = new Date(NOW.getTime() + 24 * HOUR - 1);
+    await expect(syncConnection(first.id, almost)).rejects.toMatchObject({ status: 409 });
+    const exactly = new Date(NOW.getTime() + 24 * HOUR);
+    const synced = await syncConnection(first.id, exactly);
+    expect(synced.refreshQuota).toMatchObject({ used: 1, limit: 24 });
+    expect(await requestCount(first.id)).toBe(1); // the aged-out rows are pruned
+  });
+
+  it("counts per connection, since SimpleFIN limits each token", async () => {
+    const first = await connect({ setupToken: SETUP_TOKEN }, NOW);
+    const second = await connect({ setupToken: "OTHERTOKEN" }, NOW);
+    await addRequests(first.id, 23, NOW);
+
+    await expect(syncConnection(first.id, new Date(NOW.getTime() + 20 * MIN))).rejects.toMatchObject({ status: 409 });
+    await expect(syncConnection(second.id, new Date(NOW.getTime() + 20 * MIN))).resolves.toMatchObject({ refreshQuota: { used: 2 } });
+  });
+
+  it("removes a connection's request log with it", async () => {
+    const first = await connect({ setupToken: SETUP_TOKEN }, NOW);
+    expect(await requestCount()).toBe(1);
+    await testPrisma.bankConnection.delete({ where: { id: first.id } });
+    expect(await requestCount()).toBe(0);
+  });
+});
+
 describe("account labels", () => {
   const rawAccount = (id: string, name: string) => ({
     id,

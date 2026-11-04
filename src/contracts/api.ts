@@ -509,6 +509,10 @@ export const BANK_TRANSACTIONS_PAGE_SIZE = 50;
 /** Minimum time between two syncs of one connection (SimpleFIN allows 24 requests/day). */
 export const MIN_SYNC_INTERVAL_MINUTES = 15;
 
+/** SimpleFIN's limit per token. The app refuses to send more than this many requests in any SYNC_REQUEST_WINDOW_HOURS. */
+export const SYNC_REQUEST_LIMIT = 24;
+export const SYNC_REQUEST_WINDOW_HOURS = 24;
+
 export const connectInstitutionSchema = z.object({
   setupToken: z
     .string({ required_error: "Paste your SimpleFIN setup token", invalid_type_error: "Paste your SimpleFIN setup token" })
@@ -588,6 +592,14 @@ export interface BankAccountDTO {
   minimumPaymentCents: number | null;
 }
 
+/** Requests sent to SimpleFIN for one connection in the last SYNC_REQUEST_WINDOW_HOURS, failed ones included. */
+export interface SyncQuotaDTO {
+  used: number;
+  limit: number;
+  /** ISO timestamp when the oldest counted request ages out and `used` drops by one; null when `used` is 0. */
+  resetsAt: string | null;
+}
+
 export interface InstitutionDTO {
   id: string;
   /** The bank name(s) reported by SimpleFIN, or "SimpleFIN connection" before any account is known. */
@@ -595,6 +607,8 @@ export interface InstitutionDTO {
   connectedAt: string;
   /** ISO timestamp of the last successful sync; null if no sync has succeeded yet. */
   lastSyncedAt: string | null;
+  /** Not part of the backup file. */
+  refreshQuota: SyncQuotaDTO;
   accounts: BankAccountDTO[];
 }
 
@@ -896,7 +910,7 @@ export const dataRestoreSchema = z.object({
 export type DataRestoreInput = z.output<typeof dataRestoreSchema>;
 
 /** InstitutionDTO (id, name, connectedAt, lastSyncedAt, accounts) plus the stored transactions. */
-export interface ExportedInstitutionDTO extends InstitutionDTO {
+export interface ExportedInstitutionDTO extends Omit<InstitutionDTO, "refreshQuota"> {
   transactions: BankTransactionDTO[];
 }
 

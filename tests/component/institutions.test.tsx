@@ -25,6 +25,7 @@ const INSTITUTION: InstitutionDTO = {
   name: "Demo Bank",
   connectedAt: "2026-10-01T10:00:00.000Z",
   lastSyncedAt: null,
+  refreshQuota: { used: 0, limit: 24, resetsAt: null },
   accounts: [
     {
       id: "conn1:a1",
@@ -236,6 +237,35 @@ describe("InstitutionsView", () => {
     await user.click(within(card).getByTestId("sync-institution-conn1"));
     await waitFor(() => expect(within(card).getByText(/last synced/i)).toBeInTheDocument());
     expect(fetchMock.mock.calls.some(([url, init]) => url === "/api/institutions/conn1/sync" && init?.method === "POST")).toBe(true);
+  });
+
+  it("shows how many refreshes were used in the last 24 hours and updates the count after a refresh", async () => {
+    const synced = { ...INSTITUTION, lastSyncedAt: "2026-10-24T12:00:00.000Z", refreshQuota: { used: 6, limit: 24, resetsAt: "2026-10-25T12:00:00.000Z" } };
+    let didSync = false;
+    route({
+      "GET /institutions": () => json(200, [didSync ? synced : { ...INSTITUTION, refreshQuota: { used: 5, limit: 24, resetsAt: "2026-10-25T11:00:00.000Z" } }]),
+      "POST /institutions/conn1/sync": () => {
+        didSync = true;
+        return json(200, { ...synced, warnings: [] });
+      },
+    });
+    const user = userEvent.setup();
+    renderView();
+
+    const quota = await screen.findByTestId("institution-quota-conn1");
+    expect(quota).toHaveTextContent("5 of 24 refreshes used in the last 24 hours");
+    await user.click(screen.getByTestId("sync-institution-conn1"));
+    await waitFor(() => expect(screen.getByTestId("institution-quota-conn1")).toHaveTextContent("6 of 24 refreshes used"));
+  });
+
+  it("disables Refresh and says when the next one is available once the 24 refreshes are used", async () => {
+    const inOneHour = new Date(Date.now() + 3_600_000).toISOString();
+    route({ "GET /institutions": () => json(200, [{ ...INSTITUTION, refreshQuota: { used: 24, limit: 24, resetsAt: inOneHour } }]) });
+    renderView();
+
+    const quota = await screen.findByTestId("institution-quota-conn1");
+    expect(quota).toHaveTextContent("24 of 24 refreshes used in the last 24 hours. The next one is available in about 1 hour.");
+    expect(screen.getByTestId("sync-institution-conn1")).toBeDisabled();
   });
 
   it("labels an account through the select and reloads the list", async () => {

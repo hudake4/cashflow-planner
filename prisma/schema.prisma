@@ -96,8 +96,20 @@ model BankConnection {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   accounts     BankAccount[]
+  syncRequests BankSyncRequest[]
 
   @@index([householdId])
+}
+
+// One request sent to SimpleFIN for a connection, written before the request goes out so a failed
+// one counts too. SimpleFIN allows 24 requests per token per day; rows older than that are pruned.
+model BankSyncRequest {
+  id           String         @id @default(cuid())
+  connectionId String
+  requestedAt  DateTime
+  connection   BankConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@index([connectionId, requestedAt])
 }
 
 // Latest snapshot of one bank account. id = `${connectionId}:${simplefinAccountId}`.

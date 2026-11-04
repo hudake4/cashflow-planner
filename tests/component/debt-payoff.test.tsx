@@ -39,6 +39,7 @@ const institution = (accounts: BankAccountDTO[]): InstitutionDTO => ({
   name: "Demo Bank",
   connectedAt: "2026-10-01T10:00:00.000Z",
   lastSyncedAt: null,
+  refreshQuota: { used: 0, limit: 24, resetsAt: null },
   accounts,
 });
 
