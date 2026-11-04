@@ -23,7 +23,8 @@ function categoryMap<T extends { category: string }>(rows: T[], key: (row: T) =>
   return map;
 }
 
-export async function getSpending(now: Date = new Date()): Promise<SpendingResponse> {
+/** What the Spend Analyzer and the Recap both read: the stored bank history plus the user's category choices. */
+export async function loadSpendingInput(now: Date = new Date()) {
   const today = todayLocal(now);
   const [connections, rows, settings, overrides, rules] = await Promise.all([
     db.bankConnection.findMany({ where: { householdId: HOUSEHOLD_ID }, select: { lastSyncedAt: true } }),
@@ -34,7 +35,7 @@ export async function getSpending(now: Date = new Date()): Promise<SpendingRespo
         date: { gte: historyCutoff(today) },
         account: { kind: { in: ["BANK", "CREDIT"] }, connection: { householdId: HOUSEHOLD_ID } },
       },
-      select: { id: true, date: true, description: true, amountCents: true, account: { select: { kind: true } } },
+      select: { id: true, accountId: true, date: true, description: true, amountCents: true, account: { select: { kind: true } } },
     }),
     getSettings(),
     db.transactionCategory.findMany({ where: { householdId: HOUSEHOLD_ID }, select: { transactionId: true, category: true } }),
@@ -43,17 +44,25 @@ export async function getSpending(now: Date = new Date()): Promise<SpendingRespo
 
   const synced = connections.flatMap((c) => (c.lastSyncedAt ? [c.lastSyncedAt.getTime()] : []));
   return {
-    ...buildSpending({
+    input: {
       transactions: rows.map(({ account, ...t }) => ({ ...t, accountKind: account.kind as AccountKind })),
       today,
       overrides: categoryMap(overrides, (o) => o.transactionId),
       merchantRules: categoryMap(rules, (r) => r.merchantKey),
-    }),
-    currency: settings.currency,
-    connectionCount: connections.length,
-    transactionCount: rows.length,
-    lastSyncedAt: synced.length ? new Date(Math.max(...synced)).toISOString() : null,
+    },
+    settings,
+    summary: {
+      currency: settings.currency,
+      connectionCount: connections.length,
+      transactionCount: rows.length,
+      lastSyncedAt: synced.length ? new Date(Math.max(...synced)).toISOString() : null,
+    },
   };
+}
+
+export async function getSpending(now: Date = new Date()): Promise<SpendingResponse> {
+  const { input, summary } = await loadSpendingInput(now);
+  return { ...buildSpending(input), ...summary };
 }
 
 /**

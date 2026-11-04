@@ -1032,6 +1032,62 @@ export interface SpendingResponse extends SpendingAnalysisDTO {
 }
 
 // ---------------------------------------------------------------------------
+// Recap (week and month review)
+// ---------------------------------------------------------------------------
+
+export interface ReviewTotalsDTO {
+  /** Money in on `BANK` accounts that is not a transfer or a refund. */
+  incomeCents: number;
+  /** Tracked bill occurrences marked PAID, by due date. Positive magnitude. */
+  billsCents: number;
+  billsCount: number;
+  /** Money out of `BANK` and `CREDIT` accounts, transfers excluded (the Spend Analyzer total). */
+  spendingCents: number;
+  /** incomeCents - spendingCents. Bills are not subtracted again: their payments are already in spending. */
+  netCents: number;
+}
+
+export interface ReviewPeriodDTO extends ReviewTotalsDTO {
+  /** YYYY-MM-DD */
+  from: string;
+  /** Last day counted (inclusive). */
+  to: string;
+}
+
+export interface ReviewCategoryDTO {
+  category: SpendingCategory;
+  currentCents: number;
+  previousCents: number;
+}
+
+export interface ReviewComparisonDTO {
+  /** This month (1st through today) or this week (week start through today). */
+  current: ReviewPeriodDTO;
+  /** The whole previous month or week. */
+  previous: ReviewPeriodDTO;
+  /** The previous period up to the same day-of-month (or day-of-week) as today, for a like-for-like comparison. */
+  previousToDate: ReviewTotalsDTO;
+  /** Spending by category in both periods, largest current first. Excludes TRANSFERS. */
+  categories: ReviewCategoryDTO[];
+}
+
+export interface ReviewAnalysisDTO {
+  month: ReviewComparisonDTO;
+  week: ReviewComparisonDTO;
+  /** Earliest settled transaction date in the stored history; null when there are none. */
+  coverageStart: string | null;
+}
+
+export interface ReviewResponse extends ReviewAnalysisDTO {
+  currency: string;
+  /** Bank connections stored locally; 0 means there is no bank data to review. */
+  connectionCount: number;
+  /** Settled transactions examined (pending ones are ignored). */
+  transactionCount: number;
+  lastSyncedAt: string | null;
+}
+
+// ---------------------------------------------------------------------------
 // Savings goals
 // ---------------------------------------------------------------------------
 

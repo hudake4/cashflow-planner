@@ -52,3 +52,41 @@ export function matchCardPayments(transactions: readonly PaymentCandidate[]): Se
   }
   return paid;
 }
+
+export interface TransferCandidate extends PaymentCandidate {
+  accountId: string;
+}
+
+/**
+ * Ids of the bank-account receipts that are money moved from another bank account (checking to
+ * savings): the same amount left a different `BANK` account within a few days. Same pairing as
+ * card payments: one receipt per debit, the closest dates first.
+ */
+export function matchBankTransfers(transactions: readonly TransferCandidate[]): Set<string> {
+  const debits = new Map<number, TransferCandidate[]>();
+  for (const t of transactions) {
+    if (t.accountKind !== "BANK" || t.amountCents >= 0) continue;
+    const list = debits.get(-t.amountCents) ?? [];
+    list.push(t);
+    debits.set(-t.amountCents, list);
+  }
+
+  const pairs: { debit: string; receipt: string; gap: number }[] = [];
+  for (const receipt of transactions) {
+    if (receipt.accountKind !== "BANK" || receipt.amountCents <= 0) continue;
+    for (const debit of debits.get(receipt.amountCents) ?? []) {
+      const gap = Math.abs(diffDays(debit.date, receipt.date));
+      if (debit.accountId !== receipt.accountId && gap <= PAYMENT_MATCH_DAYS) pairs.push({ debit: debit.id, receipt: receipt.id, gap });
+    }
+  }
+  pairs.sort((a, b) => a.gap - b.gap || (a.debit < b.debit ? -1 : a.debit > b.debit ? 1 : 0) || (a.receipt < b.receipt ? -1 : a.receipt > b.receipt ? 1 : 0));
+
+  const paid = new Set<string>();
+  const received = new Set<string>();
+  for (const { debit, receipt } of pairs) {
+    if (paid.has(debit) || received.has(receipt)) continue;
+    paid.add(debit);
+    received.add(receipt);
+  }
+  return received;
+}

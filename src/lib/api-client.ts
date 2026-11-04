@@ -30,6 +30,7 @@ import type {
   SettingsPatchInput,
   SavingsGoalDTO,
   SavingsGoalInput,
+  ReviewResponse,
   SearchResponse,
   SpendingCategoryInput,
   SpendingResponse,
@@ -224,6 +225,8 @@ export const api = {
 
   /** Last month's and this month's spending by category from the stored bank history. Reads local data only. */
   getSpending: () => request<SpendingResponse>("/spending"),
+  /** The Recap: this week and this month against the previous ones. Reads local data only. */
+  getReview: () => request<ReviewResponse>("/review"),
   /** Sets (null = back to automatic) the category of one transaction; by default it is learned for the whole merchant. Returns the refreshed analysis. */
   setTransactionCategory: (transactionId: string, input: SpendingCategoryInput) =>
     request<SpendingResponse>(`/spending/transactions/${encodeURIComponent(transactionId)}/category`, json("PUT", input)),
