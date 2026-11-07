@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.32.0](https://github.com/hudake4/cashflow-planner/compare/v0.31.0...v0.32.0) (2026-11-07)
+
+
+### Features
+
+* **dashboard:** add notification history bell ([#134](https://github.com/hudake4/cashflow-planner/issues/134)) ([0890bac](https://github.com/hudake4/cashflow-planner/commit/0890bacb2201666a9725ac4c178d0648c21e0882))
+
 ## [0.31.0](https://github.com/hudake4/cashflow-planner/compare/v0.30.0...v0.31.0) (2026-11-04)
 
 
