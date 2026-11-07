@@ -60,7 +60,7 @@ Prefer `@/components/ui/*` exports over one-off controls. The old high-level exp
 | Dialog | Use `Dialog` for the legacy controlled API; use `DialogRoot`, `DialogContent`, `DialogTitle`, and related parts for composable dialogs |
 | Confirmation | `ConfirmDialog`; keep destructive confirmation explicit and show request errors inside the dialog |
 | Loading/empty/error | `Skeleton`, `LoadingRegion`, `EmptyState`, `ErrorState`, and `InlineStatus` from their existing modules |
-| Notification | Call `const toast = useToast()` then `toast(message, "success" | "error")`; the provider renders the token-styled Cult `HaloToast` through Sonner |
+| Notification | Call `const toast = useToast()` then `toast(message, "success" | "error")`; the provider renders the token-styled Cult `HaloToast` through Sonner. Every toast is also logged (last 50, in this browser's `localStorage`) and listed by the dashboard `NotificationBell` via `useNotificationHistory()` |
 | Expand/collapse | Compose `Expandable`, `ExpandableTrigger`, `ExpandableContent`, and optional `ExpandableCard*` parts from `ui/expandable` |
 | Side panel | Use `Sheet` for a side panel; use `Drawer` for bottom-anchored mobile content; existing `Dialog variant="drawer"` stays bottom-sheet on mobile and right-side on desktop |
 | Table, tabs, menu, tooltip | Use the matching shadcn primitives under `ui/table`, `ui/tabs`, `ui/dropdown-menu`, and `ui/tooltip` |

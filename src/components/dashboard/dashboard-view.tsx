@@ -18,6 +18,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { AnimatedBalance, Balance, EventAmount } from "@/components/ui/money";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/ui/states";
+import { NotificationBell } from "./notification-bell";
 import { TrendChart } from "./trend-chart";
 
 const DISCLAIMER = "Projected balance assumes all scheduled income arrives and all listed bills are paid on time.";
@@ -32,6 +33,7 @@ export function DashboardView() {
         description="How much you'll have left each week after income and upcoming bills."
         actions={
           <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+            <NotificationBell />
             <RecurringScanButton onAdded={() => void dash.reload()} className="flex-1 sm:flex-none" />
             <Button
               size="sm"
